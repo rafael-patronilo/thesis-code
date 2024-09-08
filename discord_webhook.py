@@ -1,7 +1,6 @@
 """
 This module handles discord notifications.
 It uses discord webhooks (no extra pip packages required). 
-The Webhook id and token should be specified as the environment variables DISCORD_WEBHOOK_ID and DISCORD_WEBHOOK_TOKEN.
 """
 import os
 import http.client
@@ -9,98 +8,187 @@ import logging
 import json
 import queue
 import threading
+import sys
 import time
+from typing import NamedTuple
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
-MESSAGE_MAX_LENGTH = 2000
-CODE_HEADER = "```diff\n"
-CODE_FOOTER = "```"
-CODE_POSITIVE_PREFIX = "+ "
-CODE_NEGATIVE_PREFIX = "- "
+MSG_MAX_LENGTH = 2000
 
-client = None
-webhook_path = None
-tasks = queue.Queue()
+class DiscordMessageBufferer:
+    """
+    Utility class to buffer messages and split them into multiple messages if they exceed the maximum length.
+    """
+    Block = NamedTuple("Block", [("header", str), ("footer", str)])
+    CODE_BLOCK = Block("```\n", "```")
+    DIFF_BLOCK = Block("```diff\n", "```")
+    EMPTY_BLOCK = Block("", "")
 
-def __worker():
-    while True:
-        task = tasks.get()
-        task()
+    def __init__(self) -> None:
+        self.lock = threading.RLock()
+        self.buffer = queue.Queue()
+        self.message = ""
+        self.extras = {}
+        self.block = self.EMPTY_BLOCK
+        self.prefix = ""
+    
+    def __append_buffering(self, text: str):
+        with self.lock:
+            if len(self.message) + len(text) + len(self.block.footer) > MSG_MAX_LENGTH:
+                self.break_msg()
+            while len(self.message) + len(text) + len(self.block.footer) > MSG_MAX_LENGTH:
+                excess = len(self.message) + len(text) + len(self.block.footer) - MSG_MAX_LENGTH
+                self.message += text[:-excess] + self.block.footer
+                self.break_msg()
+                text = text[-excess:]
+            self.message += text
+    
+    def append(self, text: str):
+        with self.lock:
+            if text.endswith("\n"):
+                text = text[:-1].replace("\n", "\n" +  self.prefix) + "\n"
+            else:
+                text = text.replace("\n", "\n" +  self.prefix)
+            if self.message.endswith("\n"):
+                text = self.prefix + text
+            self.__append_buffering(text)
+    
+    def appendln(self, text: str):
+        self.append(text + "\n")
+    
+    def get_queue(self):
+        return self.buffer
+    
+    def begin_code_block(self):
+        self.begin_block(self.CODE_BLOCK)
+        
+    def end_code_block(self):
+        with self.lock:
+            if self.block != self.CODE_BLOCK:
+                raise ValueError("Code block not opened.")
+            self.end_block()
 
-worker_thread = threading.Thread(target=__worker, daemon=True)
+    def begin_diff_block(self):
+        self.begin_block(self.DIFF_BLOCK)
+        
+    def end_diff_block(self):
+        with self.lock:
+            if not self.block.pop(0) == self.DIFF_BLOCK:
+                raise ValueError("Diff block not opened.")
+            self.end_block()
+    
+    def begin_block(self, block):
+        with self.lock:
+            if self.block != self.EMPTY_BLOCK and block != self.EMPTY_BLOCK:
+                raise ValueError("Block already opened.")
+            self.block = block
+            self.append(block.header)
+    
+    def end_block(self):
+        with self.lock:
+            self.append(self.block.footer)
+            block = self.block
+            self.block = self.EMPTY_BLOCK
+            return block
+        
+    def break_msg(self):
+        with self.lock:
+            if self.message != "" and self.message != self.block.header:
+                self.message += self.block.footer
+                payload = {'content':self.message}
+                payload.update(self.extras)
+                self.buffer.put(payload)
+                self.message = self.block.header
+                self.extras = {}
+    
+    def begin_prefix(self, prefix: str):
+        with self.lock:
+            if self.prefix != "":
+                raise ValueError("Prefix already set.")
+            self.prefix = prefix
+        
+    def end_prefix(self):
+        with self.lock:
+            prefix = self.prefix
+            self.prefix = ""
+            return prefix
+    
+    def mention_everyone(self):
+        block = self.end_block()
+        prefix = self.end_prefix()
+        self.append("@everyone\n")
+        self.begin_block(block)
+        self.begin_prefix(prefix)
 
-def __connect() -> bool:
-    global client, webhook_path
-    if webhook_path is None:
-        webhook_path = os.getenv('DISCORD_WEBHOOK_PATH')
-        if webhook_path is None:
-            logger.warning("DISCORD_WEBHOOK_PATH not set. Discord notifications will not be sent.")
-            return False
-    if client is None:
-        client = http.client.HTTPSConnection("discord.com")
-    if not worker_thread.is_alive():
-        worker_thread.start()
-    return True
 
-
-
-class DiscordLoggerHandler(logging.Handler):
+class DiscordWebhookHandler(logging.Handler):
+    """
+    A logging handler that sends logs to a discord webhook.
+    """
     def __init__(self, 
+                webhook_url: str,
                 level = logging.INFO, 
                 mention_everyone_min_level = logging.ERROR,
-                buffer_flush_interval = 300
+                mention_everyone_levels = None,
+                buffer_flush_interval = 10
                 ):
-        super().__init__()
-        self.message_buffer = ""
-        self.lock = threading.Lock()
-        self.__buffer_flush_interval = buffer_flush_interval
+        self.webhook_url = webhook_url
+        parsed_url = urlparse(webhook_url)
+        self.client = http.client.HTTPSConnection(parsed_url.netloc)
+        self.webhook_path = parsed_url.path
+        self.message_buffer = DiscordMessageBufferer()
+        self.message_buffer.begin_diff_block()
+        self.buffer_flush_interval = buffer_flush_interval
+        self.mention_everyone_min_level = mention_everyone_min_level
+        self.mention_everyone_levels = mention_everyone_levels or []
         self.setLevel(level)
-        self.__buffer_flush_worker_thread = threading.Thread(target=self.__buffer_flush_worker, daemon=True)
+        self.__buffer_flush_worker_thread = threading.Thread(target=self.__buffer_flush_worker)
         self.__buffer_flush_worker_thread.start()
+        super().__init__()
         
         
     def __buffer_flush_worker(self):
         while True:
-            time.sleep(self.buffer_flush_interval)
-            if len(self.message_buffer) > 0:
-                self.lock.acquire()
-                if len(self.message_buffer) > 0:
-                    send(self.message_buffer)
-                    self.message_buffer = ""
-                self.lock.release()
-        
-    def emit(self, record):
-        if not __connect():
-            return
-        self.lock.acquire()
-        log_entry = self.format(record)
-        prefix = CODE_NEGATIVE_PREFIX if record.levelno >= logging.WARNING else CODE_POSITIVE_PREFIX
-        if record.levelno >= logging.WARNING:
-            prefix = CODE_NEGATIVE_PREFIX
-        if len(self.message_buffer) + len(log_entry) + len(CODE_HEADER) + len(CODE_FOOTER) > MESSAGE_MAX_LENGTH:
-            send(self.message_buffer)
-            self.message_buffer = ""
-        self.message_buffer += log_entry + "\n"
-        #...
-        self.lock.release()
+            msg_queue = self.message_buffer.get_queue()
+            try:
+                payload = msg_queue.get(timeout=self.buffer_flush_interval)
+                self.client.request(
+                    "POST", 
+                    self.webhook_path,
+                    json.dumps(payload),
+                    {"Content-Type": "application/json"}
+                    )
+                response = self.client.getresponse()
+                if response.status != 204:
+                    print( 
+                        "Failed to send message to discord webhook\n" 
+                        f"Status code: {response.status} {response.reason}\n"
+                        f"Request payload: {payload}",
+                        file=sys.stderr
+                    )
+                response.read()
+                response.close()
+            except queue.Empty:
+                self.message_buffer.break_msg()
 
-def send(message: str):
-    if not __connect():
-        return
-    def task():
-        payload = {
-            "content": message
-        }
-        headers = {
-            "Content-Type": "application/json"
-        }
-        client.request("POST", f"/{webhook_path}", body=json.dumps(payload), headers=headers)
-        response = client.getresponse()
-        if response.status != 204:
-            logger.warning(f"Failed to send discord notification. Status code: {response.status}")
-        else:
-            logger.debug("Discord notification sent.")
-        response.read()
-        response.close()
-    tasks.put(task)
+    def flush(self) -> None:
+        self.message_buffer.break_msg()
+        
+    
+    def emit(self, record):
+        with self.message_buffer.lock:
+            log_entry = self.format(record)
+            if record.levelno >= logging.WARNING:
+                self.message_buffer.begin_prefix("- ")
+            else:
+                self.message_buffer.begin_prefix("+ ")
+            self.message_buffer.appendln(log_entry)
+            self.message_buffer.end_prefix()
+            if (
+                record.levelno >= self.mention_everyone_min_level
+                or record.levelno in self.mention_everyone_levels
+            ):
+                self.message_buffer.mention_everyone()
+                self.message_buffer.break_msg()

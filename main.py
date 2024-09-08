@@ -1,11 +1,12 @@
 import logging
+import os
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger("main")
+logger = logging.getLogger()
 
-import torch
+#import torch
 import discord_webhook
 
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+logger.addHandler(discord_webhook.DiscordWebhookHandler(webhook_url=os.getenv("DISCORD_WEBHOOK_URL")))
+#device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = 'cpu'
 logger.info(f"Torch device: {device}")
-discord_webhook.notify("Torch device: " + str(device))
