@@ -1,6 +1,6 @@
 """
 This module handles discord notifications.
-It uses discord webhooks (no extra pip packages required). 
+It uses discord webhooks (http api is handled directly, no extra libraries required). 
 """
 import os
 import http.client
@@ -38,12 +38,19 @@ class DiscordMessageBufferer:
         with self.lock:
             if len(self.message) + len(text) + len(self.block.footer) > MSG_MAX_LENGTH:
                 self.break_msg()
+            msg_split = False
             while len(self.message) + len(text) + len(self.block.footer) > MSG_MAX_LENGTH:
+                msg_split = True
                 excess = len(self.message) + len(text) + len(self.block.footer) - MSG_MAX_LENGTH
-                self.message += text[:-excess] + self.block.footer
+                self.message += text[:-excess]
                 self.break_msg()
-                text = text[-excess:]
+                if text[-excess-1] == "\n":
+                    text = text[-excess:]
+                else:
+                    text = self.prefix + text[-excess:]
             self.message += text
+            if msg_split:
+                self.break_msg()
     
     def append(self, text: str):
         with self.lock:
@@ -119,6 +126,7 @@ class DiscordMessageBufferer:
         block = self.end_block()
         prefix = self.end_prefix()
         self.append("@everyone\n")
+        self.break_msg()
         self.begin_block(block)
         self.begin_prefix(prefix)
 
@@ -132,7 +140,7 @@ class DiscordWebhookHandler(logging.Handler):
                 level = logging.INFO, 
                 mention_everyone_min_level = logging.ERROR,
                 mention_everyone_levels = None,
-                buffer_flush_interval = 10
+                buffer_flush_interval = 300
                 ):
         self.webhook_url = webhook_url
         parsed_url = urlparse(webhook_url)
@@ -144,12 +152,14 @@ class DiscordWebhookHandler(logging.Handler):
         self.mention_everyone_min_level = mention_everyone_min_level
         self.mention_everyone_levels = mention_everyone_levels or []
         self.setLevel(level)
-        self.__buffer_flush_worker_thread = threading.Thread(target=self.__buffer_flush_worker)
-        self.__buffer_flush_worker_thread.start()
+        self.__buffer_consumer_thread = threading.Thread(
+            target=self.__buffer_consumer, 
+            name='discord_webhook_log_handler')
+        self.__buffer_consumer_thread.start()
         super().__init__()
         
         
-    def __buffer_flush_worker(self):
+    def __buffer_consumer(self):
         while True:
             msg_queue = self.message_buffer.get_queue()
             try:
@@ -162,22 +172,30 @@ class DiscordWebhookHandler(logging.Handler):
                     )
                 response = self.client.getresponse()
                 if response.status != 204:
-                    print( 
+                    logger.warn( 
                         "Failed to send message to discord webhook\n" 
                         f"Status code: {response.status} {response.reason}\n"
-                        f"Request payload: {payload}",
-                        file=sys.stderr
+                        f"Request payload: {payload}"
                     )
                 response.read()
                 response.close()
             except queue.Empty:
                 self.message_buffer.break_msg()
+            except Exception as e:
+                logger.warn( 
+                        "Failed to send message to discord webhook\n" 
+                        f"Exception: {e}\n"
+                        f"Request payload: {payload}",
+                        exc_info=True
+                    )
 
     def flush(self) -> None:
         self.message_buffer.break_msg()
         
     
     def emit(self, record):
+        if record.threadName == self.__buffer_consumer_thread.getName():
+            return
         with self.message_buffer.lock:
             log_entry = self.format(record)
             if record.levelno >= logging.WARNING:
@@ -191,4 +209,3 @@ class DiscordWebhookHandler(logging.Handler):
                 or record.levelno in self.mention_everyone_levels
             ):
                 self.message_buffer.mention_everyone()
-                self.message_buffer.break_msg()
