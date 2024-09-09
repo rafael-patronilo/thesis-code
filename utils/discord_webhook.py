@@ -82,7 +82,7 @@ class DiscordMessageBufferer:
         
     def end_diff_block(self):
         with self.lock:
-            if not self.block.pop(0) == self.DIFF_BLOCK:
+            if not self.block == self.DIFF_BLOCK:
                 raise ValueError("Diff block not opened.")
             self.end_block()
     
@@ -137,7 +137,6 @@ class DiscordWebhookHandler(logging.Handler):
     """
     def __init__(self, 
                 webhook_url: str,
-                level = logging.INFO, 
                 mention_everyone_min_level = logging.ERROR,
                 mention_everyone_levels = None,
                 buffer_flush_interval = 300
@@ -151,7 +150,6 @@ class DiscordWebhookHandler(logging.Handler):
         self.buffer_flush_interval = buffer_flush_interval
         self.mention_everyone_min_level = mention_everyone_min_level
         self.mention_everyone_levels = mention_everyone_levels or []
-        self.setLevel(level)
         self.__buffer_consumer_thread = threading.Thread(
             target=self.__buffer_consumer, 
             name='discord_webhook_log_handler')
