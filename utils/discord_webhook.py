@@ -155,41 +155,44 @@ class DiscordWebhookHandler(logging.Handler):
             name='discord_webhook_log_handler')
         self.__buffer_consumer_thread.start()
         super().__init__()
-        
-        
-    def __buffer_consumer(self):
-        while True:
-            msg_queue = self.message_buffer.get_queue()
+    
+    def __try_send_message(self, payload):
+        try:
             try:
-                payload = msg_queue.get(timeout=self.buffer_flush_interval)
-                self.client.request(
-                    "POST", 
-                    self.webhook_path,
-                    json.dumps(payload),
-                    {"Content-Type": "application/json"}
-                    )
+                self.client.request("POST", self.webhook_path, json.dumps(payload),
+                        {"Content-Type": "application/json"})
                 response = self.client.getresponse()
                 if response.status != 204:
-                    logger.warn( 
-                        "Failed to send message to discord webhook\n" 
-                        f"Status code: {response.status} {response.reason}\n"
-                        f"Request payload: {payload}"
-                    )
+                    raise Exception(f"Unexpected response code: {response.status}\n{response.msg}\n")
+            finally:
                 response.read()
                 response.close()
-            except queue.Empty:
+        except Exception as e:
+            logger.warning( 
+                    "Failed to send message to discord webhook\n"
+                    f"Request payload: {payload}",
+                    exc_info=True
+                )
+        
+    def __buffer_consumer(self):
+        msg_queue = self.message_buffer.get_queue()
+        try:
+            while True:
+                try:
+                    payload = msg_queue.get(timeout=self.buffer_flush_interval)
+                    self.__try_send_message(payload)
+                except queue.Empty:
+                    self.message_buffer.break_msg()
+        except SystemExit | KeyboardInterrupt as e:
+            with self.message_buffer.lock:
                 self.message_buffer.break_msg()
-            except Exception as e:
-                logger.warn( 
-                        "Failed to send message to discord webhook\n" 
-                        f"Exception: {e}\n"
-                        f"Request payload: {payload}",
-                        exc_info=True
-                    )
+                while msg_queue.not_empty:
+                    payload = msg_queue.get(block=False)
+                    self.__try_send_message(payload)
+            raise e
 
     def flush(self) -> None:
         self.message_buffer.break_msg()
-        
     
     def emit(self, record):
         if record.threadName == self.__buffer_consumer_thread.getName():

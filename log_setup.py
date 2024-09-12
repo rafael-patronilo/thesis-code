@@ -39,7 +39,7 @@ def setup_logging():
         discord_webhook_handler.setFormatter(formatter)
         logger.addHandler(discord_webhook_handler)
     else:
-        logger.warn("Discord webhook url not specified, discord logging disabled")
+        logger.warning("Discord webhook url not specified, discord logging disabled")
     
     logger.info(
 f"""Start of logging
@@ -47,3 +47,5 @@ f"""Start of logging
 \tLevel: {logging.getLevelName(LOG_LEVEL)}
 \tHandlers: {", ".join(type(handler).__name__ for handler in logger.handlers)}"""
 )
+    for handler in logger.handlers:
+        handler.flush()
