@@ -1,10 +1,11 @@
-from typing import NamedTuple, Any
+from typing import Optional, Any
 from model_file_manager import ModelFileManager
 import logging
 from collections import deque
-from modules import select_metrics
+from . import modules
+from .modules import metrics
 import torch
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard.writer import SummaryWriter
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ class MetricsLogger:
                 metric_functions : dict[str, Any] | list[str],
                 dataloader,
                 last_n_size = 10,
-                tensorboard_writer : SummaryWriter = None,
+                tensorboard_writer : Optional[SummaryWriter] = None,
                 ):
         self.identifier = identifier
         self.__metric_functions : dict[str, Any]
@@ -91,7 +92,7 @@ class MetricsLogger:
         self.last_n.appendleft({})
         y_pred, y_true = self.__eval(model)
         for metric_name, metric_fn in self.ordered_metrics:
-            value = metric_fn(y_pred=y_pred, y_true=y_true)
+            value = metric_fn(epoch=epoch, y_pred=y_pred, y_true=y_true)
             self.sums[metric_name] += value
             self.sums_last_n[metric_name] += value
             self.last_n[0][metric_name] = value

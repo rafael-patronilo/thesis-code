@@ -153,8 +153,8 @@ class Trainer:
         if model_details.train_metrics is not None:
             train_metrics = model_details.train_metrics
         
-        train_metrics = modules.select_metrics(train_metrics)
-        val_metrics = modules.select_metrics(val_metrics)
+        train_metrics = modules.metrics.select_metrics(train_metrics)
+        val_metrics = modules.metrics.select_metrics(val_metrics)
         train_metrics['loss'] = loss_fn
         val_metrics['loss'] = loss_fn
 
