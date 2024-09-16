@@ -1,6 +1,6 @@
 
 from pathlib import Path
-from typing import Literal, NamedTuple, Any
+from typing import Literal, NamedTuple, Any, Optional
 import datetime
 import logging
 import torch
@@ -14,14 +14,20 @@ ModelDetails = NamedTuple(
     "ModelDetails",
     [
         ("architecture", Any),
-        ("optimizer", Any)
+        ("optimizer", str),
+        ("loss_fn", str),
+        ("dataset", str),
+        ("metrics", list[str]),
+        ("batch_size", int),
+        ("train_metrics", Optional[list[str]]),
     ]
 )
 
 class ModelFileManager:
     MODEL_FILE_NAME = "model.pt"
     CHECKPOINTS_DIR = "checkpoints"
-    METRICS_FILE_NAME = "metrics.csv"
+    METRICS_FORMAT = "metrics{identifier}.csv"
+    METRICS_DIR = ""
     CHECKPOINT_FORMAT = "epoch_{epoch:0>9}.pt"
     
     def __init__(self,
@@ -52,42 +58,45 @@ class ModelFileManager:
         self.path = Path(MODELS_PATH).joinpath(self.model_name + '_' + self.model_identifier)
         self.checkpoint_path = self.path.joinpath(self.CHECKPOINTS_DIR)
         self.model_file = self.path.joinpath(self.MODEL_FILE_NAME)
-        self.metrics_file = self.path.joinpath(self.METRICS_FILE_NAME)
+        self.metrics_dest = self.path.joinpath(self.METRICS_DIR)
         self.__metrics_stream = None
 
     def __create_paths(self, exists_ok = False):
         self.path.mkdir(parents=True, exist_ok=exists_ok)
         self.checkpoint_path.mkdir(exist_ok=exists_ok)
 
-    def init_metrics_file(self, metrics : list[str]):
+    def init_metrics_file(self, metrics : list[str], identifier : str = ""):
         logger.debug(f"Initializing metrics file for {metrics}")
+        metrics_file = self.metrics_dest.joinpath(self.METRICS_FORMAT.format(identifier=identifier))
+        file_stream : Any
         def init_file():
-            logger.info(f"Creating new metrics file at {self.metrics_file}")
-            self.__metrics_stream = self.metrics_file.open('a+')
-            self.__metrics_stream.write(",".join(metrics) + "\n")
-        if self.metrics_file.exists():
-            logger.debug(f"Metrics file already exists at {self.metrics_file}")
+            logger.info(f"Creating new metrics file at {metrics_file}")
+            file_stream = metrics_file.open('w+')
+            file_stream.write(",".join(metrics) + "\n")
+        if metrics_file.exists():
+            logger.debug(f"Metrics file already exists at {metrics_file}")
             conflict = False
-            with self.metrics_file.open('r') as f:
+            with metrics_file.open('r') as f:
                 header = f.readline().strip().split(',')
-                conflict = header != metrics
+                if header != metrics:
+                    conflict = True
+                    backup_name = self.METRICS_FORMAT.format(identifier=identifier + datetime.datetime.now().isoformat())
+                    backup_path = self.metrics_dest.joinpath('old').joinpath(backup_name)
+                    logger.error(
+                        f"Existing metrics file has different header: Expected {metrics}, got {header}\n"
+                        f"Backing up to {backup_path}"
+                    )
+                    with backup_path.open('w+') as backup:
+                        backup.write(",".join(header) + "\n")
+                        backup.write(f.read())
             if conflict:
-                self.metrics_file = self.metrics_file.with_name(
-                    f"{datetime.datetime.now().isoformat()}{self.metrics_file.name}")
-                logger.error(
-                    f"Existing metrics file has different header: Expected {metrics}, got {header}\n"
-                    f"Rerouting metrics output to {self.metrics_file}"
-                )
                 init_file()
             else:
-                self.__metrics_stream = self.metrics_file.open('a')
+                file_stream = metrics_file.open('a')
         else:
             init_file()
-
-    def append_metrics(self, text : str):
-        if self.__metrics_stream is None:
-            raise ValueError("Metrics file not initialized")
-        self.__metrics_stream.write(text)
+        assert file_stream is not None
+        return file_stream
 
     def save_model_details(self, details : ModelDetails):
         torch.save(details, self.model_file)

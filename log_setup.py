@@ -45,7 +45,8 @@ def setup_logging():
 f"""Start of logging
 \tTime: {datetime.datetime.now().astimezone().isoformat()}
 \tLevel: {logging.getLevelName(LOG_LEVEL)}
-\tHandlers: {", ".join(type(handler).__name__ for handler in logger.handlers)}"""
+\tActive Handlers: {", ".join(type(handler).__name__ for handler in logger.handlers)}
+\tLog file: {logfile}"""
 )
     for handler in logger.handlers:
         handler.flush()

@@ -15,6 +15,8 @@ logger.info("Using torch device: %s", device)
 def signal_handler(sig, frame):
     logger.warning("Received signal %s, attempting graceful exit", sig)
     sys.exit(0)
+
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
+logger.info("Signal handlers set")
 

@@ -2,26 +2,40 @@ from typing import NamedTuple, Any
 from model_file_manager import ModelFileManager
 import logging
 from collections import deque
+from modules import select_metrics
+import torch
+from torch.utils.tensorboard import SummaryWriter
 
 logger = logging.getLogger(__name__)
 
 class MetricsLogger:
     def __init__(self, 
+                identifier : str,
                 model_file_manager : ModelFileManager,
-                metric_functions : dict[str, Any],
+                metric_functions : dict[str, Any] | list[str],
                 dataloader,
-                last_n_size = 10):
-        self.model_file_manager = model_file_manager
-        self.__metric_functions = metric_functions
-        
-        self.ordered_metrics = sorted([(k, v) for k, v in metric_functions.items()] , key=lambda x: x[0])
-        self.metrics_header = ['epoch', 'loss'] + [k for (k, _) in self.ordered_metrics]
+                last_n_size = 10,
+                tensorboard_writer : SummaryWriter = None,
+                ):
+        self.identifier = identifier
+        self.__metric_functions : dict[str, Any]
+        if metric_functions is list[str]:
+            self.__metric_functions = select_metrics(metric_functions)
+        else:
+            self.__metric_functions = metric_functions # type: ignore
+        self.last_record = None
+        def sort_key(metric):
+            metric_name = metric[0]
+            return (0 if metric_name.lower() == 'loss' else 1, metric_name)
+        self.ordered_metrics = sorted([(k, v) for k, v in self.__metric_functions.items()] , key=sort_key)
+        self.metrics_header = ['epoch'] + [k for (k, _) in self.ordered_metrics]
         self.sums : dict = {k: 0.0 for k, _ in self.ordered_metrics}
         self.last_n = deque([{k: 0.0 for k, _ in self.ordered_metrics} for _ in range(last_n_size)])
         self.sums_last_n : dict = {k: 0.0 for k, _ in self.ordered_metrics}
         self.buffered_records = []
         self.dataloader = dataloader
-        self.model_file_manager.init_metrics_file(self.metrics_header)
+        self.tensorboard_writer = tensorboard_writer
+        self.file_handle = model_file_manager.init_metrics_file(self.metrics_header, identifier)
 
     def state_dict(self):
         return {
@@ -53,23 +67,37 @@ class MetricsLogger:
     
     def flush(self):
         if len(self.buffered_records) > 0:
-            self.model_file_manager.append_metrics(
+            self.file_handle.write(
                 "\n".join(",".join(map(str, record)) for record in self.buffered_records) + "\n")
             self.buffered_records = []
-    
-    def log(self, epoch, loss, y_pred, y_true):
+
+    def __eval(self, model):
+        model.eval()
+        y_preds = []
+        y_trues = []
+        with torch.no_grad():
+            for x, y_true in self.dataloader:
+                y_preds.append(model(x))
+                y_trues.append(y_true)
+        return torch.cat(y_preds), torch.cat(y_trues)
+
+    def log(self, epoch, model):
         record = []
         record.append(epoch)
-        record.append(loss)
         discarded = self.last_n.pop()
+        self.last_record = {}
         for k, v in discarded:
             self.sums_last_n[k] -= v
         self.last_n.appendleft({})
+        y_pred, y_true = self.__eval(model)
         for metric_name, metric_fn in self.ordered_metrics:
             value = metric_fn(y_pred=y_pred, y_true=y_true)
             self.sums[metric_name] += value
             self.sums_last_n[metric_name] += value
             self.last_n[0][metric_name] = value
+            self.last_record[metric_name] = value
+            if self.tensorboard_writer is not None:
+                self.tensorboard_writer.add_scalar(f"{metric_name}/{self.identifier}", value, epoch)
             record.append(value)
         
         self.buffered_records.append(record)
