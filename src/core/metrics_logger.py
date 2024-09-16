@@ -1,10 +1,9 @@
 from typing import Optional, Any
-from model_file_manager import ModelFileManager
+from .model_file_manager import ModelFileManager
 import logging
 from collections import deque
 import torch
 from .modules.metrics import select_metrics
-from torch.utils.tensorboard.writer import SummaryWriter
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +14,7 @@ class MetricsLogger:
                 metric_functions : dict[str, Any] | list[str],
                 dataloader,
                 last_n_size = 10,
-                tensorboard_writer : Optional[SummaryWriter] = None,
+                tensorboard_writer = None,
                 ):
         self.identifier = identifier
         self.__metric_functions : dict[str, Any]

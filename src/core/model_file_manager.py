@@ -23,7 +23,7 @@ class ModelFileManager:
     def __init__(self,
             model_name : str,
             model_identifier : str = "",
-            conflict_strategy : Literal['new', 'error', 'ignore'] = 'new',
+            conflict_strategy : Literal['new', 'error', 'load'] = 'new',
         ) -> None:
         self.model_name = model_name
         self.model_identifier = model_identifier
@@ -31,8 +31,9 @@ class ModelFileManager:
         self.__format_paths()
         if self.path.exists():
             match conflict_strategy:
-                case 'ignore':
-                    pass
+                case 'load':
+                    logger.debug(f"Loading existing model path at {self.path}")
+                    self.__create_paths(exists_ok=True)
                 case 'new':
                     self.model_identifier = datetime.datetime.now().isoformat()
                     logger.debug(f"Model path already exists at {self.path}, changing identifier to {self.model_identifier}.")
@@ -44,6 +45,8 @@ class ModelFileManager:
                     raise FileExistsError(f"Model path already exists at {self.path}")
                 case _:
                     raise ValueError(f"Invalid conflict strategy: {conflict_strategy}")
+        else:
+            self.__create_paths(exists_ok=False)
     
     def __format_paths(self):
         self.path = Path(MODELS_PATH).joinpath(self.model_name + '_' + self.model_identifier)
@@ -52,8 +55,10 @@ class ModelFileManager:
         self.metrics_dest = self.path.joinpath(self.METRICS_DIR)
 
     def __create_paths(self, exists_ok = False):
+        logger.debug(f"Creating paths for model {self.model_name} at {self.path}")
         self.path.mkdir(parents=True, exist_ok=exists_ok)
-        self.checkpoint_path.mkdir(exist_ok=exists_ok)
+        self.checkpoint_path.mkdir(parents=True, exist_ok=True)
+        self.metrics_dest.mkdir(parents=True, exist_ok=True)
 
     def init_metrics_file(self, metrics : list[str], identifier : str = ""):
         logger.debug(f"Initializing metrics file for {metrics}")
@@ -74,7 +79,7 @@ class ModelFileManager:
                     backup_path = self.metrics_dest.joinpath('old').joinpath(backup_name)
                     logger.error(
                         f"Existing metrics file has different header: Expected {metrics}, got {header}\n"
-                        f"    Backing it up to {backup_path} and creating a new one."
+                        f"Backing it up to {backup_path} and creating a new one."
                     )
                     with backup_path.open('w+') as backup:
                         backup.write(",".join(header) + "\n")
@@ -98,7 +103,7 @@ class ModelFileManager:
     def save_checkpoint(self, epoch, state_dict):
         path = self.checkpoint_path.joinpath(self.CHECKPOINT_FORMAT.format(epoch=epoch))
         if path.exists():
-            logger.warn(f"Overwriting existing checkpoint at {path}")
+            logger.warning(f"Overwriting existing checkpoint at {path}")
         logger.info(f"Saving checkpoint at {path}")
         torch.save(state_dict, path)
 

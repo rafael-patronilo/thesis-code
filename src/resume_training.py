@@ -11,6 +11,6 @@ model_identifier = parts[-1]
 with ModelFileManager(
     model_name=model_name, 
     model_identifier=model_identifier, 
-    conflict_strategy='ignore') as file_manager:
+    conflict_strategy='load') as file_manager:
     # Load trainer
     trainer = Trainer.load_checkpoint(file_manager, device=main.device)

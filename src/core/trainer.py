@@ -4,11 +4,11 @@ import torch
 from torch.utils.data import DataLoader
 from typing import Optional, Any
 import itertools
-from metrics_logger import MetricsLogger
-from model_file_manager import ModelFileManager
-from core.datasets import dataset_registry
+from .metrics_logger import MetricsLogger
+from .model_file_manager import ModelFileManager
+from .datasets import dataset_registry
 from log_setup import NOTIFY
-import modules
+from . import modules
 from . import ModelDetails
 
 logger = logging.getLogger(__name__)
@@ -61,10 +61,10 @@ class Trainer:
         
     def train_until(self, criterion):
         logger.info("Initiating training loop...\n"
-                    f"    Model: {self.model_file_manager.model_name}\n"
-                    f"    Epoch: {self.epoch}\n"
-                    f"    Checkpoint each: {self.checkpoint_each}\n"
-                    f"    Keyboard interrupt to save checkpoint and exit.")
+                    f"Model: {self.model_file_manager.model_name}\n"
+                    f"Epoch: {self.epoch}\n"
+                    f"Checkpoint each: {self.checkpoint_each}\n"
+                    f"Keyboard interrupt to save checkpoint and exit.")
         try:
             while not criterion(self):
                 self.__train_epoch(self.epoch)
@@ -98,8 +98,8 @@ class Trainer:
                 averages_last_n[metric_logger.identifier] = metric_logger.averages_last_n(epoch)
             logger.info(
                 f"Epoch {epoch}\n" 
-                f"    Avg: {averages}\n"
-                f"    Avg last {averages_last_n}"
+                f"Avg: {averages}\n"
+                f"Avg last {averages_last_n}"
             )
         else:
             logger.info(f"Epoch {epoch}")

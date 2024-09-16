@@ -12,6 +12,7 @@ import sys
 import time
 from typing import NamedTuple
 from urllib.parse import urlparse
+import main
 
 logger = logging.getLogger(__name__)
 
@@ -151,12 +152,13 @@ class DiscordWebhookHandler(logging.Handler):
         self.mention_everyone_min_level = mention_everyone_min_level
         self.mention_everyone_levels = mention_everyone_levels or []
         self.__buffer_consumer_thread = threading.Thread(
-            target=self.__buffer_consumer, 
-            name='discord_webhook_log_handler')
+            target=self._buffer_consumer, 
+            name='discord_webhook_log_handler',
+            daemon=True)
         self.__buffer_consumer_thread.start()
         super().__init__()
     
-    def __try_send_message(self, payload):
+    def _try_send_message(self, payload):
         try:
             try:
                 self.client.request("POST", self.webhook_path, json.dumps(payload),
@@ -174,13 +176,13 @@ class DiscordWebhookHandler(logging.Handler):
                     exc_info=True
                 )
         
-    def __buffer_consumer(self):
+    def _buffer_consumer(self):
         msg_queue = self.message_buffer.get_queue()
         try:
             while True:
                 try:
                     payload = msg_queue.get(timeout=self.buffer_flush_interval)
-                    self.__try_send_message(payload)
+                    self._try_send_message(payload)
                 except queue.Empty:
                     self.message_buffer.break_msg()
         except SystemExit | KeyboardInterrupt as e:
@@ -188,7 +190,7 @@ class DiscordWebhookHandler(logging.Handler):
                 self.message_buffer.break_msg()
                 while msg_queue.not_empty:
                     payload = msg_queue.get(block=False)
-                    self.__try_send_message(payload)
+                    self._try_send_message(payload)
             raise e
 
     def flush(self) -> None:

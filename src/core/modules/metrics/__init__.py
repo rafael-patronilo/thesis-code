@@ -3,7 +3,7 @@ from typing import Any
 import torch
 import inspect
 from torcheval.metrics import functional as torch_metrics
-from epoch_time import Elapsed
+from .elapsed import Elapsed
 from typing import Callable
 
 def _decorate_torch_metric(metric : Callable[[torch.Tensor, torch.Tensor], torch.Tensor]) -> Callable[[torch.Tensor, torch.Tensor], float]:
