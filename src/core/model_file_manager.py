@@ -5,23 +5,13 @@ import datetime
 import logging
 import torch
 import os
+from . import ModelDetails
 
 logger = logging.getLogger(__name__)
 
 MODELS_PATH = os.getenv("MODEL_PATH") or "storage/models"
 
-ModelDetails = NamedTuple(
-    "ModelDetails",
-    [
-        ("architecture", Any),
-        ("optimizer", str),
-        ("loss_fn", str),
-        ("dataset", str),
-        ("metrics", list[str]),
-        ("batch_size", int),
-        ("train_metrics", Optional[list[str]]),
-    ]
-)
+
 
 class ModelFileManager:
     MODEL_FILE_NAME = "model.pt"
@@ -37,6 +27,7 @@ class ModelFileManager:
         ) -> None:
         self.model_name = model_name
         self.model_identifier = model_identifier
+        self.__metrics_streams = []
         self.__format_paths()
         if self.path.exists():
             match conflict_strategy:
@@ -59,7 +50,6 @@ class ModelFileManager:
         self.checkpoint_path = self.path.joinpath(self.CHECKPOINTS_DIR)
         self.model_file = self.path.joinpath(self.MODEL_FILE_NAME)
         self.metrics_dest = self.path.joinpath(self.METRICS_DIR)
-        self.__metrics_stream = None
 
     def __create_paths(self, exists_ok = False):
         self.path.mkdir(parents=True, exist_ok=exists_ok)
@@ -84,7 +74,7 @@ class ModelFileManager:
                     backup_path = self.metrics_dest.joinpath('old').joinpath(backup_name)
                     logger.error(
                         f"Existing metrics file has different header: Expected {metrics}, got {header}\n"
-                        f"Backing up to {backup_path}"
+                        f"    Backing it up to {backup_path} and creating a new one."
                     )
                     with backup_path.open('w+') as backup:
                         backup.write(",".join(header) + "\n")
@@ -96,6 +86,7 @@ class ModelFileManager:
         else:
             init_file()
         assert file_stream is not None
+        self.__metrics_streams.append(file_stream)
         return file_stream
 
     def save_model_details(self, details : ModelDetails):
@@ -118,11 +109,11 @@ class ModelFileManager:
         if len(checkpoint_files) > 0:
             return torch.load(checkpoint_files[-1][1])
         else:
-            raise FileNotFoundError(f"No checkpoint found for model {self.model_name} with identifier {self.model_identifier}")
+            return None
 
     def __enter__(self):
         return self
     
     def __exit__(self, exc_type, exc_value, traceback):
-        if self.__metrics_stream is not None:
-            self.__metrics_stream.close()
+        for stream in self.__metrics_streams:
+            stream.close()

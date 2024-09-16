@@ -1,23 +1,28 @@
 import torch
 from typing import Any
 import torch
-import inspect
-from torcheval.metrics import functional as torch_metrics
-from typing import Callable
-from . import metrics
+from . import metrics # export
 
-
-all_losses = {
+__all_losses = {
     'bce': torch.nn.functional.binary_cross_entropy,
 }
 
+def loss_function_exists(name):
+    return name in __all_losses
+
 def get_loss_function(name):
-    if name not in all_losses:
+    if name not in __all_losses:
         raise ValueError(f"Invalid loss function: {name}")
-    return all_losses[name]
+    return __all_losses[name]
+
+def __find_optimizer(name):
+    return torch.optim.__dict__.get(name)
+
+def optimizer_exists(name):
+    return __find_optimizer(name) is not None
 
 def get_optimizer(optimizer_name, model):
-    optimizer = torch.optim.__dict__.get(optimizer_name)
+    optimizer = __find_optimizer(optimizer_name)
     if optimizer is None:
         raise ValueError(f"Invalid optimizer: {optimizer_name}")
     return optimizer(model.parameters())

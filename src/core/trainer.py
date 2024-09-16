@@ -2,13 +2,14 @@ import logging
 import typing
 import torch
 from torch.utils.data import DataLoader
-from typing import Optional
+from typing import Optional, Any
 import itertools
 from metrics_logger import MetricsLogger
 from model_file_manager import ModelFileManager
 from core.datasets import dataset_registry
 from log_setup import NOTIFY
 import modules
+from . import ModelDetails
 
 logger = logging.getLogger(__name__)
 
@@ -136,18 +137,21 @@ class Trainer:
         batch_size = model_details.batch_size
         dataset = model_details.dataset
         dataset = dataset_registry[dataset]
+
         training_loader = DataLoader(
             dataset.for_training(),
             batch_size=batch_size,
             pin_memory=True,
             shuffle=True,
             pin_memory_device=device)
+        
         validation_loader = DataLoader(
             dataset.for_validation(),
             batch_size=batch_size,
             pin_memory=True,
             shuffle=True,
             pin_memory_device=device)
+        
         val_metrics = model_details.metrics
         train_metrics = model_details.metrics
         if model_details.train_metrics is not None:
@@ -170,8 +174,9 @@ class Trainer:
                 MetricsLogger('val', file_manager, model_details.metrics, dataloader=validation_loader),
             ]
         )
-        
+
         checkpoint = file_manager.load_last_checkpoint()
-        trainer.load_state_dict(checkpoint)
+        if checkpoint is not None:
+            trainer.load_state_dict(checkpoint)
 
         return trainer

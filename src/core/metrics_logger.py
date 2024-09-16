@@ -2,9 +2,8 @@ from typing import Optional, Any
 from model_file_manager import ModelFileManager
 import logging
 from collections import deque
-from . import modules
-from .modules import metrics
 import torch
+from .modules.metrics import select_metrics
 from torch.utils.tensorboard.writer import SummaryWriter
 
 logger = logging.getLogger(__name__)

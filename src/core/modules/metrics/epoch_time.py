@@ -4,7 +4,7 @@ from typing import Any
 import time
 
 
-class EpochTime:
+class Elapsed:
 
     def __init__(self) -> None:
         self.last_time = None
