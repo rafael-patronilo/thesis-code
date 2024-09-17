@@ -4,6 +4,7 @@ import logging
 from collections import deque
 import torch
 from .modules.metrics import select_metrics
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ class MetricsLogger:
                 ):
         self.identifier = identifier
         self.__metric_functions : dict[str, Any]
-        if metric_functions is list[str]:
+        if type(metric_functions) is list:
             self.__metric_functions = select_metrics(metric_functions)
         else:
             self.__metric_functions = metric_functions # type: ignore
@@ -31,6 +32,7 @@ class MetricsLogger:
         self.sums : dict = {k: 0.0 for k, _ in self.ordered_metrics}
         self.last_n = deque([{k: 0.0 for k, _ in self.ordered_metrics} for _ in range(last_n_size)])
         self.sums_last_n : dict = {k: 0.0 for k, _ in self.ordered_metrics}
+        self.total_measures = {k: 0.0 for k, _ in self.ordered_metrics}
         self.buffered_records = []
         self.dataloader = dataloader
         self.tensorboard_writer = tensorboard_writer
@@ -40,15 +42,21 @@ class MetricsLogger:
         return {
             "sums": self.sums,
             "last_n" : list(self.last_n),
+            "total_measures": self.total_measures
         }
     
     def load_state_dict(self, state_dict):
         sums : dict = state_dict["sums"]
         last_n = state_dict["last_n"]
+        total_measures = state_dict["total_measures"]
         if sums.keys() != self.__metric_functions.keys():
             logger.error(f"Invalid sums keys ({sums.keys()}), ignoring value")
         else:
             self.sums = sums
+        if total_measures.keys() != self.__metric_functions.keys():
+            logger.error(f"Invalid total measures keys ({total_measures.keys()}), ignoring value")
+        else:
+            self.total_measures = total_measures
         if any(x.keys() != self.__metric_functions.keys() for x in last_n):
             logger.error(f"Invalid last n keys, ignoring value")
         else:
@@ -58,11 +66,22 @@ class MetricsLogger:
                 for k, v in entry.items():
                     sums[k] += v
 
-    def averages(self, epoch):
-        return {k : v / epoch for k,v in self.sums.items()}
+    def _safe_div(self, a, b):
+        if b == 0:
+            return float('nan')
+        return a / b
+
+    def averages(self):
+        return {
+            k : self._safe_div(v, self.total_measures[k]) 
+            for k,v in self.sums.items()
+        }
     
-    def averages_last_n(self, epoch):
-        return {k : v / min(epoch, len(self.last_n)) for k,v in self.sums_last_n.items()}
+    def averages_last_n(self):
+        return {
+            k : self._safe_div(v, min(len(self.last_n), self.total_measures[k])) 
+            for k,v in self.sums_last_n.items()
+        }
     
     def flush(self):
         if len(self.buffered_records) > 0:
@@ -70,7 +89,7 @@ class MetricsLogger:
                 "\n".join(",".join(map(str, record)) for record in self.buffered_records) + "\n")
             self.buffered_records = []
 
-    def __eval(self, model):
+    def _eval(self, model):
         model.eval()
         y_preds = []
         y_trues = []
@@ -78,25 +97,43 @@ class MetricsLogger:
             for x, y_true in self.dataloader:
                 y_preds.append(model(x))
                 y_trues.append(y_true)
-        return torch.cat(y_preds), torch.cat(y_trues)
+        y_preds = torch.cat(y_preds)
+        y_trues = torch.cat(y_trues)
+        
+        # store predictions for debugging
+        if logger.level == logging.DEBUG:
+            from pathlib import Path
+            path = Path('debug').joinpath(self.identifier + '_preds.csv')
+            if not path.exists():
+                path.mkdir(parents=True, exist_ok=True)
+                import pandas as pd
+                pd.DataFrame({
+                    'y_preds' : y_preds.numpy().flatten(),
+                    'y_trues' : y_trues.numpy().flatten()
+                }).to_csv(path)
+        return y_preds, y_trues
+    
 
     def log(self, epoch, model):
         record = []
         record.append(epoch)
-        discarded = self.last_n.pop()
         self.last_record = {}
-        for k, v in discarded:
-            self.sums_last_n[k] -= v
+        discarded = self.last_n.pop()
+        for k, v in discarded.items():
+            if not math.isnan(v):
+                self.sums_last_n[k] -= v
         self.last_n.appendleft({})
-        y_pred, y_true = self.__eval(model)
+        y_pred, y_true = self._eval(model)
         for metric_name, metric_fn in self.ordered_metrics:
             value = metric_fn(epoch=epoch, y_pred=y_pred, y_true=y_true)
-            self.sums[metric_name] += value
-            self.sums_last_n[metric_name] += value
-            self.last_n[0][metric_name] = value
-            self.last_record[metric_name] = value
-            if self.tensorboard_writer is not None:
-                self.tensorboard_writer.add_scalar(f"{metric_name}/{self.identifier}", value, epoch)
             record.append(value)
+            self.last_record[metric_name] = value
+            if not math.isnan(value):
+                self.sums[metric_name] += value
+                self.sums_last_n[metric_name] += value
+                self.last_n[0][metric_name] = value
+                self.total_measures[metric_name] += 1
+                if self.tensorboard_writer is not None:
+                    self.tensorboard_writer.add_scalar(f"{metric_name}/{self.identifier}", value, epoch)
         
         self.buffered_records.append(record)

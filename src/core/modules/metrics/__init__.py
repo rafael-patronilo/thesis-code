@@ -6,13 +6,17 @@ from torcheval.metrics import functional as torch_metrics
 from .elapsed import Elapsed
 from typing import Callable
 
-def _decorate_torch_metric(metric : Callable[[torch.Tensor, torch.Tensor], torch.Tensor]) -> Callable[[torch.Tensor, torch.Tensor], float]:
-    def decorated_metric(y_pred, y_true):
+def decorate_torch_metric(metric : Callable[[torch.Tensor, torch.Tensor], torch.Tensor], flatten_tensors=False) -> Callable[[torch.Tensor, torch.Tensor], float]:
+    def decorated_metric(y_pred, y_true, **kwargs):
+        if flatten_tensors:
+            y_pred = y_pred.flatten()
+            y_true = y_true.flatten()
         return metric(y_pred, y_true).item()
     return decorated_metric
 
 __all_metrics = {
-    'accuracy' : _decorate_torch_metric(torch_metrics.binary_accuracy),
+    'accuracy' : decorate_torch_metric(torch_metrics.binary_accuracy, flatten_tensors=True),
+    'f1_score' : decorate_torch_metric(torch_metrics.binary_f1_score, flatten_tensors=True),
     'epoch_elapsed' : Elapsed,
 }
 
@@ -25,7 +29,7 @@ def get_metric(name):
     else:
         torch_metric = torch_metrics.__dict__.get(name)
         if torch_metric is not None:
-            return _decorate_torch_metric(torch_metric)
+            return decorate_torch_metric(torch_metric)
         else:
             return None
 

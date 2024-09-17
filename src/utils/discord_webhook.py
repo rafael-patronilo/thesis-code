@@ -133,6 +133,8 @@ class DiscordMessageBufferer:
 
 
 class DiscordWebhookHandler(logging.Handler):
+    ERROR_COOLDOWN = 60
+    CONSUMER_COOLDOWN = 0.03
     """
     A logging handler that sends logs to a discord webhook.
     """
@@ -155,17 +157,20 @@ class DiscordWebhookHandler(logging.Handler):
             target=self._buffer_consumer, 
             name='discord_webhook_log_handler',
             daemon=True)
-        self.__buffer_consumer_thread.start()
         super().__init__()
+        self.__buffer_consumer_thread.start()
+        self.message_buffer.get_queue().put({"content": "# LOG BREAK"})
     
-    def _try_send_message(self, payload):
+    def _try_send_message(self, payload) -> bool:
         try:
             try:
+                self.client.connect()
                 self.client.request("POST", self.webhook_path, json.dumps(payload),
                         {"Content-Type": "application/json"})
                 response = self.client.getresponse()
                 if response.status != 204:
                     raise Exception(f"Unexpected response code: {response.status}\n{response.msg}\n")
+                return True
             finally:
                 response.read()
                 response.close()
@@ -175,6 +180,7 @@ class DiscordWebhookHandler(logging.Handler):
                     f"Request payload: {payload}",
                     exc_info=True
                 )
+            return False
         
     def _buffer_consumer(self):
         msg_queue = self.message_buffer.get_queue()
@@ -182,7 +188,11 @@ class DiscordWebhookHandler(logging.Handler):
             while True:
                 try:
                     payload = msg_queue.get(timeout=self.buffer_flush_interval)
-                    self._try_send_message(payload)
+                    if self._try_send_message(payload):
+                        time.sleep(self.CONSUMER_COOLDOWN)
+                    else:
+                        logger.warning(f"Disabling discord logging for {self.ERROR_COOLDOWN} seconds")
+                        time.sleep(self.ERROR_COOLDOWN)
                 except queue.Empty:
                     self.message_buffer.break_msg()
         except SystemExit | KeyboardInterrupt as e:

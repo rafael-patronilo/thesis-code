@@ -42,14 +42,33 @@ class CSVDataset(SplitDataset):
         train_rows = self.data.iloc[:train_bound]
         val_rows = self.data.iloc[train_bound:val_bound]
         test_rows = self.data.iloc[val_bound:]
+
+        logger.debug(
+f"""Dataset ({len(self.data):_} samples) split:
+Training: \t [0, {train_bound:_}[ \t ({len(train_rows):_} samples, {self.splits[0] * 100}%)
+Validation: \t [{train_bound:_}, {val_bound}[ \t ({len(val_rows):_} samples, {self.splits[1] * 100}%)
+Testing: \t [{val_bound:_}, {len(self.data):_}[ \t ({len(test_rows):_} samples, {(1 - self.splits[0] - self.splits[1]) * 100}%)
+Num features: \t {len(self.features)}
+Num target: \t {len(self.target)}
+Shuffle: \t {self.shuffle}
+Seed: \t {self.random_state}""")
+
         def torchify(rows):
             if rows is None or len(rows) == 0:
+                logger.debug("No data available")
                 return None
-            return TensorDataset(
-                torch.tensor(rows[self.features].values).float(), 
-                torch.tensor(rows[self.target].values).float()
-            )
+            logger.debug(f"Selected {len(rows)} samples")
+            features = rows[self.features]
+            target = rows[self.target]
+            logger.debug(f"Feature columns: {features.columns}")
+            logger.debug(f"Target columns: {target.columns}")
+            features = torch.tensor(features.values).float()
+            target = torch.tensor(target.values).float()
+            return TensorDataset(features, target)
+        logger.debug("Selecting training data")
         self.train_data=torchify(train_rows)
+        logger.debug("Selecting validation data")
         self.val_data=torchify(val_rows)
+        logger.debug("Selecting testing data")
         self.test_data=torchify(test_rows)
         self.loaded = True

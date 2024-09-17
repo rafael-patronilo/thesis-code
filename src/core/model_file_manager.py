@@ -16,7 +16,7 @@ MODELS_PATH = os.getenv("MODEL_PATH") or "storage/models"
 class ModelFileManager:
     MODEL_FILE_NAME = "model.pt"
     CHECKPOINTS_DIR = "checkpoints"
-    METRICS_FORMAT = "metrics{identifier}.csv"
+    METRICS_FORMAT = "metrics_{identifier}.csv"
     METRICS_DIR = ""
     CHECKPOINT_FORMAT = "epoch_{epoch:0>9}.pt"
     
@@ -66,8 +66,9 @@ class ModelFileManager:
         file_stream : Any
         def init_file():
             logger.info(f"Creating new metrics file at {metrics_file}")
-            file_stream = metrics_file.open('w+')
+            file_stream = metrics_file.open('w')
             file_stream.write(",".join(metrics) + "\n")
+            return file_stream
         if metrics_file.exists():
             logger.debug(f"Metrics file already exists at {metrics_file}")
             conflict = False
@@ -81,15 +82,16 @@ class ModelFileManager:
                         f"Existing metrics file has different header: Expected {metrics}, got {header}\n"
                         f"Backing it up to {backup_path} and creating a new one."
                     )
-                    with backup_path.open('w+') as backup:
+                    backup_path.parent.mkdir(parents=True, exist_ok=True)
+                    with backup_path.open('w') as backup:
                         backup.write(",".join(header) + "\n")
                         backup.write(f.read())
             if conflict:
-                init_file()
+                file_stream = init_file()
             else:
                 file_stream = metrics_file.open('a')
         else:
-            init_file()
+            file_stream = init_file()
         assert file_stream is not None
         self.__metrics_streams.append(file_stream)
         return file_stream
@@ -98,7 +100,7 @@ class ModelFileManager:
         torch.save(details, self.model_file)
     
     def load_model_details(self) -> ModelDetails:
-        return torch.load(self.model_file)
+        return torch.load(self.model_file, weights_only=False)
     
     def save_checkpoint(self, epoch, state_dict):
         path = self.checkpoint_path.joinpath(self.CHECKPOINT_FORMAT.format(epoch=epoch))
@@ -107,12 +109,12 @@ class ModelFileManager:
         logger.info(f"Saving checkpoint at {path}")
         torch.save(state_dict, path)
 
-    def load_last_checkpoint(self):
+    def load_last_checkpoint(self, device=None):
         checkpoint_files = self.checkpoint_path.glob("*")
         checkpoint_files = [(int(file.with_suffix("").name.split('_')[-1]), file) for file in checkpoint_files]
         checkpoint_files.sort(key=lambda x: x[0])
         if len(checkpoint_files) > 0:
-            return torch.load(checkpoint_files[-1][1])
+            return torch.load(checkpoint_files[-1][1], weights_only=False, map_location=device)
         else:
             return None
 

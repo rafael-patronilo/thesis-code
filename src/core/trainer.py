@@ -2,7 +2,7 @@ import logging
 import typing
 import torch
 from torch.utils.data import DataLoader
-from typing import Optional, Any
+from typing import Optional, Any, Callable
 import itertools
 from .metrics_logger import MetricsLogger
 from .model_file_manager import ModelFileManager
@@ -26,7 +26,8 @@ class Trainer:
             metric_loggers : list[MetricsLogger],
             #callbacks = None,
             epoch = 0,
-            checkpoint_each = 10
+            checkpoint_each = 10,
+            checkpoint_triggers : Optional[list[Callable[[Any], bool]]] = None
         ):
         self.model = model
         self.loss_fn = loss_fn
@@ -34,9 +35,10 @@ class Trainer:
         self.device = device
         self.training_loader = training_loader
         self.model_file_manager = model_file_manager
-        self.metric_loggers = metric_loggers
+        self.metric_loggers : list[MetricsLogger] = metric_loggers
         #self.callbacks = callbacks or {}
         self.epoch = epoch
+        self.checkpoint_triggers = checkpoint_triggers or []
         self.checkpoint_each = checkpoint_each
 
     
@@ -54,55 +56,66 @@ class Trainer:
         self.epoch = state_dict["epoch"]
         for metric_logger in self.metric_loggers:
             metric_logger.load_state_dict(state_dict["metrics"][metric_logger.identifier])
-    
-    def train(self, epochs):
-        logger.info(f"Training for {epochs} epochs")
-        self.train_until(lambda self: self.epoch >= epochs)
         
-    def train_until(self, criterion):
+    def train_until(self, criteria : list[Callable[[Any], bool]]):
         logger.info("Initiating training loop...\n"
                     f"Model: {self.model_file_manager.model_name}\n"
                     f"Epoch: {self.epoch}\n"
                     f"Checkpoint each: {self.checkpoint_each}\n"
                     f"Keyboard interrupt to save checkpoint and exit.")
         try:
-            while not criterion(self):
-                self.__train_epoch(self.epoch)
+            first = True
+            while not any(criterion(self) for criterion in criteria):
+                self._train_epoch(self.epoch, first=first)
                 self.epoch += 1
+                first = False
             self.model_file_manager.save_checkpoint(self.epoch, self.state_dict())
             logger.log(NOTIFY, "Training complete.")
-        except KeyboardInterrupt | SystemExit:
+        except (KeyboardInterrupt, SystemExit):
             logger.log(NOTIFY, "Training interrupted. Saving checkpoint...")
             self.model_file_manager.save_checkpoint(self.epoch, self.state_dict())
-        except Exception as e:
+        except:
             logger.error("Exception caught while training. Saving checkpoint...")
             self.model_file_manager.save_checkpoint(self.epoch, self.state_dict())
-            raise e
+            raise
+        
+    def _checkpoint(self):
+        self.model_file_manager.save_checkpoint(self.epoch, self.state_dict())
+        averages = {}
+        averages_last_n = {}
+        last_record = {}
+        for metric_logger in self.metric_loggers:
+            metric_logger.flush()
+            averages[metric_logger.identifier] = metric_logger.averages()
+            averages_last_n[metric_logger.identifier] = metric_logger.averages_last_n()
+            last_record[metric_logger.identifier] = metric_logger.last_record
+        logger.info(
+            f"Checkpoint at Epoch {self.epoch}\n" 
+            f"Metrics: {last_record}\n"
+            f"Avg: {averages}\n"
+            f"Avg last {len(self.metric_loggers[0].last_n)}: {averages_last_n}"
+            )
     
-    def __train_epoch(self, epoch):
+    def _train_epoch(self, epoch, first = False):
         self.epoch = epoch
+        logger.info(f"Epoch {epoch}")
         self.model.train()
         batches = 0
         for X, Y in self.training_loader:
             self.__train_step(X, Y)
             batches += 1
+        logger.debug("Epoch complete")
         for metric_logger in self.metric_loggers:
             metric_logger.log(epoch, self.model)
-        if epoch % self.checkpoint_each == 0:
-            self.model_file_manager.save_checkpoint(epoch, self.state_dict())
-            averages = {}
-            averages_last_n = {}
-            for metric_logger in self.metric_loggers:
-                metric_logger.flush()
-                averages[metric_logger.identifier] = metric_logger.averages(epoch)
-                averages_last_n[metric_logger.identifier] = metric_logger.averages_last_n(epoch)
-            logger.info(
-                f"Epoch {epoch}\n" 
-                f"Avg: {averages}\n"
-                f"Avg last {averages_last_n}"
-            )
-        else:
-            logger.info(f"Epoch {epoch}")
+        if epoch > 0 and epoch % self.checkpoint_each == 0:
+            logger.info(f"Periodic checkpoint")
+            self._checkpoint()
+        elif any(trigger(self) for trigger in self.checkpoint_triggers):
+            logger.info(f"Triggered checkpoint")
+            self._checkpoint()
+        elif first:
+            metrics = {metric_logger.identifier : metric_logger.last_record for metric_logger in self.metric_loggers}
+            logger.info(f"Metrics: {metrics}")
 
             
         #for callback in self.callbacks:
@@ -141,16 +154,14 @@ class Trainer:
         training_loader = DataLoader(
             dataset.for_training(),
             batch_size=batch_size,
-            pin_memory=True,
-            shuffle=True,
-            pin_memory_device=device)
+            shuffle=True
+        )
         
         validation_loader = DataLoader(
             dataset.for_validation(),
             batch_size=batch_size,
-            pin_memory=True,
-            shuffle=True,
-            pin_memory_device=device)
+            shuffle=True
+        )
         
         val_metrics = model_details.metrics
         train_metrics = model_details.metrics
@@ -159,8 +170,9 @@ class Trainer:
         
         train_metrics = modules.metrics.select_metrics(train_metrics)
         val_metrics = modules.metrics.select_metrics(val_metrics)
-        train_metrics['loss'] = loss_fn
-        val_metrics['loss'] = loss_fn
+        loss_metric = modules.metrics.decorate_torch_metric(loss_fn)
+        train_metrics['loss'] = loss_metric
+        val_metrics['loss'] = loss_metric
 
         trainer = cls(
             model=model,
@@ -171,7 +183,7 @@ class Trainer:
             model_file_manager=file_manager,
             metric_loggers=[
                 MetricsLogger('train', file_manager, train_metrics, dataloader=training_loader),
-                MetricsLogger('val', file_manager, model_details.metrics, dataloader=validation_loader),
+                MetricsLogger('val', file_manager, val_metrics, dataloader=validation_loader),
             ]
         )
 

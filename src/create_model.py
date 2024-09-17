@@ -18,8 +18,8 @@ def main_function():
         dataset='xtrains_concepts_test_1',
         optimizer="Adam",
         loss_fn="bce",
-        metrics=["accuracy"],
-        train_metrics=["accuracy"],
+        metrics=["epoch_elapsed", "f1_score", "accuracy"],
+        train_metrics=None,
         batch_size=32
     )
 

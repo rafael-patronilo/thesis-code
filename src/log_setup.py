@@ -4,10 +4,15 @@ from utils import discord_webhook
 import os
 from pathlib import Path
 from copy import deepcopy, copy
+import warnings as python_warnings
+from io import TextIOWrapper
+import sys
+import time
 
-LOG_LEVEL = os.getenv("LOG_LEVEL") or logging.INFO
+LOG_LEVEL = logging.getLevelName(os.getenv("LOG_LEVEL") or 'INFO')
 LOG_DIR =  os.getenv("LOG_DIR") or "logs"
 FORMAT = os.getenv("LOG_FORMAT") or '%(asctime)s [%(levelname)s] (%(name)s|%(threadName)s) %(message)s'
+COLOR_FORMAT = os.getenv("LOG_COLOR_FORMAT") or '\033[34m%(asctime)s\033[0m [%(levelcolor)s%(levelname)s\033[0m] (%(name)s|%(threadName)s) %(message)s'
 
 NOTIFY = logging.INFO + 1
 
@@ -21,7 +26,7 @@ class AnsiColorStreamHandler(logging.StreamHandler):
         logging.DEBUG: "\033[1;30m",
         NOTIFY: "\033[1;34m"
     }
-    RESET = "\033[0m"
+    #RESET = "\033[0m"
 
     def __init__(self, stream = None, colors = None):
         super().__init__(stream=stream)
@@ -32,7 +37,7 @@ class AnsiColorStreamHandler(logging.StreamHandler):
     def emit(self, record):
         try:
             record = copy(record)
-            record.levelname = self.colors[record.levelno] + record.levelname + self.RESET
+            record.levelcolor = self.colors[record.levelno]
             super().emit(record)
         except Exception:
             self.handleError(record)
@@ -46,7 +51,32 @@ class MultiLineFormatter(logging.Formatter):
         message = self.formatter.format(record)
         return message.replace("\n", "\n" + self.prefix)
 
+class StreamInterceptor(TextIOWrapper):
+    WARNING_COOLDOWN = 5
 
+    def __init__(self, stream, stream_name : str, logger : logging.Logger, level):
+        self.logger = logger
+        self.level = level
+        self.stream_name = stream_name
+        self.last_warning = None
+        super().__init__(stream)
+
+    def write(self, message):
+        now = time.time()
+        if self.last_warning is None or now - self.last_warning >= self.WARNING_COOLDOWN:
+            self.logger.warning(
+                f"Intercepted unexpected write to {self.stream_name}, please replace with proper logging\n"
+                f"This warning will be supressed for {self.WARNING_COOLDOWN} seconds",
+                exc_info=True
+            )
+            self.last_warning = now
+        self.logger.log(self.level, message)
+
+python_warnings_logger = logging.getLogger("warnings.py")
+
+def showwarning_hook(message, category, filename, lineno, file=None, line=None):
+    text = python_warnings.formatwarning(message, category, filename, lineno, line)
+    python_warnings_logger.warning(text)
 
 def setup_logging():
     logging.addLevelName(NOTIFY, "NOTIFY")
@@ -54,9 +84,16 @@ def setup_logging():
     logger = logging.getLogger()
     logger.setLevel(os.getenv("LOG_LEVEL") or LOG_LEVEL)
     
+    # intercept unexpected writes to stdout and stderr
+    true_stdout = sys.stdout
+    true_stderr = sys.stderr
+
+    sys.stdout = StreamInterceptor(true_stdout, "stdout", logging.getLogger("stdout"), logging.INFO)
+    sys.stderr = StreamInterceptor(true_stderr, "stderr", logging.getLogger("stderr"), logging.ERROR)
+
     # Setup console logging
-    console_handler = AnsiColorStreamHandler()
-    console_handler.setFormatter(formatter)
+    console_handler = AnsiColorStreamHandler(stream=true_stdout)
+    console_handler.setFormatter(MultiLineFormatter(logging.Formatter(COLOR_FORMAT)))
     logger.addHandler(console_handler)
     
     # Setup file logging
@@ -75,9 +112,15 @@ def setup_logging():
             mention_everyone_levels=[NOTIFY]
         )
         discord_webhook_handler.setFormatter(formatter)
+        discord_webhook_handler.setLevel(max(logging.INFO, LOG_LEVEL))
         logger.addHandler(discord_webhook_handler)
     else:
         logger.warning("Discord webhook url not specified, discord logging disabled")
+
+    # setup warnings logging
+    python_warnings.showwarning = showwarning_hook
+
+
     
     logger.info(
 f"""Start of logging
