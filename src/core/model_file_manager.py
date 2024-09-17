@@ -60,7 +60,7 @@ class ModelFileManager:
         self.checkpoint_path.mkdir(parents=True, exist_ok=True)
         self.metrics_dest.mkdir(parents=True, exist_ok=True)
 
-    def init_metrics_file(self, metrics : list[str], identifier : str = ""):
+    def init_metrics_file(self, metrics : list[str], identifier : str):
         logger.debug(f"Initializing metrics file for {metrics}")
         metrics_file = self.metrics_dest.joinpath(self.METRICS_FORMAT.format(identifier=identifier))
         file_stream : Any
@@ -68,6 +68,7 @@ class ModelFileManager:
             logger.info(f"Creating new metrics file at {metrics_file}")
             file_stream = metrics_file.open('w')
             file_stream.write(",".join(metrics) + "\n")
+            file_stream.flush()
             return file_stream
         if metrics_file.exists():
             logger.debug(f"Metrics file already exists at {metrics_file}")

@@ -13,9 +13,9 @@ def main_function():
     )
     prepare_new_model(
         model_name="test_model",
-        model_identifier="v1",
+        model_identifier="v2",
         model=model,
-        dataset='xtrains_concepts_test_1',
+        dataset='xtrains_concepts_test_2',
         optimizer="Adam",
         loss_fn="bce",
         metrics=["epoch_elapsed", "f1_score", "accuracy"],

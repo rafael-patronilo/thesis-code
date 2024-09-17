@@ -131,6 +131,10 @@ class DiscordMessageBufferer:
         self.begin_block(block)
         self.begin_prefix(prefix)
 
+    def close(self):
+        self.break_msg()
+        self.buffer.put(None)
+
 
 class DiscordWebhookHandler(logging.Handler):
     ERROR_COOLDOWN = 60
@@ -155,8 +159,7 @@ class DiscordWebhookHandler(logging.Handler):
         self.mention_everyone_levels = mention_everyone_levels or []
         self.__buffer_consumer_thread = threading.Thread(
             target=self._buffer_consumer, 
-            name='discord_webhook_log_handler',
-            daemon=True)
+            name='discord_webhook_log_handler')
         super().__init__()
         self.__buffer_consumer_thread.start()
         self.message_buffer.get_queue().put({"content": "# LOG BREAK"})
@@ -188,6 +191,8 @@ class DiscordWebhookHandler(logging.Handler):
             while True:
                 try:
                     payload = msg_queue.get(timeout=self.buffer_flush_interval)
+                    if payload is None:
+                        return
                     if self._try_send_message(payload):
                         time.sleep(self.CONSUMER_COOLDOWN)
                     else:
@@ -222,3 +227,9 @@ class DiscordWebhookHandler(logging.Handler):
                 or record.levelno in self.mention_everyone_levels
             ):
                 self.message_buffer.mention_everyone()
+    
+    def close(self):
+        self.message_buffer.close()
+        self.__buffer_consumer_thread.join()
+        self.client.close()
+        super().close()

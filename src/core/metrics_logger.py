@@ -88,6 +88,7 @@ class MetricsLogger:
             self.file_handle.write(
                 "\n".join(",".join(map(str, record)) for record in self.buffered_records) + "\n")
             self.buffered_records = []
+            self.file_handle.flush()
 
     def _eval(self, model):
         model.eval()
@@ -137,3 +138,5 @@ class MetricsLogger:
                     self.tensorboard_writer.add_scalar(f"{metric_name}/{self.identifier}", value, epoch)
         
         self.buffered_records.append(record)
+        if len(self.buffered_records) >= 10:
+            self.flush()

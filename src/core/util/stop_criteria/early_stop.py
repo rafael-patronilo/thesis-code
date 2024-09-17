@@ -34,7 +34,7 @@ class EarlyStop:
         elif self.prefer(value, self.best_value):
             self.best_value = value
             self.best_epoch = trainer.epoch
-            logger.debug("New best value for {self.metrics_logger} {self.metric} at epoch {self.best_epoch}: {self.best_value}")
+            logger.debug(f"New best value for {self.metrics_logger} {self.metric} at epoch {self.best_epoch}: {self.best_value}")
             return False
         elif abs(self.best_value - value) > self.threshold:
             logger.info(

@@ -1,10 +1,6 @@
 from core.datasets import dataset_registry, CSVDataset
 
-dataset_registry['xtrains_concepts_test_1'] = CSVDataset(
-    "data/xtrains_rn.csv",
-    target=["TypeA"],
-    random_state=42,
-    features=[
+_features = [
         'WarTrain',
         'EmptyTrain', 
         'PassengerTrain', 
@@ -49,5 +45,20 @@ dataset_registry['xtrains_concepts_test_1'] = CSVDataset(
         #'NumberOfLongWagons', 
         #'NumberOfFreightWagons', 
         #'NumberOfPassengerCars'
-    ]
+]
+
+def _except(*features):
+    return [f for f in _features if f not in features]
+
+dataset_registry['xtrains_concepts_test_1'] = CSVDataset(
+    "data/xtrains_rn.csv",
+    target=["TypeA"],
+    random_state=42,
+    features=_except()
+)
+dataset_registry['xtrains_concepts_test_2'] = CSVDataset(
+    "data/xtrains_rn.csv",
+    target=["TypeA"],
+    random_state=42,
+    features=_except('WarTrain', 'EmptyTrain')
 )

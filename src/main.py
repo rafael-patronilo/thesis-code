@@ -1,7 +1,6 @@
 
 
 import threading
-#finished = threading.Event()
 
 import logging
 import log_setup
@@ -29,7 +28,7 @@ def signal_handler(sig, frame):
 
 def exit_gracefully(code : int = 0):
     logger.info("Exitting gracefully")
-    #finished.set()
+    logging.shutdown()
     sys.exit(code)
 
 signal.signal(signal.SIGINT, signal_handler)
