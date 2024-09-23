@@ -12,18 +12,14 @@ class CSVDataset(SplitDataset):
                  path: str, 
                  target: list[str], 
                  features: Optional[list[str]] = None, 
-                 split: float | tuple[float, float] = (0.7, 0.15),
+                 splits: float | tuple[float, float] = (0.7, 0.15),
                  shuffle: bool = True,
                  random_state = None):
         super().__init__()
         self.path = path
         self.target = target
         self.features = features
-        self.splits : tuple[float, float]
-        if type(split) == tuple:
-            self.splits = split
-        else:
-            self.splits = (split, 1.0 - split) # type: ignore
+        self.splits = self._cast_splits(splits)
         self.shuffle = shuffle
         self.random_state = random_state
 
@@ -37,8 +33,7 @@ class CSVDataset(SplitDataset):
             self.features = [col for col in self.data.columns if col not in self.target]
         if self.shuffle:
             self.data = self.data.sample(frac=1, random_state=self.random_state).reset_index(drop=True)
-        train_bound = int(len(self.data) * self.splits[0])
-        val_bound = int(len(self.data) * (self.splits[0] + self.splits[1]))
+        train_bound, val_bound = self._split(len(self.data), self.splits)
         train_rows = self.data.iloc[:train_bound]
         val_rows = self.data.iloc[train_bound:val_bound]
         test_rows = self.data.iloc[val_bound:]
