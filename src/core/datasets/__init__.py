@@ -1,6 +1,10 @@
-from typing import Optional
+from typing import Optional, NamedTuple
 from abc import ABC, abstractmethod
 from torch.utils.data import Dataset, IterableDataset
+
+
+CollumnSubReferences = NamedTuple("CollumnSubReferences", [("names_to_collumn", dict[str, int]), ("collumns_to_names", list[str])])
+CollumnReferences = NamedTuple("CollumnReferences", [("features", CollumnSubReferences), ("labels", CollumnSubReferences)])
 
 class SplitDataset(ABC):
     
@@ -9,6 +13,7 @@ class SplitDataset(ABC):
         self.val_data = val_data
         self.test_data = test_data
         self.loaded = False
+        self.collumn_references : Optional[CollumnReferences] = None
 
     def _load(self):
         pass
@@ -25,7 +30,6 @@ class SplitDataset(ABC):
         train_bound = int(size * splits[0])
         val_bound = int(size * (splits[0] + splits[1]))
         return train_bound, val_bound
-        
 
     def for_training(self) -> Dataset | IterableDataset:
         self._load()
@@ -49,5 +53,7 @@ class SplitDataset(ABC):
 
 
 from .csv_dataset import CSVDataset
+from .binary_generator import BinaryGeneratorBuilder
+from .random_dataset import RandomDataset
 
 dataset_registry : dict[str, SplitDataset] = {}

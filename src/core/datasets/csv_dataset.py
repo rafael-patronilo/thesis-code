@@ -1,4 +1,4 @@
-from . import SplitDataset
+from . import SplitDataset, CollumnReferences, CollumnSubReferences
 import logging
 from typing import Optional
 import pandas as pd
@@ -22,7 +22,20 @@ class CSVDataset(SplitDataset):
         self.splits = self._cast_splits(splits)
         self.shuffle = shuffle
         self.random_state = random_state
+        if self.features is not None:
+            self._set_collumn_references(features, target) # type: ignore
 
+    def _set_collumn_references(self, features: list[str], target: list[str]):
+        self.collumn_references = CollumnReferences(
+            CollumnSubReferences(
+                {name: idx for idx, name in enumerate(features)},
+                features
+            ),
+            CollumnSubReferences(
+                {name: idx for idx, name in enumerate(target)},
+                target
+            )
+        )
     
     def _load(self):
         if self.loaded:
@@ -31,6 +44,7 @@ class CSVDataset(SplitDataset):
         self.data = pd.read_csv(self.path)
         if self.features is None:
             self.features = [col for col in self.data.columns if col not in self.target]
+            self._set_collumn_references(self.features, self.target)
         if self.shuffle:
             self.data = self.data.sample(frac=1, random_state=self.random_state).reset_index(drop=True)
         train_bound, val_bound = self._split(len(self.data), self.splits)
