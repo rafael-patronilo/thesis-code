@@ -24,9 +24,9 @@ def _generate_sample_excluding(generator_function : SampleGenerator, rng : torch
 
 class RandomDataset(SplitDataset):
     """A randomly generated dataset. 
-    Ensures that samples do not repeat over different subsets (training, validation and testing).
+    To avoid data leaking, ensures that samples do not repeat over different subsets (training, validation and testing).
     By default, the training dataset will be generated on the fly. 
-    Generation on the fly without a set seed will produce different training samples each time.
+    Generation on the fly without a seed will produce different training samples each time.
     Note that in order to prevent repeated samples over different subsets, sample generation time may vary.
     """
 
