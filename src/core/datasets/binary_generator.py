@@ -1,9 +1,11 @@
-from types import UnionType
+from typing import Optional, Sequence
 import logging
 import torch
 import abc
-import random_dataset
+import numpy as np
+from . import random_dataset
 from . import SplitDataset
+from torch.utils.data import Dataset, Subset
 import warnings
 
 logger = logging.getLogger(__name__)
@@ -14,7 +16,6 @@ class BinaryASTNode(abc.ABC):
     @abc.abstractmethod
     def __call__(self, generated : torch.Tensor) -> torch.Tensor:
         pass
-
 
     def __or__(self, value : 'BinaryASTNode') -> 'BinaryASTNode':
         return _BinaryOpNode(self, value, torch.bitwise_or, '|')
@@ -27,12 +28,6 @@ class BinaryASTNode(abc.ABC):
     
     def __invert__(self) -> 'BinaryASTNode':
         return _UnaryOpNode(self, torch.bitwise_not, '~')
-    
-    def __eq__(self, value : 'BinaryASTNode') -> 'BinaryASTNode':
-        return _BinaryOpNode(self, value, torch.eq, '==')
-    
-    def __ne__(self, value : 'BinaryASTNode') -> 'BinaryASTNode':
-        return _BinaryOpNode(self, value, torch.ne, '!=')
 
 
 
@@ -52,6 +47,14 @@ class _GeneratedValue(BinaryASTNode):
     def __repr__(self):
         return self.unnamed_repr() if self.name is None else self.name
 
+    def __eq__(self, value: object) -> bool:
+        if not isinstance(value, _GeneratedValue):
+            return False
+        return self.idx == value.idx
+
+    def __hash__(self) -> int:
+        return hash((self.__class__, self.idx))
+
 class _BinaryOpNode(BinaryASTNode):
     """A node that performs a binary operation"""
 
@@ -66,6 +69,18 @@ class _BinaryOpNode(BinaryASTNode):
     def __repr__(self) -> str:
         return f"({self.left} {self.func.__name__} {self.right})"
 
+    def __eq__(self, value: object) -> bool:
+        if not isinstance(value, _BinaryOpNode):
+            return False
+        return (
+            self.func == value.func and 
+            self.left == value.left and 
+            self.right == value.right
+        )
+    
+    def __hash__(self) -> int:
+        return hash((self.func, self.left, self.right))
+
 class _UnaryOpNode(BinaryASTNode):
     """A node that performs a unary operation"""
 
@@ -79,68 +94,66 @@ class _UnaryOpNode(BinaryASTNode):
 
     def __repr__(self) -> str:
         return f"{self.symbol}{self.child}"
-
-# class _CompleteBinaryGeneratedDataset(SplitDataset):
-
-#     def __init__(
-#             self, 
-#             splits : tuple[float, float] | float, 
-#             to_generate : int, 
-#             binary_generator : 'BinaryGeneratorBuilder',
-#             shuffle : bool = True,
-#             random_state = None
-#         ):
-#         super().__init__()
-#         self.splits : tuple[float, float] = self._cast_splits(splits)
-#         self.to_generate = to_generate
-#         if self.to_generate > 32:
-#             warnings.warn(f"Generating high number of random variables {self.to_generate}, may crash")
-#         self.total_samples = 2 ** to_generate
-#         self.binary_generator = binary_generator
-#         self.shuffle = shuffle
-#         self.random_state = random_state
-
-#     def bit_range(self) -> torch.Tensor:
-#         tensor = torch.empty((self.total_samples, self.to_generate), dtype=torch.bool)
-        
-#         for i in range(self.total_samples):
-#             for j in range(self.to_generate):
-#                 tensor[i] = i & (1 << j) > 0
-#         return tensor
-
-#     def _load(self):
-#         if self.loaded:
-#             return
-        
-#         logger.info(f"Generating complete binary dataset with {self.to_generate} random variables ({self.total_samples:_} samples)")
-#         generated = self.bit_range()
-#         logger.debug("Random variables assigned")
-
-#         if self.shuffle:
-#             logger.debug("Shuffling dataset")
-#             rng = torch.Generator()
-#             if self.random_state is not None:
-#                 rng.manual_seed(self.random_state)
-#             generated = generated[torch.randperm(self.total_samples, generator=rng)]
-        
-#         logger.debug("Generating features and labels")
-#         self.data = self.binary_generator.generate_samples(generated)
-#         logger.info("Generation complete")
-
-#         train_bound, val_bound = self._split(self.to_generate, self.splits)
-#         logger.info(f"""
-# Splitting complete binary dataset with {self.to_generate} random variables ({self.total_samples:_} samples):
-# Training: \t [0, {train_bound}[ \t ({train_bound:_} samples, {self.splits[0] * 100}%)
-# Validation: \t [{train_bound}, {val_bound}[ \t ({val_bound - train_bound:_} samples, {self.splits[1] * 100}%)
-# Testing: \t [{val_bound}, {self.total_samples}[ \t ({self.total_samples - val_bound:_} samples, {(1 - self.splits[0] - self.splits[1]) * 100}%)
-# Num features: \t {len(self.binary_generator.features)}
-# Num target: \t {len(self.binary_generator.labels)}
-# Shuffle: \t {self.shuffle}
-# Seed: \t {self.random_state}""")
-
-#         #logger.info()
-#         self.loaded = True
     
+    def __eq__(self, value: object) -> bool:
+        if not isinstance(value, _UnaryOpNode):
+            return False
+        return self.func == value.func and self.child == value.child
+
+    def __hash__(self) -> int:
+        return hash((self.func, self.child))
+
+class BinaryGenerator:
+    """Instructions on how to generate a set of variables."""
+
+    def __init__(
+            self, 
+            to_generate : int, 
+            features : list[BinaryASTNode], 
+            labels : list[BinaryASTNode]
+        ):
+        self.to_generate = to_generate
+        self.features : list[BinaryASTNode] = features
+        self.labels : list[BinaryASTNode] = labels
+    
+    def generate_random(self, rng : torch.Generator) -> tuple[torch.Tensor, torch.Tensor]:
+        return self.generate_samples(torch.randint(0, 2, (self.to_generate,), generator=rng))
+    
+    def generate_from_int(self, value : int) -> tuple[torch.Tensor, torch.Tensor]:
+        bits = torch.tensor([int(x) for x in f"{value:0{self.to_generate}b}"])
+        return self.generate_samples(bits)
+    
+    def generate_samples(self, attribution : torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        features = torch.stack([node(attribution) for node in self.features])
+        labels = torch.stack([node(attribution) for node in self.labels])
+        return features.to(torch.get_default_dtype()), labels.to(torch.get_default_dtype())
+
+    def as_complete_dataset(self, split : tuple[float, float] | float = (0.8, 0.1), shuffle : bool = True, seed : Optional[int] = None) -> SplitDataset:
+        class _CompleteDataset(Dataset):
+            def __init__(self, generator : BinaryGenerator):
+                self.generator = generator
+            def __getitem__(self, index):
+                return self.generator.generate_from_int(index)
+        complete_dataset = _CompleteDataset(self)
+        indices : Sequence[int]
+        if shuffle:
+            rng = np.random.default_rng(seed=seed)
+            indices = rng.permutation(len(self)) # type: ignore
+        else:
+            indices = range(len(self))
+        train_bound, val_bound = SplitDataset._split(len(self), SplitDataset._cast_splits(split))
+        train_indices = indices[:train_bound]
+        val_indices = indices[train_bound:val_bound]
+        test_indices = indices[val_bound:]
+        return SplitDataset(
+            Subset(complete_dataset, train_indices),
+            Subset(complete_dataset, val_indices),
+            Subset(complete_dataset, test_indices)
+        )
+
+
+    def __len__(self) -> int:
+        return 2**self.to_generate
 
 class BinaryGeneratorBuilder:
     """A generator of binary data"""
@@ -148,25 +161,37 @@ class BinaryGeneratorBuilder:
 
     def __init__(self):
         self._to_generate = 0
-        self.features = {}
-        self.labels = {}
+        self.features : dict[str, BinaryASTNode] = {}
+        self.labels : dict[str, BinaryASTNode] = {}
         pass
 
-    def gen_var(self):
+    def simplify(
+        self,
+        remove_unused : bool = True
+    ):
+        raise NotImplementedError("Simplification is not yet implemented")
+
+
+    def gen_var(self) -> BinaryASTNode:
+        """Define a new variable to generate
+
+        Returns:
+            BinaryASTNode: A reference to variable that will be generated
+        """
         idx = self._to_generate
         self._to_generate += 1
         return _GeneratedValue(idx)
     
-    def generate_samples(self, attribution : torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        features = torch.stack([node(attribution) for node in self.features.values()], dim=1)
-        labels = torch.stack([node(attribution) for node in self.labels.values()], dim=1)
-        return features, labels
+    def build(self) -> BinaryGenerator:
+        """Builds the generator
 
-    def to_random_generator_function(self) -> random_dataset.SampleGenerator:
-        def generator(rng : torch.Generator) -> tuple[torch.Tensor, torch.Tensor]:
-            return self.generate_samples(torch.randint(0, 2, (1, self._to_generate), generator=rng))
-        return generator
+        Returns:
+            BinaryGenerator: The generator
+        """
+        sorted_features = [node for _, node in sorted(self.features.items(), key=lambda x: x[0])]
+        sorted_labels = [node for _, node in sorted(self.labels.items(), key=lambda x: x[0])]
         
+        return BinaryGenerator(self._to_generate, sorted_features, sorted_labels)
     
     def clone(self) -> 'BinaryGeneratorBuilder':
         clone = BinaryGeneratorBuilder()
@@ -181,10 +206,10 @@ class BinaryGeneratorBuilder:
             other = []
             for name, node in variables:
                 if isinstance(node, _GeneratedValue):
-                    gen.append((name, node.unnamed_repr()))
+                    gen.append((name, node))
                     node.name = name
                 else:
-                    other.append((name, other))
+                    other.append((name, node))
             return gen, other
         gen_feats, other_feats = process_variables(self.features.items())
         gen_labels, other_labels = process_variables(self.labels.items())
@@ -195,12 +220,71 @@ class BinaryGeneratorBuilder:
             )
             return ",\n".join(defs)
         return (
-f"""BinaryGeneratorBuilder(
+f"""{self.__class__.__name__}(
+\tto_generate={self._to_generate},
 \tFeatures: 
 {format_definitions(gen_feats, other_feats)},
 \tLabels:
 {format_definitions(gen_labels, other_labels)}
 )""")
 
+    def without_labels(self, *labels) -> 'BinaryGeneratorBuilder':
+        """Removes the specified labels
 
+        Returns:
+            itself for chaining
+        """
+        for l in labels:
+            if l not in self.labels:
+                warnings.warn(f"Unrecognized label {l}")
+        self.labels = {k : v for k, v in self.labels.items() if k not in labels}
+        return self
+    
+    def without_features(self, *features) -> 'BinaryGeneratorBuilder':
+        """Removes the specified features
 
+        Returns:
+            itself for chaining
+        """
+        for f in features:
+            if f not in self.features:
+                warnings.warn(f"Unrecognized feature {f}")
+        self.features = {k : v for k, v in self.features.items() if k not in features}
+        return self
+
+    def with_labels(self, *labels) -> 'BinaryGeneratorBuilder':
+        """Removes all but the specified labels
+
+        Returns:
+            itself for chaining
+        """
+        for l in labels:
+            if l not in self.labels:
+                warnings.warn(f"Unrecognized label {l}")
+        self.labels = {k : v for k, v in self.labels.items() if k in labels}
+        return self
+
+    def with_features(self, *features) -> 'BinaryGeneratorBuilder':
+        """Removes all but the specified features
+
+        Returns:
+            itself for chaining
+        """
+        for f in features:
+            if f not in self.features:
+                warnings.warn(f"Unrecognized feature {f}")
+        self.features = {k : v for k, v in self.features.items() if k in features}
+        
+        return self
+
+    def implied_by(self, node : BinaryASTNode) -> BinaryASTNode:
+        """Utility function for defining a variable that is implied by another.
+        It is a shorthand for `generator.gen_var() | node`
+
+        Args:
+            node (BinaryASTNode): The implying node
+
+        Returns:
+            The implied node
+        """
+        return self.gen_var() | node

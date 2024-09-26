@@ -1,12 +1,11 @@
 from typing import Optional, NamedTuple
-from abc import ABC, abstractmethod
 from torch.utils.data import Dataset, IterableDataset
 
 
 CollumnSubReferences = NamedTuple("CollumnSubReferences", [("names_to_collumn", dict[str, int]), ("collumns_to_names", list[str])])
 CollumnReferences = NamedTuple("CollumnReferences", [("features", CollumnSubReferences), ("labels", CollumnSubReferences)])
 
-class SplitDataset(ABC):
+class SplitDataset:
     
     def __init__(self, train_data = None, val_data = None, test_data = None):
         self.train_data = train_data
@@ -53,7 +52,7 @@ class SplitDataset(ABC):
 
 
 from .csv_dataset import CSVDataset
-from .binary_generator import BinaryGeneratorBuilder
+from . import binary_generator
 from .random_dataset import RandomDataset
 
 dataset_registry : dict[str, SplitDataset] = {}

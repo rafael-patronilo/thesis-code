@@ -14,11 +14,11 @@ MODELS_PATH = os.getenv("MODEL_PATH") or "storage/models"
 
 
 class ModelFileManager:
-    MODEL_FILE_NAME = "model.pt"
+    MODEL_FILE_NAME = "model.pth"
     CHECKPOINTS_DIR = "checkpoints"
     METRICS_FORMAT = "metrics_{identifier}.csv"
     METRICS_DIR = ""
-    CHECKPOINT_FORMAT = "epoch_{epoch:0>9}.pt"
+    CHECKPOINT_FORMAT = "epoch_{epoch:0>9}.pth"
     
     def __init__(self,
             model_name : str,

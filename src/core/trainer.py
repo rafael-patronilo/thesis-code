@@ -81,19 +81,19 @@ class Trainer:
         
     def _checkpoint(self):
         self.model_file_manager.save_checkpoint(self.epoch, self.state_dict())
-        averages = {}
-        averages_last_n = {}
-        last_record = {}
+        averages = ""
+        averages_last_n = ""
+        last_record = ""
         for metric_logger in self.metric_loggers:
             metric_logger.flush()
-            averages[metric_logger.identifier] = metric_logger.averages()
-            averages_last_n[metric_logger.identifier] = metric_logger.averages_last_n()
-            last_record[metric_logger.identifier] = metric_logger.last_record
+            averages += f"\t{metric_logger.identifier} : {metric_logger.averages()}\n"
+            averages_last_n += f"\t{metric_logger.identifier} : {metric_logger.averages_last_n()}\n"
+            last_record += f"\t{metric_logger.identifier} : {metric_logger.last_record}\n"
         logger.info(
             f"Checkpoint at Epoch {self.epoch}\n" 
-            f"Metrics: {last_record}\n"
-            f"Avg: {averages}\n"
-            f"Avg last {len(self.metric_loggers[0].last_n)}: {averages_last_n}"
+            f"Metrics:\n{last_record}"
+            f"Avg:\n{averages}"
+            f"Avg last {len(self.metric_loggers[0].last_n)}:\n{averages_last_n}"
             )
     
     def _train_epoch(self, epoch, first = False):

@@ -9,12 +9,14 @@ class BestMetric:
     def __init__(self, 
                  metric : str ='loss', 
                  prefer : Literal['max', 'min'] = 'min',
-                 metrics_logger : str = 'val') -> None:
+                 metrics_logger : str = 'val',
+                 threshold : float = 0.005) -> None:
         self.best_value = None
         self.best_epoch = None
         self.metric = metric
         self.prefer = lambda x, y : x > y if prefer == 'max' else lambda x, y : x < y
         self.metrics_logger = metrics_logger
+        self.threshold = threshold
 
     def _select_metric(self, trainer : Trainer) -> Optional[float]:
         metrics_logger : MetricsLogger = [x for x in trainer.metric_loggers if x.identifier == self.metrics_logger][0]
@@ -30,7 +32,7 @@ class BestMetric:
             self.best_value = value
             self.best_epoch = trainer.epoch
             return False # No need to save the model on first epoch
-        elif self.prefer(value, self.best_value):
+        elif self.prefer(value, self.best_value) and abs(value - self.best_value) > self.threshold:
             self.best_value = value
             self.best_epoch = trainer.epoch
             logger.info(f"New best value for {self.metrics_logger} {self.metric} at epoch {self.best_epoch}: {self.best_value}")

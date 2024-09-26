@@ -12,10 +12,10 @@ def main_function():
         torch.nn.Sigmoid()
     )
     prepare_new_model(
-        model_name="test_model",
-        model_identifier="v2",
+        model_name="xtrains_rn_simp_typeC",
+        model_identifier="v1",
         model=model,
-        dataset='xtrains_concepts_test_2',
+        dataset='xtrains_ontology_simplified_comp_typeC',
         optimizer="Adam",
         loss_fn="bce",
         metrics=["epoch_elapsed", "f1_score", "accuracy"],

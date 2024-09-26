@@ -12,7 +12,6 @@ import sys
 import time
 from typing import NamedTuple
 from urllib.parse import urlparse
-import main
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +137,7 @@ class DiscordMessageBufferer:
 
 class DiscordWebhookHandler(logging.Handler):
     ERROR_COOLDOWN = 60
-    CONSUMER_COOLDOWN = 0.03
+    CONSUMER_COOLDOWN = 0.05
     """
     A logging handler that sends logs to a discord webhook.
     """

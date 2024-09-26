@@ -19,7 +19,7 @@ def _generate_sample_excluding(generator_function : SampleGenerator, rng : torch
         if _hashable_tensor_tuple(sample) not in exclude:
             return sample
         attempt += 1
-        if attempt >= 10 and attempt % 10 == 0:
+        if attempt >= 50 and attempt % 50 == 0:
             logger.warning(f"Taking unusually long to generate a not excluded sample: {attempt} attempts")
 
 class RandomDataset(SplitDataset):
