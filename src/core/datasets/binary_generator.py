@@ -62,12 +62,13 @@ class _BinaryOpNode(BinaryASTNode):
         self.left = left
         self.right = right
         self.func = func
+        self.symbol = symbol
     
     def __call__(self, generated : torch.Tensor) -> torch.Tensor:
         return self.func(self.left(generated), self.right(generated))
 
     def __repr__(self) -> str:
-        return f"({self.left} {self.func.__name__} {self.right})"
+        return f"({self.left} {self.symbol} {self.right})"
 
     def __eq__(self, value: object) -> bool:
         if not isinstance(value, _BinaryOpNode):
@@ -169,6 +170,7 @@ class BinaryGeneratorBuilder:
         self,
         remove_unused : bool = True
     ):
+        # TODO implement simplification?
         raise NotImplementedError("Simplification is not yet implemented")
 
 

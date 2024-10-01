@@ -5,6 +5,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 class EarlyStop:
+    # TODO this early stop is not coherent with the official definition (check d2l)
     def __init__(self, 
                  metric : str ='loss', 
                  prefer : Literal['max', 'min'] = 'min',

@@ -78,6 +78,12 @@ def showwarning_hook(message, category, filename, lineno, file=None, line=None):
     text = python_warnings.formatwarning(message, category, filename, lineno, line)
     python_warnings_logger.warning(text)
 
+def log_break(stream):
+    LOG_BREAK = "LOG BREAK"
+    cols, lines = os.get_terminal_size()
+    half_width = (cols - len(LOG_BREAK)) // 2
+    print(f"\n\n\033[34m{'='*half_width}{LOG_BREAK}{'='*half_width}\033[0m\n\n", file=stream)
+
 def setup_logging():
     logging.addLevelName(NOTIFY, "NOTIFY")
     formatter=MultiLineFormatter(logging.Formatter(FORMAT))
@@ -121,7 +127,7 @@ def setup_logging():
     python_warnings.showwarning = showwarning_hook
 
 
-    
+    log_break(true_stdout)
     logger.info(
 f"""Start of logging
 Time: {datetime.datetime.now().astimezone().isoformat()}

@@ -14,7 +14,7 @@ ModelDetails = NamedTuple(
 
 from .trainer import Trainer
 from .metrics_logger import MetricsLogger
-from .model_file_manager import ModelFileManager
+from .storage_management.model_file_manager import ModelFileManager
 
 from . import modules
 from . import datasets

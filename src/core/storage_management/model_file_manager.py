@@ -5,7 +5,7 @@ import datetime
 import logging
 import torch
 import os
-from . import ModelDetails
+from .. import ModelDetails
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +75,7 @@ class ModelFileManager:
             conflict = False
             with metrics_file.open('r') as f:
                 header = f.readline().strip().split(',')
+                header = [x.strip() for x in header]
                 if header != metrics:
                     conflict = True
                     backup_name = self.METRICS_FORMAT.format(identifier=identifier + datetime.datetime.now().isoformat())

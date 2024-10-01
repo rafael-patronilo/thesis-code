@@ -8,14 +8,14 @@ def main_function():
         torch.nn.LazyLinear(32),
         torch.nn.LazyLinear(32),
         torch.nn.LazyLinear(32),
-        torch.nn.LazyLinear(1),
+        torch.nn.LazyLinear(3),
         torch.nn.Sigmoid()
     )
     prepare_new_model(
-        model_name="xtrains_rn_simp_typeC",
+        model_name="xtrains_rn_simp",
         model_identifier="v1",
         model=model,
-        dataset='xtrains_ontology_simplified_comp_typeC',
+        dataset='xtrains_ontology_simplified_comp_all',
         optimizer="Adam",
         loss_fn="bce",
         metrics=["epoch_elapsed", "f1_score", "accuracy"],

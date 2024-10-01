@@ -1,8 +1,9 @@
 from . import (
     xtrains_concepts, 
-    xtrains_ontology_simplified
+    xtrains_ontology_simplified,
+    xtrains_ontology
 )
 
 import logging
 from core.datasets import dataset_registry
-logging.getLogger(__name__).info(f"Registered datasets:\n{"\n".join(dataset_registry.keys())}")
+logging.getLogger(__name__).debug(f"Registered datasets:\n{"\n".join(dataset_registry.keys())}")

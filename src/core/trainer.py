@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from typing import Optional, Any, Callable
 import itertools
 from .metrics_logger import MetricsLogger
-from .model_file_manager import ModelFileManager
+from .storage_management.model_file_manager import ModelFileManager
 from .datasets import dataset_registry
 from log_setup import NOTIFY
 from . import modules
