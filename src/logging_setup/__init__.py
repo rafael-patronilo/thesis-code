@@ -1,6 +1,6 @@
 import logging
 import datetime
-from utils import discord_webhook
+from . import discord_webhook
 import os
 from pathlib import Path
 from copy import deepcopy, copy
@@ -9,13 +9,13 @@ from io import TextIOWrapper
 import sys
 import time
 
-LOG_LEVEL = logging.getLevelName(os.getenv("LOG_LEVEL") or 'INFO')
+NOTIFY = logging.INFO + 1
+logging.addLevelName(NOTIFY, "NOTIFY")
+
+LOG_LEVEL = logging.getLevelNamesMapping()[(os.getenv("LOG_LEVEL") or 'INFO').upper()]
 LOG_DIR =  os.getenv("LOG_DIR") or "logs"
 FORMAT = os.getenv("LOG_FORMAT") or '%(asctime)s [%(levelname)s] (%(name)s|%(threadName)s) %(message)s'
 COLOR_FORMAT = os.getenv("LOG_COLOR_FORMAT") or '\033[34m%(asctime)s\033[0m [%(levelcolor)s%(levelname)s\033[0m] (%(name)s|%(threadName)s) %(message)s'
-
-NOTIFY = logging.INFO + 1
-
 
 class AnsiColorStreamHandler(logging.StreamHandler):
     DEFAULT_COLORS = {
@@ -78,14 +78,13 @@ def showwarning_hook(message, category, filename, lineno, file=None, line=None):
     text = python_warnings.formatwarning(message, category, filename, lineno, line)
     python_warnings_logger.warning(text)
 
-def log_break(stream):
-    LOG_BREAK = "LOG BREAK"
+def log_break(msg = "LOG BREAK"):
     cols, lines = os.get_terminal_size()
-    half_width = (cols - len(LOG_BREAK)) // 2
-    print(f"\n\n\033[34m{'='*half_width}{LOG_BREAK}{'='*half_width}\033[0m\n\n", file=stream)
+    half_width = (cols - len(msg)) // 2
+    print(f"\n\n\033[34m{'='*half_width}{msg}{'='*half_width}\033[0m\n\n", file=true_stdout)
 
 def setup_logging():
-    logging.addLevelName(NOTIFY, "NOTIFY")
+    global logfile, true_stderr, true_stdout
     formatter=MultiLineFormatter(logging.Formatter(FORMAT))
     logger = logging.getLogger()
     logger.setLevel(os.getenv("LOG_LEVEL") or LOG_LEVEL)
@@ -127,7 +126,7 @@ def setup_logging():
     python_warnings.showwarning = showwarning_hook
 
 
-    log_break(true_stdout)
+    log_break()
     logger.info(
 f"""Start of logging
 Time: {datetime.datetime.now().astimezone().isoformat()}

@@ -1,9 +1,12 @@
-import main
+#!/usr/bin/env python
+import script_base
 import torch
 from core import prepare_new_model
+import logging
+logger = logging.getLogger(__name__)
 
-@main.main_thread_wrapper
-def main_function():
+@script_base.main_wrapper
+def main():
     model = torch.nn.Sequential(
         torch.nn.LazyLinear(32),
         torch.nn.LazyLinear(32),
@@ -12,7 +15,7 @@ def main_function():
         torch.nn.Sigmoid()
     )
     prepare_new_model(
-        model_name="xtrains_rn_simp",
+        model_name="test",
         model_identifier="v1",
         model=model,
         dataset='xtrains_ontology_simplified_comp_all',
@@ -22,6 +25,7 @@ def main_function():
         train_metrics=None,
         batch_size=32
     )
+    logger.info("Model created successfully")
 
 if __name__ == '__main__':
-    main_function()
+    main()

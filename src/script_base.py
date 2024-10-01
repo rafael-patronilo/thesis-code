@@ -2,31 +2,37 @@
 
 # set up logging
 import logging
-import log_setup
-log_setup.setup_logging()
+import logging_setup
+logging_setup.setup_logging()
 logger = logging.getLogger()
 
-# trap interrup signals for graceful exit
 graceful_exit = False
-def signal_handler(sig, frame):
-    if graceful_exit:
-        logger.error(f"Received signal {sig} during graceful exit, forcing exit")
-        sys.exit(-1)
-    logger.warning(f"Received signal {sig}, attempting graceful exit")
-    exit_gracefully(0)
-def exit_gracefully(code : int = 0):
+def exit_gracefully(code : int = 0, impatient = False):
     global graceful_exit
     if graceful_exit:
-        logger.warning("Already exiting gracefully, ignoring call")
-        return
+        if impatient:
+            logger.error("Forcefully exiting while already exiting gracefully")
+            sys.exit(-1)
+        else:
+            logger.debug("Already exiting gracefully, ignoring call")
+            return
     graceful_exit = True
     logger.info("Exitting gracefully")
     logging.shutdown()
+    logging_setup.log_break(msg="END LOG")
     sys.exit(code)
+
+# trap interrup signals for graceful exit
+def signal_handler(sig, frame):
+    logger.warning(f"Received signal {sig}, attempting graceful exit")
+    exit_gracefully(0, impatient=True)
+
 import signal
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 logger.info("Signal handlers set")
+
+
 
 
 import functools
@@ -39,6 +45,7 @@ try:
     import torch
 except BaseException as e:
     logger.exception("Failed to import torch: %s", e)
+    exit_gracefully(-1)
 PREFERRED_DEVICE = os.getenv("DEVICE", "cuda")
 force_device = False
 if PREFERRED_DEVICE.startswith("force "):
@@ -55,12 +62,13 @@ logger.info("Using torch device: %s", device)
 
 #register datasets
 try:
+    logger.info("Registering datasets")
     import datasets
 except BaseException as e:
     logger.exception("Failed to register datasets: %s", e)
     exit_gracefully(-1)
 
-def main_thread_wrapper(main_function):
+def main_wrapper(main_function):
     @functools.wraps(main_function)
     def wrapper(*args, **kwargs):
         logger.info("Loading complete, initializing main thread")
@@ -69,13 +77,15 @@ def main_thread_wrapper(main_function):
         except BaseException as e:
             logger.exception("Uncaught exception in main thread: %s", e)
             exit_gracefully(-1)
-        exit_gracefully(0)
+        if not graceful_exit:
+            logger.info("Main thread finished, exiting gracefully")
+            exit_gracefully(0)
         
 
     return wrapper
 
 if __name__ == "__main__":
     logger.info("Loading complete.")
-    logger.warning("""Running main.py currently does nothing except loading.
+    logger.warning("""Running script_base.py does nothing except loading.
 Choose one of the other scripts.""")
     exit_gracefully(0)

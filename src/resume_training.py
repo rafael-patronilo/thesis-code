@@ -1,12 +1,14 @@
-import main
-from core import Trainer, ModelFileManager
+#!/usr/bin/env python
+import script_base
+from core import Trainer
+from core.storage_management import ModelFileManager
 import sys
-from core.util.stop_criteria import StopAtEpoch, EarlyStop
-from core.util.checkpoint_triggers import BestMetric
+from core.modules.stop_criteria import StopAtEpoch, EarlyStop
+from core.modules.checkpoint_triggers import BestMetric
 
 
-@main.main_thread_wrapper
-def main_function():
+@script_base.main_wrapper
+def main():
     # Resume training from the last checkpoint
     model_path = sys.argv[1]
     parts = model_path.split("_")
@@ -18,7 +20,7 @@ def main_function():
         model_identifier=model_identifier, 
         conflict_strategy='load') as file_manager:
         # Load trainer
-        trainer = Trainer.load_checkpoint(file_manager, device=main.device)
+        trainer = Trainer.load_checkpoint(file_manager)
         
         checkpoint_triggers = [
             BestMetric()
@@ -31,4 +33,4 @@ def main_function():
         trainer.train_until(stop_criteria)
 
 if __name__ == '__main__':
-    main_function()
+    main()

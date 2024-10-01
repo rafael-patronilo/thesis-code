@@ -5,6 +5,7 @@ from collections import deque
 import torch
 from .modules.metrics import select_metrics
 import math
+from logging_setup import tensors as tensor_logging
 
 logger = logging.getLogger(__name__)
 
@@ -102,16 +103,7 @@ class MetricsLogger:
         y_trues = torch.cat(y_trues)
         
         # store predictions for debugging
-        if logger.level == logging.DEBUG:
-            from pathlib import Path
-            path = Path('debug').joinpath(self.identifier + '_preds.csv')
-            if not path.exists():
-                path.mkdir(parents=True, exist_ok=True)
-                import pandas as pd
-                pd.DataFrame({
-                    'y_preds' : y_preds.numpy().flatten(),
-                    'y_trues' : y_trues.numpy().flatten()
-                }).to_csv(path)
+        tensor_logging.log_table(f"{self.identifier}_preds.csv", y_preds= y_preds, y_trues=y_trues)
         return y_preds, y_trues
     
 

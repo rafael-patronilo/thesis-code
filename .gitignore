@@ -5,3 +5,4 @@ logs/
 storage/
 data/
 temp.py
+debug/

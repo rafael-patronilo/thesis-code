@@ -1,15 +1,16 @@
 import logging
-import typing
-import torch
 from torch.utils.data import DataLoader
-from typing import Optional, Any, Callable
-import itertools
+from typing import Optional, Any, Callable, Literal
 from .metrics_logger import MetricsLogger
 from .storage_management.model_file_manager import ModelFileManager
 from .datasets import dataset_registry
-from log_setup import NOTIFY
+from logging_setup import NOTIFY, logfile
+import torch
 from . import modules
 from . import ModelDetails
+from . import util as utils
+
+CheckpointReason = Literal['interrupt', "error", 'triggered', 'periodic', 'end']
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,6 @@ class Trainer:
             loss_fn,
             optimizer,
             training_loader,
-            device,
             model_file_manager : ModelFileManager,
             metric_loggers : list[MetricsLogger],
             #callbacks = None,
@@ -32,30 +32,44 @@ class Trainer:
         self.model = model
         self.loss_fn = loss_fn
         self.optimizer = optimizer
-        self.device = device
         self.training_loader = training_loader
         self.model_file_manager = model_file_manager
         self.metric_loggers : list[MetricsLogger] = metric_loggers
         #self.callbacks = callbacks or {}
+        self.start_epoch = epoch
         self.epoch = epoch
         self.checkpoint_triggers = checkpoint_triggers or []
         self.checkpoint_each = checkpoint_each
 
+    def checkpoint_metadata(self, reason : CheckpointReason):
+        return {
+            "epoch" : self.epoch,
+            "start_epoch" : self.start_epoch,
+            "path" : self.model_file_manager.path,
+            "reason" : reason,
+            "device" : torch.get_default_device().type,
+            "logfile" : logfile
+        }
     
-    def state_dict(self):
+    def state_dict(self, reason : CheckpointReason):
+        metadata = self.checkpoint_metadata(reason)
+        logger.debug(f"Checkpoint metadata: {metadata}")
         return {
             "model": self.model.state_dict(),
             "optimizer": self.optimizer.state_dict(),
             "epoch": self.epoch,
-            "metrics": {metric_logger.identifier : metric_logger.state_dict() for metric_logger in self.metric_loggers}
+            "metrics": {metric_logger.identifier : metric_logger.state_dict() for metric_logger in self.metric_loggers},
+            "metadata": metadata
         }
     
     def load_state_dict(self, state_dict):
         self.model.load_state_dict(state_dict["model"])
         self.optimizer.load_state_dict(state_dict["optimizer"])
         self.epoch = state_dict["epoch"]
+        self.start_epoch = state_dict["epoch"]
         for metric_logger in self.metric_loggers:
             metric_logger.load_state_dict(state_dict["metrics"][metric_logger.identifier])
+        logger.info(f"Loaded checkpoint: {utils.multiline_str(state_dict['metadata'])}")
         
     def train_until(self, criteria : list[Callable[[Any], bool]]):
         logger.info("Initiating training loop...\n"
@@ -69,18 +83,18 @@ class Trainer:
                 self._train_epoch(self.epoch, first=first)
                 self.epoch += 1
                 first = False
-            self.model_file_manager.save_checkpoint(self.epoch, self.state_dict())
+            self.model_file_manager.save_checkpoint(self.epoch, self.state_dict('end'))
             logger.log(NOTIFY, "Training complete.")
         except (KeyboardInterrupt, SystemExit):
             logger.log(NOTIFY, "Training interrupted. Saving checkpoint...")
-            self.model_file_manager.save_checkpoint(self.epoch, self.state_dict())
+            self.model_file_manager.save_checkpoint(self.epoch, self.state_dict('interrupt'))
         except:
             logger.error("Exception caught while training. Saving checkpoint...")
-            self.model_file_manager.save_checkpoint(self.epoch, self.state_dict())
+            self.model_file_manager.save_checkpoint(self.epoch, self.state_dict('error'))
             raise
         
-    def _checkpoint(self):
-        self.model_file_manager.save_checkpoint(self.epoch, self.state_dict())
+    def _checkpoint(self, reason : CheckpointReason):
+        self.model_file_manager.save_checkpoint(self.epoch, self.state_dict(reason))
         averages = ""
         averages_last_n = ""
         last_record = ""
@@ -109,10 +123,10 @@ class Trainer:
             metric_logger.log(epoch, self.model)
         if epoch > 0 and epoch % self.checkpoint_each == 0:
             logger.info(f"Periodic checkpoint")
-            self._checkpoint()
+            self._checkpoint('periodic')
         elif any(trigger(self) for trigger in self.checkpoint_triggers):
             logger.info(f"Triggered checkpoint")
-            self._checkpoint()
+            self._checkpoint('triggered')
         elif first:
             metrics = {metric_logger.identifier : metric_logger.last_record for metric_logger in self.metric_loggers}
             logger.info(f"Metrics: {metrics}")
@@ -134,14 +148,13 @@ class Trainer:
     @classmethod
     def load_checkpoint(
             cls, 
-            file_manager : ModelFileManager,
-            device
+            file_manager : ModelFileManager
             ):
         logger.info(f"Loading Model {file_manager.model_name} from checkpoint...")
         model_details = file_manager.load_model_details()
         logger.info(f"Model details: {model_details}")
         logger.debug(f"Loading architecture")
-        model = model_details.architecture.to(device)
+        model = model_details.architecture
 
         loss_fn = modules.get_loss_function(model_details.loss_fn)
         optimizer = modules.get_optimizer(model_details.optimizer, model)
@@ -179,7 +192,6 @@ class Trainer:
             loss_fn=loss_fn,
             optimizer=optimizer,
             training_loader=training_loader,
-            device=device,
             model_file_manager=file_manager,
             metric_loggers=[
                 MetricsLogger('train', file_manager, train_metrics, dataloader=training_loader),

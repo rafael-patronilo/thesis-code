@@ -111,12 +111,12 @@ class ModelFileManager:
         logger.info(f"Saving checkpoint at {path}")
         torch.save(state_dict, path)
 
-    def load_last_checkpoint(self, device=None):
+    def load_last_checkpoint(self):
         checkpoint_files = self.checkpoint_path.glob("*")
         checkpoint_files = [(int(file.with_suffix("").name.split('_')[-1]), file) for file in checkpoint_files]
         checkpoint_files.sort(key=lambda x: x[0])
         if len(checkpoint_files) > 0:
-            return torch.load(checkpoint_files[-1][1], weights_only=False, map_location=device)
+            return torch.load(checkpoint_files[-1][1], weights_only=False)
         else:
             return None
 
