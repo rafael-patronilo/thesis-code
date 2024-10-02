@@ -26,7 +26,7 @@ class Trainer:
             metric_loggers : list[MetricsLogger],
             #callbacks = None,
             epoch = 0,
-            checkpoint_each = 10,
+            checkpoint_each : Optional[int] = 10,
             checkpoint_triggers : Optional[list[Callable[[Any], bool]]] = None
         ):
         self.model = model
@@ -70,8 +70,15 @@ class Trainer:
         for metric_logger in self.metric_loggers:
             metric_logger.load_state_dict(state_dict["metrics"][metric_logger.identifier])
         logger.info(f"Loaded checkpoint: {utils.multiline_str(state_dict['metadata'])}")
+
+    def train_indefinitely(self):
+        self.train_until([])
+
+    def train_epochs(self, num_epochs):
+        self.train_until([lambda x : x.epoch >= num_epochs])
+
         
-    def train_until(self, criteria : list[Callable[[Any], bool]]):
+    def train_until(self, criteria : list[Callable[['Trainer'], bool]]):
         logger.info("Initiating training loop...\n"
                     f"Model: {self.model_file_manager.model_name}\n"
                     f"Epoch: {self.epoch}\n"
@@ -92,7 +99,9 @@ class Trainer:
             logger.error("Exception caught while training. Saving checkpoint...")
             self.model_file_manager.save_checkpoint(self.epoch, self.state_dict('error'))
             raise
-        
+    
+
+
     def _checkpoint(self, reason : CheckpointReason):
         self.model_file_manager.save_checkpoint(self.epoch, self.state_dict(reason))
         averages = ""
@@ -121,7 +130,7 @@ class Trainer:
         logger.debug("Epoch complete")
         for metric_logger in self.metric_loggers:
             metric_logger.log(epoch, self.model)
-        if epoch > 0 and epoch % self.checkpoint_each == 0:
+        if epoch > 0 and self.checkpoint_each is not None and epoch % self.checkpoint_each == 0:
             logger.info(f"Periodic checkpoint")
             self._checkpoint('periodic')
         elif any(trigger(self) for trigger in self.checkpoint_triggers):

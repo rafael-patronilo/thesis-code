@@ -1,8 +1,9 @@
 import torch
-from typing import Any
+from typing import Any, Optional
 import torch
 import inspect
 from torcheval.metrics import functional as torch_metrics
+from core.datasets import SplitDataset
 from .elapsed import Elapsed
 from typing import Callable
 
@@ -36,7 +37,10 @@ def get_metric(name):
 def metric_exists(name):
     return get_metric(name) is not None
 
-def select_metrics(metrics : list[str]) -> dict[str, Any]:
+def select_metrics(metrics : list[str], dataset : Optional[SplitDataset] = None) -> dict[str, Any]:
+    if dataset is not None:
+        # TODO metrics logger uses this function but doesn't know the dataset
+        raise NotImplementedError("Dataset specific metrics are not yet implemented")
     metric_functions = {}
     for metric_name in metrics:
         metric_functions[metric_name] = get_metric(metric_name)

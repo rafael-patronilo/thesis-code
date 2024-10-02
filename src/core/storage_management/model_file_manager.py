@@ -9,7 +9,7 @@ from .. import ModelDetails
 
 logger = logging.getLogger(__name__)
 
-MODELS_PATH = os.getenv("MODEL_PATH") or "storage/models"
+MODELS_PATH = os.getenv("MODEL_PATH", "storage/models")
 
 
 
@@ -24,7 +24,9 @@ class ModelFileManager:
             model_name : str,
             model_identifier : str = "",
             conflict_strategy : Literal['new', 'error', 'load'] = 'new',
+            models_path : Optional[str | os.PathLike] = None
         ) -> None:
+        self.models_path = models_path or MODELS_PATH
         self.model_name = model_name
         self.model_identifier = model_identifier
         self.__metrics_streams = []
@@ -49,7 +51,7 @@ class ModelFileManager:
             self.__create_paths(exists_ok=False)
     
     def __format_paths(self):
-        self.path = Path(MODELS_PATH).joinpath(self.model_name + '_' + self.model_identifier)
+        self.path = Path(self.models_path).joinpath(self.model_name + '_' + self.model_identifier)
         self.checkpoint_path = self.path.joinpath(self.CHECKPOINTS_DIR)
         self.model_file = self.path.joinpath(self.MODEL_FILE_NAME)
         self.metrics_dest = self.path.joinpath(self.METRICS_DIR)
