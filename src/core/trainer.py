@@ -10,7 +10,7 @@ from . import modules
 from . import ModelDetails
 from . import util as utils
 
-CheckpointReason = Literal['interrupt', "error", 'triggered', 'periodic', 'end']
+CheckpointReason = Literal['interrupt', 'force_interrupt', "error", 'triggered', 'periodic', 'end']
 
 logger = logging.getLogger(__name__)
 
@@ -84,17 +84,23 @@ class Trainer:
                     f"Epoch: {self.epoch}\n"
                     f"Checkpoint each: {self.checkpoint_each}\n"
                     f"Keyboard interrupt to save checkpoint and exit.")
+        
         try:
             first = True
+            interrupt_handler = utils.InterruptHandler("mid epoch", logger)
             while not any(criterion(self) for criterion in criteria):
-                self._train_epoch(self.epoch, first=first)
-                self.epoch += 1
-                first = False
+                with interrupt_handler:
+                    self._train_epoch(self.epoch, first=first)
+                    self.epoch += 1
+                    first = False
             self.model_file_manager.save_checkpoint(self.epoch, self.state_dict('end'))
             logger.log(NOTIFY, "Training complete.")
-        except (KeyboardInterrupt, SystemExit):
-            logger.log(NOTIFY, "Training interrupted. Saving checkpoint...")
+        except (KeyboardInterrupt, utils.InterruptHandler.InterruptException):
+            logger.log(NOTIFY, "Training safely interrupted. Saving checkpoint...")
             self.model_file_manager.save_checkpoint(self.epoch, self.state_dict('interrupt'))
+        except (SystemExit, utils.InterruptHandler.ForcedInterruptException):
+            logger.error("Forced interrupt. Saving checkpoint...")
+            self.model_file_manager.save_checkpoint(self.epoch, self.state_dict('force_interrupt'))
         except:
             logger.error("Exception caught while training. Saving checkpoint...")
             self.model_file_manager.save_checkpoint(self.epoch, self.state_dict('error'))

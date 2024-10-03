@@ -131,7 +131,6 @@ class DiscordMessageBufferer:
         self.begin_prefix(prefix)
 
     def close(self):
-        self.break_msg()
         self.buffer.put(None)
 
 

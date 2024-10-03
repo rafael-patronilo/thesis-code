@@ -5,7 +5,7 @@ from collections import deque
 import torch
 from .modules.metrics import select_metrics
 import math
-from logging_setup import tensors as tensor_logging
+from core.util import debug, safe_div
 
 logger = logging.getLogger(__name__)
 
@@ -58,8 +58,8 @@ class MetricsLogger:
             logger.error(f"Invalid total measures keys ({total_measures.keys()}), ignoring value")
         else:
             self.total_measures = total_measures
-        if any(x.keys() != self.__metric_functions.keys() for x in last_n):
-            logger.error(f"Invalid last n keys, ignoring value")
+        if any(x.keys() != self.__metric_functions.keys() for x in last_n) or len(last_n) != len(self.last_n):
+            logger.error(f"Invalid last n, ignoring value\nlast_n: {last_n}\n keys: {self.__metric_functions.keys()}")
         else:
             self.last_n = deque(last_n)
             self.sums = {k: 0.0 for k, _ in self.ordered_metrics}
@@ -67,20 +67,15 @@ class MetricsLogger:
                 for k, v in entry.items():
                     sums[k] += v
 
-    def _safe_div(self, a, b):
-        if b == 0:
-            return float('nan')
-        return a / b
-
     def averages(self):
         return {
-            k : self._safe_div(v, self.total_measures[k]) 
+            k : safe_div(v, self.total_measures[k]) 
             for k,v in self.sums.items()
         }
     
     def averages_last_n(self):
         return {
-            k : self._safe_div(v, min(len(self.last_n), self.total_measures[k])) 
+            k : safe_div(v, min(len(self.last_n), self.total_measures[k])) 
             for k,v in self.sums_last_n.items()
         }
     
@@ -103,7 +98,10 @@ class MetricsLogger:
         y_trues = torch.cat(y_trues)
         
         # store predictions for debugging
-        tensor_logging.log_table(f"{self.identifier}_preds.csv", y_preds= y_preds, y_trues=y_trues)
+        debug.debug_table(f"{self.identifier}_preds.csv", y_preds=y_preds, y_trues=y_trues)
+        debug.debug_table(f"{self.identifier}_round_preds.csv", 
+                          y_preds=lambda:torch.round(y_preds), 
+                          y_trues=lambda:torch.round(y_trues))
         return y_preds, y_trues
     
 
