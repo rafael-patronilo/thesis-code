@@ -87,18 +87,18 @@ class Trainer:
         
         try:
             first = True
-            interrupt_handler = utils.InterruptHandler("mid epoch", logger)
+            no_interrupt = utils.NoInterrupt("mid epoch", logger)
             while not any(criterion(self) for criterion in criteria):
-                with interrupt_handler:
+                with no_interrupt:
                     self._train_epoch(self.epoch, first=first)
                     self.epoch += 1
                     first = False
             self.model_file_manager.save_checkpoint(self.epoch, self.state_dict('end'))
             logger.log(NOTIFY, "Training complete.")
-        except (KeyboardInterrupt, utils.InterruptHandler.InterruptException):
+        except (KeyboardInterrupt, utils.NoInterrupt.InterruptException):
             logger.log(NOTIFY, "Training safely interrupted. Saving checkpoint...")
             self.model_file_manager.save_checkpoint(self.epoch, self.state_dict('interrupt'))
-        except (SystemExit, utils.InterruptHandler.ForcedInterruptException):
+        except (SystemExit, utils.NoInterrupt.ForcedInterruptException):
             logger.error("Forced interrupt. Saving checkpoint...")
             self.model_file_manager.save_checkpoint(self.epoch, self.state_dict('force_interrupt'))
         except:

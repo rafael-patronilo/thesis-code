@@ -16,7 +16,7 @@ class StudyManager:
             dataset : SplitDataset,
             val_metrics : list[str],
             compare_strategy : Callable[[dict, dict], bool] | tuple[str, Literal["max", "min"]],
-            num_epochs : int = 25,
+            num_epochs : int = 10,
             ):
         self.name = file_manager.study_name
         self.file_manager = file_manager

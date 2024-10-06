@@ -33,9 +33,10 @@ def assert_type(obj, type_):
     if not isinstance(obj, type_):
         raise TypeError(f"Expected type {type_}, got {type(obj)}")
     
-class InterruptHandler:
+class NoInterrupt:
     """
     Context object to trap interrupt signals to prevent abrupt termination of certain sections of the program.
+    If a signal is received during the with context, it is delayed until its end.
     """
     attempts = 0
 
@@ -63,7 +64,7 @@ class InterruptHandler:
     def signal_handler(self, sig, frame):
         if self.attempts > 0:
             self.logger.error(f"Received signal {signal.Signals(sig).name} again, exiting immediately")
-            raise InterruptHandler.InterruptException(self.interrupt_signal)
+            raise NoInterrupt.InterruptException(self.interrupt_signal)
         self.attempts += 1
         self.interrupt_signal = signal.Signals(sig)
         self.logger.warning(f"Intercepted signal {self.interrupt_signal.name} with reason {self.reason}."
@@ -84,4 +85,4 @@ class InterruptHandler:
             if self.keyboard_interrupt and self.interrupt_signal == signal.Signals.SIGINT:
                 raise KeyboardInterrupt()
             else:
-                raise InterruptHandler.InterruptException(self.interrupt_signal)
+                raise NoInterrupt.InterruptException(self.interrupt_signal)
