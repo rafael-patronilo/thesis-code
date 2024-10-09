@@ -9,8 +9,11 @@ logger = logging.getLogger(__name__)
 def main():
     model = torch.nn.Sequential(
         torch.nn.LazyLinear(32),
+        torch.nn.ReLU(),
         torch.nn.LazyLinear(32),
+        torch.nn.ReLU(),
         torch.nn.LazyLinear(32),
+        torch.nn.ReLU(),
         torch.nn.LazyLinear(3),
         torch.nn.Sigmoid()
     )

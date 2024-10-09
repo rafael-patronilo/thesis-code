@@ -6,6 +6,7 @@ from .datasets import SplitDataset
 from . import ModelDetails
 from .trainer import Trainer
 from .metrics_logger import MetricsLogger
+from . import modules
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,29 @@ class StudyManager:
                 raise ValueError(f"Invalid compare strategy {(metric,favored)}")
         else:
             self.compare_strategy = compare_strategy
+
+    def _create_trainer(self, model_file_manager, model_details : ModelDetails, metrics_logger : MetricsLogger):
+        model = model_details.architecture
+        loss_fn = modules.get_loss_function(model_details.loss_fn)
+        optimizer = modules.get_optimizer(model_details.optimizer, model)
+        val_metrics = model_details.metrics
+        train_metrics = model_details.metrics
+        if model_details.train_metrics is not None:
+            train_metrics = model_details.train_metrics
+        
+        train_metrics = modules.metrics.select_metrics(train_metrics)
+        val_metrics = modules.metrics.select_metrics(val_metrics)
+        trainer = Trainer(
+                model = model,
+                loss_fn = loss_fn,
+                optimizer = optimizer,
+                training_loader = self.dataset.for_training(),
+                model_file_manager = model_file_manager,
+                metric_loggers = [metrics_logger],
+                epoch = 0,
+                checkpoint_each = None
+            )
+        return trainer
     
     def run_experiment(self, experiment_name, details):
         with self.file_manager.new_experiment(experiment_name) as model_file_manager:
@@ -45,17 +69,9 @@ class StudyManager:
                 metric_functions=self.val_metrics,
                 dataloader=self.dataset.for_validation()
             )
-            trainer = Trainer(
-                model = details.architecture,
-                loss_fn = details.loss_fn,
-                optimizer = details.optimizer,
-                training_loader = self.dataset.for_training(),
-                model_file_manager = model_file_manager,
-                metric_loggers = [metrics_logger],
-                epoch = 0,
-                checkpoint_each = None
-            )
+            
             logger.info(f"Running experiment {experiment_name}")
+            trainer = self._create_trainer(model_file_manager, details, metrics_logger)
             trainer.train_epochs(self.num_epochs)
             logger.info(f"Experiment {experiment_name} complete")
             logger.info(f"Metrics: {metrics_logger.last_record}")

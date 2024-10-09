@@ -7,7 +7,9 @@ from core.datasets import SplitDataset
 from .elapsed import Elapsed
 from typing import Callable
 
-def decorate_torch_metric(metric : Callable[[torch.Tensor, torch.Tensor], torch.Tensor], flatten_tensors=False) -> Callable[[torch.Tensor, torch.Tensor], float]:
+MetricFunction = Callable[[torch.Tensor, torch.Tensor], float]
+
+def decorate_torch_metric(metric : Callable[[torch.Tensor, torch.Tensor], torch.Tensor], flatten_tensors=False) -> MetricFunction:
     def decorated_metric(y_pred, y_true, **kwargs):
         if flatten_tensors:
             y_pred = y_pred.flatten()
@@ -15,13 +17,13 @@ def decorate_torch_metric(metric : Callable[[torch.Tensor, torch.Tensor], torch.
         return metric(y_pred, y_true).item()
     return decorated_metric
 
-__all_metrics = {
+__all_metrics : dict[str, MetricFunction | type] = {
     'accuracy' : decorate_torch_metric(torch_metrics.binary_accuracy, flatten_tensors=True),
     'f1_score' : decorate_torch_metric(torch_metrics.binary_f1_score, flatten_tensors=True),
     'epoch_elapsed' : Elapsed,
 }
 
-def get_metric(name):
+def get_metric(name : str) -> MetricFunction | None:
     if name in __all_metrics:
         metric = __all_metrics[name]
         if inspect.isclass(metric):
@@ -37,7 +39,7 @@ def get_metric(name):
 def metric_exists(name):
     return get_metric(name) is not None
 
-def select_metrics(metrics : list[str], dataset : Optional[SplitDataset] = None) -> dict[str, Any]:
+def select_metrics(metrics : list[str], dataset : Optional[SplitDataset] = None) -> dict[str, MetricFunction]:
     if dataset is not None:
         # TODO metrics logger uses this function but doesn't know the dataset
         raise NotImplementedError("Dataset specific metrics are not yet implemented")

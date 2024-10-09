@@ -14,6 +14,7 @@ ModelDetails = NamedTuple(
 
 from .trainer import Trainer
 from .metrics_logger import MetricsLogger
+from .study_manager import StudyManager
 from .storage_management.model_file_manager import ModelFileManager
 
 from . import modules
@@ -48,3 +49,4 @@ def prepare_new_model(
             train_metrics=train_metrics
         )
         file_manager.save_model_details(model_details)
+

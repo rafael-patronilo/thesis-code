@@ -173,6 +173,14 @@ class Trainer:
 
         loss_fn = modules.get_loss_function(model_details.loss_fn)
         optimizer = modules.get_optimizer(model_details.optimizer, model)
+        val_metrics = model_details.metrics
+        train_metrics = model_details.metrics
+        if model_details.train_metrics is not None:
+            train_metrics = model_details.train_metrics
+        
+        train_metrics = modules.metrics.select_metrics(train_metrics)
+        val_metrics = modules.metrics.select_metrics(val_metrics)
+        loss_metric = modules.metrics.decorate_torch_metric(loss_fn)
 
         logger.info(f"Loading dataset {model_details.dataset}")
         batch_size = model_details.batch_size
@@ -191,14 +199,6 @@ class Trainer:
             shuffle=True
         )
         
-        val_metrics = model_details.metrics
-        train_metrics = model_details.metrics
-        if model_details.train_metrics is not None:
-            train_metrics = model_details.train_metrics
-        
-        train_metrics = modules.metrics.select_metrics(train_metrics)
-        val_metrics = modules.metrics.select_metrics(val_metrics)
-        loss_metric = modules.metrics.decorate_torch_metric(loss_fn)
         train_metrics['loss'] = loss_metric
         val_metrics['loss'] = loss_metric
 
