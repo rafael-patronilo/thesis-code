@@ -1,10 +1,10 @@
 from typing import NamedTuple, Any, Optional, Literal, Iterable
 
-
+from .storage_management.model_file_manager import ModelFileManager
 from .trainer import Trainer, ModelDetails
 from .metrics_logger import MetricsLogger, NamedMetricFunction, MetricFunction
 from .study_manager import StudyManager
-from .storage_management.model_file_manager import ModelFileManager
+
 
 
 from . import modules
@@ -18,7 +18,7 @@ def _replace_loss(loss_fn : str, metrics : Iterable[NamedMetricFunction]) -> Ite
             if not loss_metric_added:
                 yield (
                     'loss', 
-                    modules.metrics.decorate_torch_metric(modules.get_loss_function(loss_fn))
+                    modules.metrics.DecoratedTorchMetric(modules.get_loss_function(loss_fn))
                 )
                 loss_metric_added = True
         else:
@@ -47,7 +47,7 @@ def prepare_new_model(
     dataset = datasets.get_dataset(dataset_name)
     loss_metric : NamedMetricFunction = (
         'loss', 
-        modules.metrics.decorate_torch_metric(modules.get_loss_function(loss_fn)))
+        modules.metrics.DecoratedTorchMetric(modules.get_loss_function(loss_fn)))
     if val_metrics is not None:
         metric_loggers.append(MetricsLogger(
             identifier = 'val',

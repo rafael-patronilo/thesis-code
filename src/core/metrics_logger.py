@@ -151,3 +151,6 @@ class MetricsLogger:
         self.buffered_records.append(record)
         if len(self.buffered_records) >= 10:
             self.flush()
+    
+    def __str__(self):
+        return f"MetricsLogger({self.identifier}, metrics={self.ordered_metrics})"

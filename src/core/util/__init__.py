@@ -67,7 +67,7 @@ class NoInterrupt:
             raise NoInterrupt.InterruptException(self.interrupt_signal)
         self.attempts += 1
         self.interrupt_signal = signal.Signals(sig)
-        self.logger.warning(f"Intercepted signal {self.interrupt_signal.name} with reason {self.reason}."
+        self.logger.warning(f"Intercepted signal {self.interrupt_signal.name} with reason {self.reason}.\n"
                             "Attempting graceful exit")
     
     def __enter__(self):

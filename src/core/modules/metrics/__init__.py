@@ -10,17 +10,25 @@ from typing import Callable
 MetricFunction = Callable[[torch.Tensor, torch.Tensor], float]
 NamedMetricFunction = str | tuple[str, MetricFunction]
 
-def decorate_torch_metric(metric : Callable[[torch.Tensor, torch.Tensor], torch.Tensor], flatten_tensors=False) -> MetricFunction:
-    def decorated_metric(y_pred, y_true, **kwargs):
-        if flatten_tensors:
+class DecoratedTorchMetric:
+
+    def __init__(
+            self, 
+            metric : Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
+            flatten_tensors : bool = False
+        ) -> None:
+        self.metric = metric
+        self.flatten_tensors = flatten_tensors
+
+    def __call__(self, y_pred, y_true, **kwargs):
+        if self.flatten_tensors:
             y_pred = y_pred.flatten()
             y_true = y_true.flatten()
-        return metric(y_pred, y_true).item()
-    return decorated_metric
+        return self.metric(y_pred, y_true).item()
 
 __all_metrics : dict[str, MetricFunction | type] = {
-    'accuracy' : decorate_torch_metric(torch_metrics.binary_accuracy, flatten_tensors=True),
-    'f1_score' : decorate_torch_metric(torch_metrics.binary_f1_score, flatten_tensors=True),
+    'accuracy' : DecoratedTorchMetric(torch_metrics.binary_accuracy, flatten_tensors=True),
+    'f1_score' : DecoratedTorchMetric(torch_metrics.binary_f1_score, flatten_tensors=True),
     'epoch_elapsed' : Elapsed,
 }
 
@@ -33,7 +41,7 @@ def get_metric(name : str) -> MetricFunction | None:
     else:
         torch_metric = torch_metrics.__dict__.get(name)
         if torch_metric is not None:
-            return decorate_torch_metric(torch_metric)
+            return DecoratedTorchMetric(torch_metric)
         else:
             return None
 

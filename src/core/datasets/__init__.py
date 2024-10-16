@@ -1,5 +1,5 @@
 from typing import Optional, NamedTuple, Any
-from util.typing import TorchDataset
+from core.util.typing import TorchDataset
 import logging
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ class SplitDataset:
         """Training set prepared for calculating metrics.
         Useful if some collumns are hidden during training.
         Default implementation is the same as for_training()
-        
+
         Returns:
             TorchDataset: the training set
         """
@@ -88,6 +88,12 @@ class SplitDataset:
     
     def has_testing(self) -> bool:
         return hasattr(self, 'test_data') and self.test_data is not None
+    
+    def __str__(self) -> str:
+        if hasattr(self, 'name'):
+            return f"{self.__class__.__name__}({getattr(self, 'name')})"
+        else:
+            return f"{self.__class__.__name__}()"
 
 
 

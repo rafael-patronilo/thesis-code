@@ -8,7 +8,6 @@ from .datasets import get_dataset
 from logging_setup import NOTIFY, logfile
 import torch
 from . import modules
-from . import ModelDetails
 from . import util as utils
 
 ModelDetails = NamedTuple(
@@ -103,8 +102,9 @@ class Trainer:
             no_interrupt = utils.NoInterrupt("mid epoch", logger)
             while not any(criterion(self) for criterion in criteria):
                 with no_interrupt:
+                    if not first:
+                        self.epoch += 1
                     self._train_epoch(self.epoch, first=first)
-                    self.epoch += 1
                     first = False
             self._checkpoint('end')
             logger.log(NOTIFY, "Training complete.")
@@ -187,7 +187,6 @@ class Trainer:
         loss_fn = modules.get_loss_function(model_details.loss_fn)
         optimizer = modules.get_optimizer(model_details.optimizer, model)
         metric_loggers = model_details.metrics
-        loss_metric = modules.metrics.decorate_torch_metric(loss_fn)
 
         logger.info(f"Loading dataset {model_details.dataset}")
         batch_size = model_details.batch_size
@@ -195,12 +194,6 @@ class Trainer:
 
         training_loader = DataLoader(
             dataset.for_training(),
-            batch_size=batch_size,
-            shuffle=True
-        )
-        
-        validation_loader = DataLoader(
-            dataset.for_validation(),
             batch_size=batch_size,
             shuffle=True
         )

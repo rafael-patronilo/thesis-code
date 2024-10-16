@@ -1,18 +1,19 @@
 
 from pathlib import Path
-from typing import Literal, NamedTuple, Any, Optional, Self
+from typing import Literal, NamedTuple, Any, Optional, Self, TYPE_CHECKING
 import datetime
 import logging
 import torch
 import os
-from .. import ModelDetails
+if TYPE_CHECKING:
+    from .. import ModelDetails
 import threading
 
 logger = logging.getLogger(__name__)
 
 MODELS_PATH = os.getenv("MODEL_PATH", "storage/models")
-__lock = threading.Lock()
-__context_instance : Optional['ModelFileManager'] = None
+_lock = threading.Lock()
+_context_instance : Optional['ModelFileManager'] = None
 
 
 class ModelFileManager:
@@ -111,11 +112,11 @@ class ModelFileManager:
         metrics_file.write("\n".join(",".join(map(str, record)) for record in records) + "\n")
         metrics_file.flush()
 
-    def save_model_details(self, details : ModelDetails):
+    def save_model_details(self, details : 'ModelDetails'):
         self.__assert_context()
         torch.save(details, self.model_file)
     
-    def load_model_details(self) -> ModelDetails:
+    def load_model_details(self) -> 'ModelDetails':
         self.__assert_context()
         return torch.load(self.model_file, weights_only=False)
     
@@ -138,30 +139,30 @@ class ModelFileManager:
             return None
     
     def __assert_context(self):
-        global __context_instance
-        if __context_instance is not self:
+        global _context_instance
+        if _context_instance is not self:
                     raise RuntimeError("ModelFileManager must be used as a context manager")
 
     def __enter__(self):
-        global __lock, __context_instance
-        if __lock.acquire(blocking=False):
-            __context_instance = self
+        global _lock, _context_instance
+        if _lock.acquire(blocking=False):
+            _context_instance = self
             return self
-        elif __context_instance is self:
+        elif _context_instance is self:
             return self
         else:
             raise RuntimeError("Conflicting context manager instances")
     
     def __exit__(self, exc_type, exc_value, traceback):
-        global __lock, __context_instance
+        global _lock, _context_instance
         for stream in self.__metrics_streams.values():
             stream.close()
         self.__metrics_streams = {}
-        __context_instance = None
-        __lock.release()
+        _context_instance = None
+        _lock.release()
 
     @classmethod
     def get_context_instance(cls) -> 'ModelFileManager':
-        if __context_instance is None:
+        if _context_instance is None:
             raise RuntimeError("No ModelFileManager context available")
-        return __context_instance
+        return _context_instance
