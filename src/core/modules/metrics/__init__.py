@@ -1,5 +1,5 @@
 import torch
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 import torch
 import inspect
 from torcheval.metrics import functional as torch_metrics
@@ -8,6 +8,7 @@ from .elapsed import Elapsed
 from typing import Callable
 
 MetricFunction = Callable[[torch.Tensor, torch.Tensor], float]
+NamedMetricFunction = str | tuple[str, MetricFunction]
 
 def decorate_torch_metric(metric : Callable[[torch.Tensor, torch.Tensor], torch.Tensor], flatten_tensors=False) -> MetricFunction:
     def decorated_metric(y_pred, y_true, **kwargs):
@@ -39,11 +40,15 @@ def get_metric(name : str) -> MetricFunction | None:
 def metric_exists(name):
     return get_metric(name) is not None
 
-def select_metrics(metrics : list[str], dataset : Optional[SplitDataset] = None) -> dict[str, MetricFunction]:
+def select_metrics(metrics : Sequence[NamedMetricFunction], dataset : Optional[SplitDataset] = None) -> dict[str, MetricFunction]:
     if dataset is not None:
         # TODO metrics logger uses this function but doesn't know the dataset
         raise NotImplementedError("Dataset specific metrics are not yet implemented")
     metric_functions = {}
-    for metric_name in metrics:
-        metric_functions[metric_name] = get_metric(metric_name)
+    for metric in metrics:
+        if isinstance(metric, str):
+            metric_functions[metric] = get_metric(metric)
+        else:
+            name, metric_function = metric
+            metric_functions[name] = metric_function
     return metric_functions

@@ -1,5 +1,5 @@
 from core.datasets.binary_generator import BinaryGeneratorBuilder, BinaryASTNode
-from core.datasets import dataset_registry, RandomDataset, SplitDataset
+from core.datasets import register_datasets, RandomDataset, SplitDataset
 import logging
 
 logger = logging.getLogger(__name__)
@@ -104,5 +104,5 @@ generators = {
 
 random_datasets : dict[str, RandomDataset] = {f"{PREFIX}_rand_{k}" : _random_dataset(v.generate_random) for k, v in generators.items()}
 complete_datasets : dict[str, SplitDataset] = {f"{PREFIX}_comp_{k}" : v.as_complete_dataset() for k, v in generators.items()}
-dataset_registry.update(random_datasets)
-dataset_registry.update(complete_datasets)
+register_datasets(**random_datasets)
+register_datasets(**complete_datasets)

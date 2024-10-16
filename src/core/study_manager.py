@@ -15,7 +15,7 @@ class StudyManager:
             self, 
             file_manager : StudyFileManager, 
             dataset : SplitDataset,
-            val_metrics : list[str],
+            val_metrics : list[modules.metrics.NamedMetricFunction],
             compare_strategy : Callable[[dict, dict], bool] | tuple[str, Literal["max", "min"]],
             num_epochs : int = 10,
             ):
@@ -42,13 +42,7 @@ class StudyManager:
         model = model_details.architecture
         loss_fn = modules.get_loss_function(model_details.loss_fn)
         optimizer = modules.get_optimizer(model_details.optimizer, model)
-        val_metrics = model_details.metrics
-        train_metrics = model_details.metrics
-        if model_details.train_metrics is not None:
-            train_metrics = model_details.train_metrics
         
-        train_metrics = modules.metrics.select_metrics(train_metrics)
-        val_metrics = modules.metrics.select_metrics(val_metrics)
         trainer = Trainer(
                 model = model,
                 loss_fn = loss_fn,
@@ -65,9 +59,8 @@ class StudyManager:
         with self.file_manager.new_experiment(experiment_name) as model_file_manager:
             metrics_logger = MetricsLogger(
                 identifier="val",
-                model_file_manager = model_file_manager,
                 metric_functions=self.val_metrics,
-                dataloader=self.dataset.for_validation()
+                dataset=self.dataset.for_validation
             )
             
             logger.info(f"Running experiment {experiment_name}")

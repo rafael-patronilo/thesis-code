@@ -1,5 +1,5 @@
-from typing import Optional, NamedTuple
-from torch.utils.data import Dataset, IterableDataset
+from typing import Optional, NamedTuple, Any
+from util.typing import TorchDataset
 import logging
 logger = logging.getLogger(__name__)
 
@@ -19,6 +19,12 @@ class SplitDataset:
         self.test_data = test_data
         self.loaded = False
         self.collumn_references = collumn_references
+
+    def __reduce__(self) -> str | tuple[Any, ...]:
+        if not hasattr(self, 'name'):
+            return (self.__class__, (self.train_data, self.val_data, self.test_data, self.collumn_references))
+        else:
+            return (get_dataset, (getattr(self, 'name'),))
 
     def get_metric(self, metric : str):
         raise NotImplementedError("Metric retrieval not implemented")
@@ -49,21 +55,31 @@ class SplitDataset:
         if not hasattr(data, 'dataset'):
             data.dataset = self
 
-    def for_training(self) -> Dataset | IterableDataset:
+    def for_training(self) -> TorchDataset:
         self._load()
         if self.train_data is None:
             raise ValueError("No training data available")
         self._attach_self(self.train_data)
         return self.train_data
+    
+    def for_training_eval(self) -> TorchDataset:
+        """Training set prepared for calculating metrics.
+        Useful if some collumns are hidden during training.
+        Default implementation is the same as for_training()
+        
+        Returns:
+            TorchDataset: the training set
+        """
+        return self.for_training()
 
-    def for_validation(self) -> Dataset | IterableDataset:
+    def for_validation(self) -> TorchDataset:
         self._load()
         if self.val_data is None:
             raise ValueError("No validation data available")
         self._attach_self(self.val_data)
         return self.val_data
 
-    def for_testing(self) -> Optional[Dataset | IterableDataset]:
+    def for_testing(self) -> Optional[TorchDataset]:
         self._load()
         if not self.has_testing():
             return None
@@ -79,4 +95,14 @@ from .csv_dataset import CSVDataset
 from . import binary_generator
 from .random_dataset import RandomDataset
 
-dataset_registry : dict[str, SplitDataset] = {}
+_dataset_registry : dict[str, SplitDataset] = {}
+
+def get_dataset(name : str) -> SplitDataset:
+    if name not in _dataset_registry:
+        raise ValueError(f"Dataset {name} not found")
+    return _dataset_registry[name]
+
+def register_datasets(**kwargs):
+    for name, dataset in kwargs.items():
+        dataset.name = name
+        _dataset_registry[name] = dataset

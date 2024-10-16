@@ -1,14 +1,27 @@
 import logging
 from torch.utils.data import DataLoader
-from typing import Optional, Any, Callable, Literal
+from typing import Optional, Any, Callable, Literal, NamedTuple
 from .metrics_logger import MetricsLogger
+from .datasets import SplitDataset
 from .storage_management.model_file_manager import ModelFileManager
-from .datasets import dataset_registry
+from .datasets import get_dataset
 from logging_setup import NOTIFY, logfile
 import torch
 from . import modules
 from . import ModelDetails
 from . import util as utils
+
+ModelDetails = NamedTuple(
+    "ModelDetails",
+    [
+        ("architecture", Any),
+        ("optimizer", str),
+        ("loss_fn", str),
+        ("dataset", SplitDataset),
+        ("metrics", list['MetricsLogger']),
+        ("batch_size", int),
+    ]
+)
 
 CheckpointReason = Literal['interrupt', 'force_interrupt', "error", 'triggered', 'periodic', 'end']
 
@@ -93,20 +106,20 @@ class Trainer:
                     self._train_epoch(self.epoch, first=first)
                     self.epoch += 1
                     first = False
-            self.model_file_manager.save_checkpoint(self.epoch, self.state_dict('end'))
+            self._checkpoint('end')
             logger.log(NOTIFY, "Training complete.")
         except (KeyboardInterrupt, utils.NoInterrupt.InterruptException):
             logger.log(NOTIFY, "Training safely interrupted. Saving checkpoint...")
-            self.model_file_manager.save_checkpoint(self.epoch, self.state_dict('interrupt'))
+            self._checkpoint('interrupt')
         except (SystemExit, utils.NoInterrupt.ForcedInterruptException):
             logger.error("Forced interrupt. Saving checkpoint...")
-            self.model_file_manager.save_checkpoint(self.epoch, self.state_dict('force_interrupt'))
+            self._checkpoint('force_interrupt')
         except:
             logger.error("Exception caught while training. Saving checkpoint...")
-            self.model_file_manager.save_checkpoint(self.epoch, self.state_dict('error'))
+            self._checkpoint('error')
             raise
     
-
+    
 
     def _checkpoint(self, reason : CheckpointReason):
         self.model_file_manager.save_checkpoint(self.epoch, self.state_dict(reason))
@@ -154,7 +167,7 @@ class Trainer:
     def __train_step(self, X, Y):
         self.model.train()
         self.optimizer.zero_grad()
-        loss = self.loss_fn(self.model(X), Y)
+        loss = self.loss_fn(self.model.forward(X), Y)
         loss.backward()
         self.optimizer.step()
         return loss
@@ -173,19 +186,12 @@ class Trainer:
 
         loss_fn = modules.get_loss_function(model_details.loss_fn)
         optimizer = modules.get_optimizer(model_details.optimizer, model)
-        val_metrics = model_details.metrics
-        train_metrics = model_details.metrics
-        if model_details.train_metrics is not None:
-            train_metrics = model_details.train_metrics
-        
-        train_metrics = modules.metrics.select_metrics(train_metrics)
-        val_metrics = modules.metrics.select_metrics(val_metrics)
+        metric_loggers = model_details.metrics
         loss_metric = modules.metrics.decorate_torch_metric(loss_fn)
 
         logger.info(f"Loading dataset {model_details.dataset}")
         batch_size = model_details.batch_size
         dataset = model_details.dataset
-        dataset = dataset_registry[dataset]
 
         training_loader = DataLoader(
             dataset.for_training(),
@@ -198,9 +204,6 @@ class Trainer:
             batch_size=batch_size,
             shuffle=True
         )
-        
-        train_metrics['loss'] = loss_metric
-        val_metrics['loss'] = loss_metric
 
         trainer = cls(
             model=model,
@@ -208,10 +211,7 @@ class Trainer:
             optimizer=optimizer,
             training_loader=training_loader,
             model_file_manager=file_manager,
-            metric_loggers=[
-                MetricsLogger('train', file_manager, train_metrics, dataloader=training_loader),
-                MetricsLogger('val', file_manager, val_metrics, dataloader=validation_loader),
-            ]
+            metric_loggers=metric_loggers
         )
 
         checkpoint = file_manager.load_last_checkpoint()

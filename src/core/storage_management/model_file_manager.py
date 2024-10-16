@@ -1,16 +1,18 @@
 
 from pathlib import Path
-from typing import Literal, NamedTuple, Any, Optional
+from typing import Literal, NamedTuple, Any, Optional, Self
 import datetime
 import logging
 import torch
 import os
 from .. import ModelDetails
+import threading
 
 logger = logging.getLogger(__name__)
 
 MODELS_PATH = os.getenv("MODEL_PATH", "storage/models")
-
+__lock = threading.Lock()
+__context_instance : Optional['ModelFileManager'] = None
 
 
 class ModelFileManager:
@@ -19,7 +21,7 @@ class ModelFileManager:
     METRICS_FORMAT = "metrics_{identifier}.csv"
     METRICS_DIR = ""
     CHECKPOINT_FORMAT = "epoch_{epoch:0>9}.pth"
-    
+
     def __init__(self,
             model_name : str,
             model_identifier : str = "",
@@ -29,7 +31,7 @@ class ModelFileManager:
         self.models_path = models_path or MODELS_PATH
         self.model_name = model_name
         self.model_identifier = model_identifier
-        self.__metrics_streams = []
+        self.__metrics_streams = {}
         self.__format_paths()
         if self.path.exists():
             match conflict_strategy:
@@ -63,6 +65,9 @@ class ModelFileManager:
         self.metrics_dest.mkdir(parents=True, exist_ok=True)
 
     def init_metrics_file(self, metrics : list[str], identifier : str):
+        self.__assert_context()
+        if identifier in self.__metrics_streams:
+            return self.__metrics_streams[identifier]
         logger.debug(f"Initializing metrics file for {metrics}")
         metrics_file = self.metrics_dest.joinpath(self.METRICS_FORMAT.format(identifier=identifier))
         file_stream : Any
@@ -97,16 +102,25 @@ class ModelFileManager:
         else:
             file_stream = init_file()
         assert file_stream is not None
-        self.__metrics_streams.append(file_stream)
+        self.__metrics_streams[identifier] = file_stream
         return file_stream
 
+    def write_metrics(self, metrics : list[str], identifier : str, records : list[list[Any]]):
+        self.__assert_context()
+        metrics_file = self.init_metrics_file(metrics, identifier)
+        metrics_file.write("\n".join(",".join(map(str, record)) for record in records) + "\n")
+        metrics_file.flush()
+
     def save_model_details(self, details : ModelDetails):
+        self.__assert_context()
         torch.save(details, self.model_file)
     
     def load_model_details(self) -> ModelDetails:
+        self.__assert_context()
         return torch.load(self.model_file, weights_only=False)
     
     def save_checkpoint(self, epoch, state_dict):
+        self.__assert_context()
         path = self.checkpoint_path.joinpath(self.CHECKPOINT_FORMAT.format(epoch=epoch))
         if path.exists():
             logger.warning(f"Overwriting existing checkpoint at {path}")
@@ -114,6 +128,7 @@ class ModelFileManager:
         torch.save(state_dict, path)
 
     def load_last_checkpoint(self):
+        self.__assert_context()
         checkpoint_files = self.checkpoint_path.glob("*")
         checkpoint_files = [(int(file.with_suffix("").name.split('_')[-1]), file) for file in checkpoint_files]
         checkpoint_files.sort(key=lambda x: x[0])
@@ -121,10 +136,32 @@ class ModelFileManager:
             return torch.load(checkpoint_files[-1][1], weights_only=False)
         else:
             return None
+    
+    def __assert_context(self):
+        global __context_instance
+        if __context_instance is not self:
+                    raise RuntimeError("ModelFileManager must be used as a context manager")
 
     def __enter__(self):
-        return self
+        global __lock, __context_instance
+        if __lock.acquire(blocking=False):
+            __context_instance = self
+            return self
+        elif __context_instance is self:
+            return self
+        else:
+            raise RuntimeError("Conflicting context manager instances")
     
     def __exit__(self, exc_type, exc_value, traceback):
-        for stream in self.__metrics_streams:
+        global __lock, __context_instance
+        for stream in self.__metrics_streams.values():
             stream.close()
+        self.__metrics_streams = {}
+        __context_instance = None
+        __lock.release()
+
+    @classmethod
+    def get_context_instance(cls) -> 'ModelFileManager':
+        if __context_instance is None:
+            raise RuntimeError("No ModelFileManager context available")
+        return __context_instance

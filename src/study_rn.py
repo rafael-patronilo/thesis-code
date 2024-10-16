@@ -8,7 +8,7 @@ from torch import nn
 def main():
     # Load study manager
     file_manager = StudyFileManager("rn_xtrains")
-    dataset = datasets.dataset_registry["xtrains_ontology_simplified_comp_all"]
+    dataset = datasets.get_dataset("xtrains_ontology_simplified_comp_all")
     study_manager = StudyManager(
         file_manager,
         dataset=dataset,
@@ -70,10 +70,9 @@ def main():
         architecture=None,
         optimizer="Adam",
         loss_fn="bce",
-        dataset="xtrains_ontology_simplified_comp_all",
-        metrics=["accuracy"],
-        batch_size=32,
-        train_metrics=None
+        dataset=dataset,
+        metrics=[],
+        batch_size=32
     )
     experiments = [(name, base_details._replace(architecture=arch)) for name, arch in architectures]
     study_manager.run(experiments)

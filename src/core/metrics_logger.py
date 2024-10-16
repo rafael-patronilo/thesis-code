@@ -1,22 +1,23 @@
-from typing import Optional, Any
+from typing import Optional, Any, Sequence, Callable
 from .storage_management.model_file_manager import ModelFileManager
 import logging
 from collections import deque
 import torch
-from .modules.metrics import select_metrics
+from torch.utils.data import DataLoader
+from .modules.metrics import select_metrics, NamedMetricFunction, MetricFunction
 import math
 from core.util import debug, safe_div
+from core.util.typing import TorchDataset
 
 logger = logging.getLogger(__name__)
 
 class MetricsLogger:
     def __init__(self, 
                 identifier : str,
-                model_file_manager : ModelFileManager,
-                metric_functions : dict[str, Any] | list[str],
-                dataloader,
-                last_n_size = 10,
-                tensorboard_writer = None,
+                metric_functions : dict[str, MetricFunction] | Sequence[NamedMetricFunction],
+                dataset : Callable[[],TorchDataset],
+                target_module : Optional[str] = None,
+                last_n_size = 10
                 ):
         self.identifier = identifier
         self.__metric_functions : dict[str, Any]
@@ -34,10 +35,19 @@ class MetricsLogger:
         self.last_n = deque([{k: 0.0 for k, _ in self.ordered_metrics} for _ in range(last_n_size)])
         self.sums_last_n : dict = {k: 0.0 for k, _ in self.ordered_metrics}
         self.total_measures = {k: 0.0 for k, _ in self.ordered_metrics}
-        self.buffered_records = []
-        self.dataloader = dataloader
-        self.tensorboard_writer = tensorboard_writer
-        self.file_handle = model_file_manager.init_metrics_file(self.metrics_header, identifier)
+        self.buffered_records : list[list[Any]] = []
+        self.dataset_ref = dataset
+        self.dataloader = DataLoader(self.dataset_ref())
+        self.target_module = target_module
+
+    def __getstate__(self) -> object:
+        state = self.__dict__.copy()
+        del state["dataloader"]
+        return state
+    
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.dataloader = DataLoader(self.dataset_ref())
 
     def state_dict(self):
         return {
@@ -81,18 +91,32 @@ class MetricsLogger:
     
     def flush(self):
         if len(self.buffered_records) > 0:
-            self.file_handle.write(
-                "\n".join(",".join(map(str, record)) for record in self.buffered_records) + "\n")
-            self.buffered_records = []
-            self.file_handle.flush()
+            file_manager = ModelFileManager.get_context_instance()
+            file_manager.write_metrics(self.metrics_header, self.identifier, self.buffered_records)
+            self.buffered_records.clear()
+            # TODO tensorboard logging?
+
+
+    def get_target_module(self, model):
+        if self.target_module is None:
+            return model
+        else:
+            path = self.target_module.split(".")
+            submodule = model
+            for p in path:
+                if len(p) == 0:
+                    continue
+                submodule = getattr(submodule, p)
+            return submodule
 
     def _eval(self, model):
         model.eval()
+        module = self.get_target_module(model)
         y_preds = []
         y_trues = []
         with torch.no_grad():
             for x, y_true in self.dataloader:
-                y_preds.append(model(x))
+                y_preds.append(module(x))
                 y_trues.append(y_true)
         y_preds = torch.cat(y_preds)
         y_trues = torch.cat(y_trues)
@@ -124,9 +148,6 @@ class MetricsLogger:
                 self.sums_last_n[metric_name] += value
                 self.last_n[0][metric_name] = value
                 self.total_measures[metric_name] += 1
-                if self.tensorboard_writer is not None:
-                    self.tensorboard_writer.add_scalar(f"{metric_name}/{self.identifier}", value, epoch)
-        
         self.buffered_records.append(record)
         if len(self.buffered_records) >= 10:
             self.flush()

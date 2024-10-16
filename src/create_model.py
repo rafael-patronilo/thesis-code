@@ -21,10 +21,10 @@ def main():
         model_name="test",
         model_identifier="v1",
         model=model,
-        dataset='xtrains_ontology_simplified_comp_all',
+        dataset_name='xtrains_ontology_simplified_comp_all',
         optimizer="Adam",
         loss_fn="bce",
-        metrics=["epoch_elapsed", "f1_score", "accuracy"],
+        val_metrics=["loss", "epoch_elapsed", "f1_score", "accuracy"],
         train_metrics=None,
         batch_size=32
     )
