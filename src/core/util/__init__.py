@@ -1,8 +1,10 @@
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Callable, TYPE_CHECKING
 import logging
 import functools
 import threading
 import signal
+if TYPE_CHECKING:
+    import torch
 
 def multiline_str(obj, level = 0) -> str:
     if isinstance(obj, str):
@@ -86,3 +88,19 @@ class NoInterrupt:
                 raise KeyboardInterrupt()
             else:
                 raise NoInterrupt.InterruptException(self.interrupt_signal)
+
+class DecoratedTorchMetric:
+
+    def __init__(
+            self, 
+            metric : Callable[['torch.Tensor', 'torch.Tensor'], 'torch.Tensor'],
+            flatten_tensors : bool = False
+        ) -> None:
+        self.metric = metric
+        self.flatten_tensors = flatten_tensors
+
+    def __call__(self, y_pred, y_true, **kwargs):
+        if self.flatten_tensors:
+            y_pred = y_pred.flatten()
+            y_true = y_true.flatten()
+        return self.metric(y_pred, y_true).item()

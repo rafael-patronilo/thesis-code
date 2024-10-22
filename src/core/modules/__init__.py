@@ -1,5 +1,5 @@
 import torch
-from typing import Any
+from typing import Any, Callable
 import torch
 from . import metrics # export
 
@@ -7,10 +7,10 @@ __all_losses = {
     'bce': torch.nn.functional.binary_cross_entropy,
 }
 
-def loss_function_exists(name):
+def loss_function_exists(name : str):
     return name in __all_losses
 
-def get_loss_function(name):
+def get_loss_function(name : str) -> Callable[[torch.Tensor, torch.Tensor], torch.Tensor]:
     if name not in __all_losses:
         raise ValueError(f"Invalid loss function: {name}")
     return __all_losses[name]

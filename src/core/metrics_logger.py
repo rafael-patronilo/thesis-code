@@ -1,7 +1,7 @@
 from typing import Optional, Any, Sequence, Callable
 from .storage_management.model_file_manager import ModelFileManager
 import logging
-from collections import deque
+from collections import OrderedDict, deque
 import torch
 from torch.utils.data import DataLoader
 from .modules.metrics import select_metrics, NamedMetricFunction, MetricFunction
@@ -35,7 +35,6 @@ class MetricsLogger:
         self.last_n = deque([{k: 0.0 for k, _ in self.ordered_metrics} for _ in range(last_n_size)])
         self.sums_last_n : dict = {k: 0.0 for k, _ in self.ordered_metrics}
         self.total_measures = {k: 0.0 for k, _ in self.ordered_metrics}
-        self.buffered_records : list[list[Any]] = []
         self.dataset_ref = dataset
         self.dataloader = DataLoader(self.dataset_ref())
         self.target_module = target_module
@@ -88,13 +87,6 @@ class MetricsLogger:
             k : safe_div(v, min(len(self.last_n), self.total_measures[k])) 
             for k,v in self.sums_last_n.items()
         }
-    
-    def flush(self):
-        if len(self.buffered_records) > 0:
-            file_manager = ModelFileManager.get_context_instance()
-            file_manager.write_metrics(self.metrics_header, self.identifier, self.buffered_records)
-            self.buffered_records.clear()
-            # TODO tensorboard logging?
 
 
     def get_target_module(self, model):
@@ -129,9 +121,9 @@ class MetricsLogger:
         return y_preds, y_trues
     
 
-    def log(self, epoch, model):
-        record = []
-        record.append(epoch)
+    def log_record(self, epoch, model) -> OrderedDict[str, Any]:
+        record = OrderedDict()
+        record['epoch'] = epoch
         self.last_record = {}
         discarded = self.last_n.pop()
         for k, v in discarded.items():
@@ -141,16 +133,14 @@ class MetricsLogger:
         y_pred, y_true = self._eval(model)
         for metric_name, metric_fn in self.ordered_metrics:
             value = metric_fn(epoch=epoch, y_pred=y_pred, y_true=y_true)
-            record.append(value)
+            record[metric_name] = value
             self.last_record[metric_name] = value
             if not math.isnan(value):
                 self.sums[metric_name] += value
                 self.sums_last_n[metric_name] += value
                 self.last_n[0][metric_name] = value
                 self.total_measures[metric_name] += 1
-        self.buffered_records.append(record)
-        if len(self.buffered_records) >= 10:
-            self.flush()
+        return record
     
-    def __str__(self):
-        return f"MetricsLogger({self.identifier}, metrics={self.ordered_metrics})"
+    def __repr__(self):
+        return f"MetricsLogger({self.identifier}, metrics=[{self.ordered_metrics}])"

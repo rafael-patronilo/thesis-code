@@ -36,6 +36,7 @@ def prepare_new_model(
         metric_loggers : Optional[Iterable[MetricsLogger]] = None,
         batch_size : int = 32,
     ):
+    raise Exception("This function is deprecated.")
     assert modules.loss_function_exists(loss_fn)
     assert modules.optimizer_exists(optimizer)
     if metric_loggers is None:
@@ -71,5 +72,5 @@ def prepare_new_model(
             metrics=list(metric_loggers),
             batch_size=batch_size,
         )
-        file_manager.save_model_details(model_details)
+        # file_manager.save_model_config(model_details)
 

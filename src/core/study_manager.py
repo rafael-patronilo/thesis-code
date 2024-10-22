@@ -1,10 +1,9 @@
 import logging
 from logging_setup import NOTIFY
-from typing import Iterable, Callable, Literal, Optional
+from typing import Iterable, Callable, Literal, Optional, Any, assert_never
 from .storage_management.study_file_manager import StudyFileManager
 from .datasets import SplitDataset
-from . import ModelDetails
-from .trainer import Trainer
+from .trainer import Trainer, TrainerConfig
 from .metrics_logger import MetricsLogger
 from . import modules
 
@@ -17,6 +16,11 @@ class StudyManager:
             dataset : SplitDataset,
             val_metrics : list[modules.metrics.NamedMetricFunction],
             compare_strategy : Callable[[dict, dict], bool] | tuple[str, Literal["max", "min"]],
+            stop_criteria : Optional[
+                Callable[[dict], bool] | 
+                tuple[str, Any] | 
+                tuple[str, Any, Literal['ge', 'le', 'eq']]
+                ] = None,
             num_epochs : int = 10,
             ):
         self.name = file_manager.study_name
@@ -37,25 +41,31 @@ class StudyManager:
                 raise ValueError(f"Invalid compare strategy {(metric,favored)}")
         else:
             self.compare_strategy = compare_strategy
+        if isinstance(stop_criteria, tuple):
+            if len(stop_criteria) == 2:
+                metric, value = stop_criteria
+                strategy = 'eq'
+            else:
+                metric, value, strategy = stop_criteria
+            match strategy:
+                case 'eq':
+                    self.stop_criteria = lambda x: x[metric] == value
+                case 'ge':
+                    self.stop_criteria = lambda x: x[metric] >= value
+                case 'le':
+                    self.stop_criteria = lambda x: x[metric] <= value
+                case _:
+                    assert_never(strategy)
+        else:
+            self.stop_criteria = stop_criteria
 
-    def _create_trainer(self, model_file_manager, model_details : ModelDetails, metrics_logger : MetricsLogger):
-        model = model_details.architecture
-        loss_fn = modules.get_loss_function(model_details.loss_fn)
-        optimizer = modules.get_optimizer(model_details.optimizer, model)
-        
-        trainer = Trainer(
-                model = model,
-                loss_fn = loss_fn,
-                optimizer = optimizer,
-                training_loader = self.dataset.for_training(),
-                model_file_manager = model_file_manager,
-                metric_loggers = [metrics_logger],
-                epoch = 0,
-                checkpoint_each = None
-            )
+    def _create_trainer(self, model_file_manager, config : TrainerConfig, metrics_logger : MetricsLogger):
+        trainer = Trainer.from_config(config)
+        trainer.metric_loggers.append(metrics_logger)
+        trainer.init_file_manager(model_file_manager)
         return trainer
     
-    def run_experiment(self, experiment_name, details):
+    def run_experiment(self, experiment_name, config: TrainerConfig):
         with self.file_manager.new_experiment(experiment_name) as model_file_manager:
             metrics_logger = MetricsLogger(
                 identifier="val",
@@ -64,7 +74,7 @@ class StudyManager:
             )
             
             logger.info(f"Running experiment {experiment_name}")
-            trainer = self._create_trainer(model_file_manager, details, metrics_logger)
+            trainer = self._create_trainer(model_file_manager, config, metrics_logger)
             trainer.train_epochs(self.num_epochs)
             logger.info(f"Experiment {experiment_name} complete")
             logger.info(f"Metrics: {metrics_logger.last_record}")
@@ -78,10 +88,19 @@ class StudyManager:
                 if self.compare_strategy(metrics_logger.last_record, self.best_results[1].last_record):
                     self.best_results = (experiment_name, metrics_logger)
                     logger.info(f"New best experiment {experiment_name}")
+                if self.stop_criteria is not None and self.stop_criteria(metrics_logger.last_record):
+                    logger.info(f"Stopping criteria met for {experiment_name}")
+                    return
 
+    def run_with_script(self, script : str, config_generator : Iterable[tuple[str, list, dict]]):
+        generator : Iterable[tuple[str, TrainerConfig]] = (
+            (name, dict(build_script=script, args=args, kwargs=kwargs)) 
+            for name, args, kwargs in config_generator
+        ) # type: ignore
+        self.run(generator)
 
-    def run(self, model_generator : Iterable[tuple[str, ModelDetails]]):
-        for experiment_name, details in model_generator:
+    def run(self, config_generator : Iterable[tuple[str, TrainerConfig]]):
+        for experiment_name, details in config_generator:
             self.run_experiment(experiment_name, details)
         logger.log(NOTIFY, f"Training {experiment_name} complete")
         if self.best_results is not None:

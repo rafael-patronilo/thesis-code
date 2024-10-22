@@ -1,15 +1,24 @@
 import logging
 from torch.utils.data import DataLoader
-from typing import Optional, Any, Callable, Literal, NamedTuple
+from typing import Optional, Any, Callable, Literal, NamedTuple, TypedDict, TYPE_CHECKING
 from .metrics_logger import MetricsLogger
 from .datasets import SplitDataset
 from .storage_management.model_file_manager import ModelFileManager
 from .datasets import get_dataset
 from logging_setup import NOTIFY, logfile
+import re
+import importlib
 import torch
 from . import modules
 from . import util as utils
+if TYPE_CHECKING:
+    from torch import nn
+    from torch.optim.optimizer import Optimizer
+    from torch.utils.data import Dataset
 
+BUILD_SCRIPT_REGEX = re.compile(r"^[a-zA-Z0-9_]+(.[a-zA-Z0-9_]+)*$")
+
+# Deprecated TODO: Remove\Replace
 ModelDetails = NamedTuple(
     "ModelDetails",
     [
@@ -23,6 +32,10 @@ ModelDetails = NamedTuple(
 )
 
 CheckpointReason = Literal['interrupt', 'force_interrupt', "error", 'triggered', 'periodic', 'end']
+class TrainerConfig(TypedDict, total=True):
+    build_script : str
+    build_args : list[Any]
+    build_kwargs : dict[str, Any]
 
 logger = logging.getLogger(__name__)
 
@@ -30,22 +43,21 @@ class Trainer:
 
     def __init__(
             self,
-            model,
-            loss_fn,
-            optimizer,
-            training_loader,
-            model_file_manager : ModelFileManager,
+            model : 'nn.Module',
+            loss_fn : Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
+            optimizer : Callable[[Any], 'Optimizer'],
+            training_set : 'Dataset',
             metric_loggers : list[MetricsLogger],
             #callbacks = None,
             epoch = 0,
             checkpoint_each : Optional[int] = 10,
-            checkpoint_triggers : Optional[list[Callable[[Any], bool]]] = None
+            checkpoint_triggers : Optional[list[Callable[[Any], bool]]] = None,
         ):
         self.model = model
         self.loss_fn = loss_fn
-        self.optimizer = optimizer
-        self.training_loader = training_loader
-        self.model_file_manager = model_file_manager
+        self.optimizer = optimizer(model.parameters())
+        self.training_set = training_set
+        self.model_file_manager : Optional[ModelFileManager] = None
         self.metric_loggers : list[MetricsLogger] = metric_loggers
         #self.callbacks = callbacks or {}
         self.start_epoch = epoch
@@ -54,6 +66,7 @@ class Trainer:
         self.checkpoint_each = checkpoint_each
 
     def checkpoint_metadata(self, reason : CheckpointReason):
+        assert self.model_file_manager is not None
         return {
             "epoch" : self.epoch,
             "start_epoch" : self.start_epoch,
@@ -62,6 +75,14 @@ class Trainer:
             "device" : torch.get_default_device().type,
             "logfile" : logfile
         }
+    
+    def init_file_manager(self, model_file_manager : ModelFileManager) -> 'Trainer':
+        self.model_file_manager = model_file_manager
+        model_file_manager.init_directory()
+        for metric_logger in self.metric_loggers:
+            self.model_file_manager.init_metrics_file(metric_logger.identifier, metric_logger.metrics_header)
+        return self
+
     
     def state_dict(self, reason : CheckpointReason):
         metadata = self.checkpoint_metadata(reason)
@@ -91,6 +112,8 @@ class Trainer:
 
         
     def train_until(self, criteria : list[Callable[['Trainer'], bool]]):
+        if self.model_file_manager is None:
+            raise ValueError("Model file manager not initialized")
         logger.info("Initiating training loop...\n"
                     f"Model: {self.model_file_manager.model_name}\n"
                     f"Epoch: {self.epoch}\n"
@@ -122,12 +145,14 @@ class Trainer:
     
 
     def _checkpoint(self, reason : CheckpointReason):
+        if self.model_file_manager is None:
+            raise ValueError("Model file manager not initialized")
         self.model_file_manager.save_checkpoint(self.epoch, self.state_dict(reason))
+        self.model_file_manager.flush()
         averages = ""
         averages_last_n = ""
         last_record = ""
         for metric_logger in self.metric_loggers:
-            metric_logger.flush()
             averages += f"\t{metric_logger.identifier} : {metric_logger.averages()}\n"
             averages_last_n += f"\t{metric_logger.identifier} : {metric_logger.averages_last_n()}\n"
             last_record += f"\t{metric_logger.identifier} : {metric_logger.last_record}\n"
@@ -139,16 +164,19 @@ class Trainer:
             )
     
     def _train_epoch(self, epoch, first = False):
+        if self.model_file_manager is None:
+            raise ValueError("Model file manager not initialized")
         self.epoch = epoch
         logger.info(f"Epoch {epoch}")
         self.model.train()
         batches = 0
-        for X, Y in self.training_loader:
+        for X, Y in self.training_set:
             self.__train_step(X, Y)
             batches += 1
         logger.debug("Epoch complete")
         for metric_logger in self.metric_loggers:
-            metric_logger.log(epoch, self.model)
+            record = metric_logger.log_record(epoch, self.model)
+            self.model_file_manager.write_metrics(metric_logger.identifier, record)
         if epoch > 0 and self.checkpoint_each is not None and epoch % self.checkpoint_each == 0:
             logger.info(f"Periodic checkpoint")
             self._checkpoint('periodic')
@@ -163,6 +191,16 @@ class Trainer:
         #for callback in self.callbacks:
         #    callback(self.model, self.optimizer, self.metrics, epoch)
 
+    def __repr__(self) -> str:
+        fields = []
+        for k, v in self.__dict__.items():
+            if k == 'model_file_manager':
+                continue
+            if k == 'training_set' and hasattr(v, 'dataset'):
+                fields.append(f"{k} = {v.dataset}")
+                continue
+            fields.append(f"{k} = {v}")
+        return f"Trainer(\n{',\n'.join(fields)}\n)"
 
     def __train_step(self, X, Y):
         self.model.train()
@@ -174,41 +212,33 @@ class Trainer:
 
 
     @classmethod
+    def from_config(cls, config : TrainerConfig) -> 'Trainer':
+        build_script = config['build_script']
+        build_args = config.get('build_args', [])
+        build_kwargs = config.get('build_kwargs', {})
+        logger.info(f"Creating trainer from script {build_script}")
+        # Sanitazion checks before loading the script
+        assert BUILD_SCRIPT_REGEX.fullmatch(build_script) is not None, f"Invalid build script name: {build_script}"
+        trainer = importlib.import_module('.' + build_script, 'models').create_trainer(*build_args, **build_kwargs)
+        return trainer
+
+    @classmethod
     def load_checkpoint(
             cls, 
             file_manager : ModelFileManager
-            ):
-        logger.info(f"Loading Model {file_manager.model_name} from checkpoint...")
-        model_details = file_manager.load_model_details()
-        logger.info(f"Model details: {model_details}")
-        logger.debug(f"Loading architecture")
-        model = model_details.architecture
+            ) -> 'Trainer':
+        logger.info(f"Loading Model {file_manager.model_name}")
+        config = file_manager.load_config()
+        trainer = cls.from_config(config)
+        trainer.init_file_manager(file_manager)
+        logger.info(f"{trainer}")
 
-        loss_fn = modules.get_loss_function(model_details.loss_fn)
-        optimizer = modules.get_optimizer(model_details.optimizer, model)
-        metric_loggers = model_details.metrics
-
-        logger.info(f"Loading dataset {model_details.dataset}")
-        batch_size = model_details.batch_size
-        dataset = model_details.dataset
-
-        training_loader = DataLoader(
-            dataset.for_training(),
-            batch_size=batch_size,
-            shuffle=True
-        )
-
-        trainer = cls(
-            model=model,
-            loss_fn=loss_fn,
-            optimizer=optimizer,
-            training_loader=training_loader,
-            model_file_manager=file_manager,
-            metric_loggers=metric_loggers
-        )
-
+        logger.info(f"Looking for checkpoints")
         checkpoint = file_manager.load_last_checkpoint()
         if checkpoint is not None:
+            logger.info(f"Loading checkpoint")
             trainer.load_state_dict(checkpoint)
+        else:
+            logger.info("No checkpoint found.")
 
         return trainer

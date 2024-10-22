@@ -75,7 +75,8 @@ def main():
         batch_size=32
     )
     experiments = [(name, base_details._replace(architecture=arch)) for name, arch in architectures]
-    study_manager.run(experiments)
+    #study_manager.run(experiments)
+    raise NotImplementedError("This script is not yet implemented")
 
 if __name__ == '__main__':
     main()

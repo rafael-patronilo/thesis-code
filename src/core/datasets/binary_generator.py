@@ -180,7 +180,7 @@ class BinaryGenerator:
                 all(node.is_valid(attribution) for node in self.labels)
             )
         if valid is not None:
-            labels.append(torch.tensor([1 if valid else 0]))
+            labels.append(torch.tensor(1 if valid else 0))
         return labels
 
     def generate_samples(self, attribution : torch.Tensor, force_valid : bool = True) -> tuple[torch.Tensor, torch.Tensor]:

@@ -1,4 +1,5 @@
 
+from collections import OrderedDict
 from pathlib import Path
 from typing import Literal, NamedTuple, Any, Optional, Self, TYPE_CHECKING
 import datetime
@@ -6,8 +7,11 @@ import logging
 import torch
 import os
 if TYPE_CHECKING:
-    from .. import ModelDetails
+    from ..trainer import TrainerConfig
+    from core.util.typing import PathLike
 import threading
+import json
+import importlib
 
 logger = logging.getLogger(__name__)
 
@@ -15,48 +19,46 @@ MODELS_PATH = os.getenv("MODEL_PATH", "storage/models")
 _lock = threading.Lock()
 _context_instance : Optional['ModelFileManager'] = None
 
+METRICS_BUFFER_LIMIT = 10
+
+class _MetricsBufferer:
+        def __init__(self, stream):
+            self.stream = stream
+            self.buffer : list[OrderedDict[str, Any]] = []
+        
+        def flush(self):
+            self.stream.write("\n".join(",".join(map(str, record.values())) for record in self.buffer) + "\n")
+            self.stream.flush()
+            self.buffer.clear()
+
+        def add(self, record : OrderedDict[str, Any]):
+            self.buffer.append(record)
+            if len(self.buffer) >= METRICS_BUFFER_LIMIT:
+                self.flush()
 
 class ModelFileManager:
     MODEL_FILE_NAME = "model.pth"
+    CONFIG_FILE_NAME = "config.json"
     CHECKPOINTS_DIR = "checkpoints"
     METRICS_FORMAT = "metrics_{identifier}.csv"
     METRICS_DIR = ""
     CHECKPOINT_FORMAT = "epoch_{epoch:0>9}.pth"
+    
 
     def __init__(self,
-            model_name : str,
-            model_identifier : str = "",
-            conflict_strategy : Literal['new', 'error', 'load'] = 'new',
-            models_path : Optional[str | os.PathLike] = None
+            path : 'PathLike',
+            models_path : Optional['PathLike'] = None
         ) -> None:
-        self.models_path = models_path or MODELS_PATH
-        self.model_name = model_name
-        self.model_identifier = model_identifier
-        self.__metrics_streams = {}
+        self.models_path = Path(models_path or MODELS_PATH)
+        self.__metrics_bufferers : dict[str, _MetricsBufferer]= {}
+        self.path = self.models_path.joinpath(path)
+        self.model_name = self.path.name
         self.__format_paths()
-        if self.path.exists():
-            match conflict_strategy:
-                case 'load':
-                    logger.debug(f"Loading existing model path at {self.path}")
-                    self.__create_paths(exists_ok=True)
-                case 'new':
-                    self.model_identifier = datetime.datetime.now().isoformat()
-                    logger.debug(f"Model path already exists at {self.path}, changing identifier to {self.model_identifier}.")
-                    self.__format_paths()
-                    if self.path.exists():
-                        raise FileExistsError(f"Failed to automatically solve conflict: New model path also exists at {self.path}")
-                    self.__create_paths(exists_ok=False)
-                case 'error':
-                    raise FileExistsError(f"Model path already exists at {self.path}")
-                case _:
-                    raise ValueError(f"Invalid conflict strategy: {conflict_strategy}")
-        else:
-            self.__create_paths(exists_ok=False)
     
     def __format_paths(self):
-        self.path = Path(self.models_path).joinpath(self.model_name + '_' + self.model_identifier)
         self.checkpoint_path = self.path.joinpath(self.CHECKPOINTS_DIR)
         self.model_file = self.path.joinpath(self.MODEL_FILE_NAME)
+        self.config_file = self.path.joinpath(self.CONFIG_FILE_NAME)
         self.metrics_dest = self.path.joinpath(self.METRICS_DIR)
 
     def __create_paths(self, exists_ok = False):
@@ -65,10 +67,11 @@ class ModelFileManager:
         self.checkpoint_path.mkdir(parents=True, exist_ok=True)
         self.metrics_dest.mkdir(parents=True, exist_ok=True)
 
-    def init_metrics_file(self, metrics : list[str], identifier : str):
+    def init_directory(self):
+        self.__create_paths(exists_ok=True)
+
+    def init_metrics_file(self, identifier : str, metrics : list[str]):
         self.__assert_context()
-        if identifier in self.__metrics_streams:
-            return self.__metrics_streams[identifier]
         logger.debug(f"Initializing metrics file for {metrics}")
         metrics_file = self.metrics_dest.joinpath(self.METRICS_FORMAT.format(identifier=identifier))
         file_stream : Any
@@ -103,22 +106,40 @@ class ModelFileManager:
         else:
             file_stream = init_file()
         assert file_stream is not None
-        self.__metrics_streams[identifier] = file_stream
+        self.__metrics_bufferers[identifier] = _MetricsBufferer(file_stream)
         return file_stream
 
-    def write_metrics(self, metrics : list[str], identifier : str, records : list[list[Any]]):
+    def write_metrics(self, identifier : str, records : OrderedDict[str, Any]):
         self.__assert_context()
-        metrics_file = self.init_metrics_file(metrics, identifier)
-        metrics_file.write("\n".join(",".join(map(str, record)) for record in records) + "\n")
-        metrics_file.flush()
+        try:
+            bufferer = self.__metrics_bufferers[identifier]
+        except KeyError:
+            logger.error(f"Metrics file for {identifier} not initialized")
+        bufferer.add(records)
+        #TODO tensorboard logging?
 
-    def save_model_details(self, details : 'ModelDetails'):
+    def flush(self):
         self.__assert_context()
-        torch.save(details, self.model_file)
-    
-    def load_model_details(self) -> 'ModelDetails':
+        for bufferer in self.__metrics_bufferers.values():
+            bufferer.flush()
+
+    def save_model_config(self, script, args, kwargs):
         self.__assert_context()
-        return torch.load(self.model_file, weights_only=False)
+        with self.config_file.open('w') as f:
+            config = {
+                "model_script" : script,
+                "args" : args,
+                "kwargs" : kwargs
+            }
+            json.dump(config, f, indent=4)
+
+    def load_config(self) -> 'TrainerConfig':
+        self.__assert_context()
+        if self.config_file.exists():
+            with self.config_file.open('r') as f:
+                return json.load(f)
+        else:
+            raise FileNotFoundError(f"Config file not found at {self.config_file}")
     
     def save_checkpoint(self, epoch, state_dict):
         self.__assert_context()
@@ -155,9 +176,9 @@ class ModelFileManager:
     
     def __exit__(self, exc_type, exc_value, traceback):
         global _lock, _context_instance
-        for stream in self.__metrics_streams.values():
-            stream.close()
-        self.__metrics_streams = {}
+        for bufferer in self.__metrics_bufferers.values():
+            bufferer.stream.close()
+        self.__metrics_bufferers.clear()
         _context_instance = None
         _lock.release()
 

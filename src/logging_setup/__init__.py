@@ -8,6 +8,7 @@ import warnings as python_warnings
 from io import TextIOWrapper
 import sys
 import time
+import subprocess
 
 NOTIFY = logging.INFO + 1
 logging.addLevelName(NOTIFY, "NOTIFY")
@@ -83,7 +84,7 @@ def log_break(msg = "LOG BREAK"):
     half_width = (cols - len(msg)) // 2
     print(f"\n\n\033[34m{'='*half_width}{msg}{'='*half_width}\033[0m\n\n", file=true_stdout)
 
-def setup_logging():
+def setup_logging(git_status : bool = True):
     global logfile, true_stderr, true_stdout
     formatter=MultiLineFormatter(logging.Formatter(FORMAT))
     logger = logging.getLogger()
@@ -134,5 +135,21 @@ Level: {LOG_LEVEL if type(LOG_LEVEL) == str else logging.getLevelName(LOG_LEVEL)
 Active Handlers: {", ".join(type(handler).__name__ for handler in logger.handlers)}
 Log file: {logfile}"""
 )
+    if git_status:
+        try:
+            status = subprocess.run(
+                ["git", "status"],
+                capture_output=True,
+                text=True
+            )
+            commit_info = subprocess.run(
+                ["git", "log", "-1"],
+                capture_output=True,
+                text=True
+            )
+            logger.info(f"Git status:\n{status.stdout}")
+            logger.info(f"Last commit:\n{commit_info.stdout}")
+        except BaseException as e:
+            logger.warning(f"Failed to get git info: {e}")
     for handler in logger.handlers:
         handler.flush()
