@@ -4,7 +4,7 @@ import torch
 import abc
 import numpy as np
 from . import random_dataset
-from . import SplitDataset
+from . import SplitDataset, CollumnReferences
 from torch.utils.data import Dataset, Subset
 import warnings
 
@@ -14,8 +14,11 @@ class BinaryASTNode(abc.ABC):
     """An abstract syntax tree node for binary data generation"""
 
     @abc.abstractmethod
-    def __call__(self, generated : torch.Tensor) -> torch.Tensor:
+    def __call__(self, generated : torch.Tensor, force_valid : bool) -> torch.Tensor:
         pass
+
+    def is_valid(self, generated : torch.Tensor) -> bool:
+        return bool(self(generated, True) == self(generated, False))
 
     def __or__(self, value : 'BinaryASTNode') -> 'BinaryASTNode':
         return _BinaryOpNode(self, value, torch.bitwise_or, '|')
@@ -31,29 +34,54 @@ class BinaryASTNode(abc.ABC):
 
 
 
-class _GeneratedValue(BinaryASTNode):
+class _FreeVariable(BinaryASTNode):
     """A node that returns the respective generated value"""
 
     def __init__(self, idx):
         self.idx = idx
         self.name = None
 
-    def __call__(self, generated : torch.Tensor) -> torch.Tensor:
+    def __call__(self, generated : torch.Tensor, force_valid : bool) -> torch.Tensor:
         return generated[self.idx]
 
     def unnamed_repr(self):
-        return f"GeneratedValue({self.idx})"
+        return f"FreeVariable({self.idx})"
 
     def __repr__(self):
         return self.unnamed_repr() if self.name is None else self.name
 
     def __eq__(self, value: object) -> bool:
-        if not isinstance(value, _GeneratedValue):
+        if not isinstance(value, _FreeVariable):
             return False
         return self.idx == value.idx
 
     def __hash__(self) -> int:
         return hash((self.__class__, self.idx))
+
+class _ImpliedVariable(BinaryASTNode):
+    """A node that is implied by another"""
+
+    def __init__(self, idx : int, node : BinaryASTNode):
+        self.idx = idx
+        self.node = node
+
+    def __call__(self, generated : torch.Tensor, force_valid : bool) -> torch.Tensor:
+        implication_value = self.node(generated, force_valid)
+        if force_valid:
+            return generated[self.idx] | implication_value
+        else:
+            return generated[self.idx]
+
+    def __repr__(self) -> str:
+        return f"ImpliedBy({self.idx}, {self.node})"
+
+    def __eq__(self, value: object) -> bool:
+        if not isinstance(value, _ImpliedVariable):
+            return False
+        return self.idx == value.idx and self.node == value.node
+
+    def __hash__(self) -> int:
+        return hash((self.__class__, self.idx, self.node))
 
 class _BinaryOpNode(BinaryASTNode):
     """A node that performs a binary operation"""
@@ -64,8 +92,8 @@ class _BinaryOpNode(BinaryASTNode):
         self.func = func
         self.symbol = symbol
     
-    def __call__(self, generated : torch.Tensor) -> torch.Tensor:
-        return self.func(self.left(generated), self.right(generated))
+    def __call__(self, generated : torch.Tensor, force_valid : bool) -> torch.Tensor:
+        return self.func(self.left(generated, force_valid), self.right(generated, force_valid))
 
     def __repr__(self) -> str:
         return f"({self.left} {self.symbol} {self.right})"
@@ -90,8 +118,8 @@ class _UnaryOpNode(BinaryASTNode):
         self.func = func
         self.symbol = symbol
 
-    def __call__(self, generated : torch.Tensor) -> torch.Tensor:
-        return self.func(self.child(generated))
+    def __call__(self, generated : torch.Tensor, force_valid : bool) -> torch.Tensor:
+        return self.func(self.child(generated, force_valid))
 
     def __repr__(self) -> str:
         return f"{self.symbol}{self.child}"
@@ -110,31 +138,72 @@ class BinaryGenerator:
     def __init__(
             self, 
             to_generate : int, 
-            features : list[BinaryASTNode], 
-            labels : list[BinaryASTNode]
+            features : list[BinaryASTNode],
+            labels : list[BinaryASTNode],
+            feature_names : Optional[list[str]] = None,
+            label_names : Optional[list[str]] = None,
+            validation_node : Optional[BinaryASTNode] = None,
+            valid_label : str = 'valid'
         ):
         self.to_generate = to_generate
         self.features : list[BinaryASTNode] = features
         self.labels : list[BinaryASTNode] = labels
+        self.feature_names = feature_names
+        self.valid_label = valid_label
+        self.label_names = label_names + [valid_label] if label_names is not None else None
+        self.validation_node = validation_node
+
+    def get_collumn_references(self) -> CollumnReferences:
+        raise NotImplementedError("Collumn references not available")
+    
+    def _attach_collumn_references[T : SplitDataset](self, dataset : T) -> T:
+        # TODO
+        #col_refs = self.get_collumn_references()
+        #if col_refs is not None:
+        #    dataset.collumn_references = col_refs
+        return dataset
     
     def generate_random(self, rng : torch.Generator) -> tuple[torch.Tensor, torch.Tensor]:
         return self.generate_samples(torch.randint(0, 2, (self.to_generate,), generator=rng))
     
-    def generate_from_int(self, value : int) -> tuple[torch.Tensor, torch.Tensor]:
+    def generate_from_int(self, value : int, force_valid : bool = True) -> tuple[torch.Tensor, torch.Tensor]:
         bits = torch.tensor([int(x) for x in f"{value:0{self.to_generate}b}"])
-        return self.generate_samples(bits)
+        return self.generate_samples(bits, force_valid)
     
-    def generate_samples(self, attribution : torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        features = torch.stack([node(attribution) for node in self.features])
-        labels = torch.stack([node(attribution) for node in self.labels])
+    def _attach_valid_label(self, attribution : torch.Tensor, force_valid : bool, labels):
+        valid = None
+        if self.validation_node is not None:
+            valid = self.validation_node(attribution, force_valid)
+        if valid is not False and not force_valid:
+            valid = (
+                all(node.is_valid(attribution) for node in self.features) and 
+                all(node.is_valid(attribution) for node in self.labels)
+            )
+        if valid is not None:
+            labels.append(torch.tensor([1 if valid else 0]))
+        return labels
+
+    def generate_samples(self, attribution : torch.Tensor, force_valid : bool = True) -> tuple[torch.Tensor, torch.Tensor]:
+        features = torch.stack([node(attribution, force_valid) for node in self.features])
+        labels = torch.stack(self._attach_valid_label(
+            attribution,
+            force_valid,
+            [node(attribution, force_valid) for node in self.labels]
+        ))
         return features.to(torch.get_default_dtype()), labels.to(torch.get_default_dtype())
 
-    def as_complete_dataset(self, split : tuple[float, float] | float = (0.8, 0.1), shuffle : bool = True, seed : Optional[int] = None) -> SplitDataset:
+    def as_complete_dataset(
+            self, 
+            split : tuple[float, float] | float = (0.8, 0.1),
+            force_valid : bool = True,
+            shuffle : bool = True, 
+            seed : Optional[int] = None
+        ) -> SplitDataset:
         class _CompleteDataset(Dataset):
             def __init__(self, generator : BinaryGenerator):
                 self.generator = generator
             def __getitem__(self, index):
-                return self.generator.generate_from_int(index)
+                return self.generator.generate_from_int(index, force_valid)
         complete_dataset = _CompleteDataset(self)
         indices : Sequence[int]
         if shuffle:
@@ -146,12 +215,31 @@ class BinaryGenerator:
         train_indices = indices[:train_bound]
         val_indices = indices[train_bound:val_bound]
         test_indices = indices[val_bound:]
-        return SplitDataset(
-            Subset(complete_dataset, train_indices),
-            Subset(complete_dataset, val_indices),
-            Subset(complete_dataset, test_indices)
+        return self._attach_collumn_references(
+            SplitDataset(
+                Subset(complete_dataset, train_indices),
+                Subset(complete_dataset, val_indices),
+                Subset(complete_dataset, test_indices)
+            )
         )
 
+    def as_random_dataset(
+            self, 
+            sizes : tuple[int, int, int], 
+            test_seed : int,
+            val_seed : int,
+            train_seed : Optional[int] = None,
+            on_the_fly : bool = True) -> random_dataset.RandomDataset:
+        return self._attach_collumn_references(
+            random_dataset.RandomDataset(
+                self.generate_random,
+                sizes,
+                test_seed,
+                val_seed,
+                train_seed,
+                on_the_fly
+            )
+        )
 
     def __len__(self) -> int:
         return 2**self.to_generate
@@ -173,16 +261,18 @@ class BinaryGeneratorBuilder:
         # TODO implement simplification?
         raise NotImplementedError("Simplification is not yet implemented")
 
+    def _gen_idx(self) -> int:
+        idx = self._to_generate
+        self._to_generate += 1
+        return idx
 
-    def gen_var(self) -> BinaryASTNode:
+    def free_variable(self) -> BinaryASTNode:
         """Define a new variable to generate
 
         Returns:
             BinaryASTNode: A reference to variable that will be generated
         """
-        idx = self._to_generate
-        self._to_generate += 1
-        return _GeneratedValue(idx)
+        return _FreeVariable(self._gen_idx())
     
     def build(self) -> BinaryGenerator:
         """Builds the generator
@@ -190,10 +280,20 @@ class BinaryGeneratorBuilder:
         Returns:
             BinaryGenerator: The generator
         """
-        sorted_features = [node for _, node in sorted(self.features.items(), key=lambda x: x[0])]
-        sorted_labels = [node for _, node in sorted(self.labels.items(), key=lambda x: x[0])]
+        sorted_feature = sorted(self.features.items(), key=lambda x: x[0])
+        sorted_label = sorted(self.labels.items(), key=lambda x: x[0])
+        sorted_feature_nodes = [node for _, node in sorted_feature]
+        sorted_label_nodes = [node for _, node in sorted_label]
+        sorted_feature_names = [name for name, _ in sorted_feature]
+        sorted_label_names = [name for name, _ in sorted_label]
         
-        return BinaryGenerator(self._to_generate, sorted_features, sorted_labels)
+        return BinaryGenerator(
+            self._to_generate, 
+            sorted_feature_nodes, 
+            sorted_label_nodes,
+            feature_names=sorted_feature_names,
+            label_names=sorted_label_names
+        )
     
     def clone(self) -> 'BinaryGeneratorBuilder':
         clone = BinaryGeneratorBuilder()
@@ -207,7 +307,7 @@ class BinaryGeneratorBuilder:
             gen = []
             other = []
             for name, node in variables:
-                if isinstance(node, _GeneratedValue):
+                if isinstance(node, _FreeVariable):
                     gen.append((name, node))
                     node.name = name
                 else:
@@ -280,8 +380,9 @@ f"""{self.__class__.__name__}(
         return self
 
     def implied_by(self, node : BinaryASTNode) -> BinaryASTNode:
-        """Utility function for defining a variable that is implied by another.
-        It is a shorthand for `generator.gen_var() | node`
+        """Defines a node that is logically implied by another.
+        This is different from `free_variable() | node` because the implication may be broken 
+            if generating invalid samples is allowed.
 
         Args:
             node (BinaryASTNode): The implying node
@@ -289,4 +390,4 @@ f"""{self.__class__.__name__}(
         Returns:
             The implied node
         """
-        return self.gen_var() | node
+        return _ImpliedVariable(self._gen_idx(), node)

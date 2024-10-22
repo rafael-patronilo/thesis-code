@@ -4,7 +4,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 CollumnSubReferences = NamedTuple("CollumnSubReferences", [("names_to_collumn", dict[str, int]), ("collumns_to_names", list[str])])
-CollumnReferences = NamedTuple("CollumnReferences", [("features", CollumnSubReferences), ("labels", CollumnSubReferences)])
+class CollumnReferences(NamedTuple):
+    features: CollumnSubReferences 
+    labels : CollumnSubReferences
+    eval_only_collumns : Optional[list[str]] = None
 
 class SplitDataset:
     

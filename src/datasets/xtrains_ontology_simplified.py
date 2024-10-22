@@ -9,11 +9,11 @@ def _build_ontology(simplify: bool = True, include_intermediary: bool = False) -
     gen = BinaryGeneratorBuilder()
     
     # Features
-    atLeast2PassengerCars = gen.gen_var()
-    atLeast2FreightWagons = gen.gen_var()
-    hasLongPassengerCar = gen.gen_var()
-    atLeast2LongWagons = gen.gen_var()
-    atLeast3Wagons = gen.gen_var()
+    atLeast2PassengerCars = gen.free_variable()
+    atLeast2FreightWagons = gen.free_variable()
+    hasLongPassengerCar = gen.free_variable()
+    atLeast2LongWagons = gen.free_variable()
+    atLeast3Wagons = gen.free_variable()
 
     hasPassengerCar = gen.implied_by(atLeast2PassengerCars | hasLongPassengerCar)
     hasFreightWagon = gen.implied_by(atLeast2FreightWagons)
@@ -26,7 +26,7 @@ def _build_ontology(simplify: bool = True, include_intermediary: bool = False) -
 
     hasLongWagon = gen.implied_by(atLeast2LongWagons | hasLongPassengerCar)
 
-    hasReinforcedCar = gen.gen_var()
+    hasReinforcedCar = gen.free_variable()
     
     # store all nodes so far as features
     gen.features = {k : v for k, v in locals().items() if isinstance(v, BinaryASTNode)}
@@ -102,7 +102,18 @@ generators = {
     "all"   : _build_ontology().build()
 }
 
-random_datasets : dict[str, RandomDataset] = {f"{PREFIX}_rand_{k}" : _random_dataset(v.generate_random) for k, v in generators.items()}
-complete_datasets : dict[str, SplitDataset] = {f"{PREFIX}_comp_{k}" : v.as_complete_dataset() for k, v in generators.items()}
+random_datasets : dict[str, RandomDataset] = {
+    f"{PREFIX}_rand_{k}" : _random_dataset(v.generate_random) 
+    for k, v in generators.items()}
+
+complete_datasets : dict[str, SplitDataset] = {
+    f"{PREFIX}_comp_{k}" : v.as_complete_dataset() 
+    for k, v in generators.items()}
+
+complete_inv_datasets : dict[str, SplitDataset] = {
+    f"{PREFIX}_comp_inv_{k}" : v.as_complete_dataset(force_valid=False) 
+    for k, v in generators.items()}
+
 register_datasets(**random_datasets)
 register_datasets(**complete_datasets)
+register_datasets(**complete_inv_datasets)
