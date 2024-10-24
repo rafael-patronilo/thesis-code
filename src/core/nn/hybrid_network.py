@@ -12,11 +12,11 @@ class HybridNetwork(NNModule):
         super(HybridNetwork, self).__init__()
         self.reasoning_network = reasoning_network
         self.perception_network = perception_network
-        self.add_module("reasoning_network", reasoning_network)
-        self.add_module("perception_network", perception_network)
     
     def forward(self, x):
-        return self.reasoning_network.forward(self.perception_network.forward(x))
+        x = self.perception_network(x)
+        x = self.reasoning_network(x)
+        return x
 
     def parameters(self, recurse: bool = True, perception_only : bool = True):
         if perception_only:
