@@ -1,12 +1,12 @@
 import torch
 from torch import nn
-
+import warnings
 
 def _enc_layer_to_dec(layer : nn.Module):
     cls = layer.__class__
     if 'Lazy' in cls.__name__:
-        raise NotImplementedError("Lazy layers are not supported")
-    if cls.__module__ == nn.Conv2d.__module__:
+        raise NotImplementedError("Lazy layers are not currently supported")
+    if cls.__module__ == nn.Conv2d.__module__ and 'Conv' in cls.__name__:
         inv_cls_name : str
         if 'Transpose' in cls.__name__:
             inv_cls_name = cls.__name__.replace('Transpose', '')
@@ -54,6 +54,7 @@ class AutoEncoder(nn.Module):
         Returns:
             AutoEncoder: an autoencoder with the given encoder and a decoder that mirrors the encoder
         """
+        warnings.warn('This method is experimental and may be removed in the future.')
         layers = list(encoder.children())
         decoder_layers = [_enc_layer_to_dec(layer) for layer in reversed(layers)]
         decoder = nn.Sequential(*decoder_layers)
