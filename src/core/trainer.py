@@ -16,8 +16,6 @@ if TYPE_CHECKING:
     from torch.optim.optimizer import Optimizer
     from torch.utils.data import Dataset
 
-BUILD_SCRIPT_REGEX = re.compile(r"^[a-zA-Z0-9_]+(.[a-zA-Z0-9_]+)*$")
-
 # Deprecated TODO: Remove\Replace
 ModelDetails = NamedTuple(
     "ModelDetails",
@@ -30,6 +28,8 @@ ModelDetails = NamedTuple(
         ("batch_size", int),
     ]
 )
+
+type MetricsSnapshot = dict[str, dict[str, Any]]
 
 CheckpointReason = Literal['interrupt', 'force_interrupt', "error", 'triggered', 'periodic', 'end']
 class TrainerConfig(TypedDict, total=True):
@@ -107,10 +107,19 @@ class Trainer:
     def train_indefinitely(self):
         self.train_until([])
 
-    def train_epochs(self, num_epochs):
-        self.train_until([lambda x : x.epoch >= num_epochs])
+    def train_until_epoch(self, end_epoch):
+        self.train_until([lambda x : x.epoch >= end_epoch])
 
-        
+    def train_epochs(self, num_epochs):
+        self.train_until_epoch(self.epoch + num_epochs)
+
+    def metrics_snapshot(self) -> MetricsSnapshot:
+        snapshot = {}
+        for metric_logger in self.metric_loggers:
+            if metric_logger.last_record is not None:
+                snapshot[metric_logger.identifier] = metric_logger.last_record
+        return snapshot
+
     def train_until(self, criteria : list[Callable[['Trainer'], bool]]):
         if self.model_file_manager is None:
             raise ValueError("Model file manager not initialized")
@@ -163,6 +172,13 @@ class Trainer:
             f"Avg last {len(self.metric_loggers[0].last_n)}:\n{averages_last_n}"
             )
     
+    def eval_metrics(self):
+        if self.model_file_manager is None:
+            raise ValueError("Model file manager not initialized")
+        for metric_logger in self.metric_loggers:
+            record = metric_logger.log_record(self.epoch, self.model)
+            self.model_file_manager.write_metrics(metric_logger.identifier, record)
+
     def _train_epoch(self, epoch, first = False):
         if self.model_file_manager is None:
             raise ValueError("Model file manager not initialized")
@@ -174,9 +190,7 @@ class Trainer:
             self.__train_step(X, Y)
             batches += 1
         logger.debug("Epoch complete")
-        for metric_logger in self.metric_loggers:
-            record = metric_logger.log_record(epoch, self.model)
-            self.model_file_manager.write_metrics(metric_logger.identifier, record)
+        self.eval_metrics()
         if epoch > 0 and self.checkpoint_each is not None and epoch % self.checkpoint_each == 0:
             logger.info(f"Periodic checkpoint")
             self._checkpoint('periodic')
@@ -218,7 +232,7 @@ class Trainer:
         build_kwargs = config.get('build_kwargs', {})
         logger.info(f"Creating trainer from script {build_script}")
         # Sanitazion checks before loading the script
-        assert BUILD_SCRIPT_REGEX.fullmatch(build_script) is not None, f"Invalid build script name: {build_script}"
+        assert utils.is_import_safe(build_script), f"Invalid build script name: {build_script}"
         trainer = importlib.import_module('.' + build_script, 'models').create_trainer(*build_args, **build_kwargs)
         return trainer
 

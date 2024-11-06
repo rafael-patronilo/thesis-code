@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import script_base
+import command_base
 from core import Trainer
 from core.storage_management import ModelFileManager
 import sys
@@ -7,7 +7,7 @@ from core.modules.stop_criteria import StopAtEpoch, EarlyStop
 from core.modules.checkpoint_triggers import BestMetric
 
 
-@script_base.main_wrapper
+@command_base.main_wrapper
 def main():
     # Resume training from the last checkpoint
     model_path = sys.argv[1]

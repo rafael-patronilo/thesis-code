@@ -50,7 +50,7 @@ except BaseException as e:
 #register datasets
 try:
     logger.info("Registering datasets")
-    import datasets
+    import datasets 
 except BaseException as e:
     logger.exception("Failed to register datasets: %s", e)
     exit_gracefully(-1)
@@ -74,6 +74,5 @@ def main_wrapper(main_function):
 
 if __name__ == "__main__":
     logger.info("Loading complete.")
-    logger.warning("""Running script_base.py does nothing except loading.
-Choose one of the other scripts.""")
+    logger.warning("""Running this does nothing except loading. Choose one of the other commands.""")
     exit_gracefully(0)

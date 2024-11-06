@@ -39,6 +39,13 @@ class StudyFileManager:
     def new_experiment(self, experiment_name : str) -> ModelFileManager:
         return ModelFileManager(experiment_name, models_path=self.path)
 
+    def read_json(self, file_name : str) -> dict[str, Any]:
+        path = self.path.joinpath(file_name)
+        if not path.exists():
+            return {}
+        with open(path, 'r') as f:
+            return json.load(f)
+
     def save_results(self, results : dict[str, Any], best : str):
         complete_results = {
             "best_experiment" : {

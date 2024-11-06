@@ -1,20 +1,30 @@
-#!/usr/bin/env python
-import script_base
 from core import StudyManager, ModelDetails, datasets
 from core.storage_management import StudyFileManager
 from torch import nn
+import sys
 
-@script_base.main_wrapper
+
+
+def make_model(input_shape, linear_sizes, encoding_size=9):
+    image_area = input_shape[1] * input_shape[2]
+    encoder_conv = [32, 32, ('pool', 2)] + [64, ('pool', 2)] * 2 + [128, ('pool', 2)] * 2
+    
+    encoder_layers = []
+    in_channels = input_shape[0]
+    conv = nn.Conv2d(in_channels, encoder_conv[0], 3, padding=1)
+    
+    
+
 def main():
     # Load study manager
-    file_manager = StudyFileManager("rn_xtrains")
-    dataset = datasets.get_dataset("xtrains_ontology_simplified_comp_all")
+    identifier = sys.argv[1]
+    file_manager = StudyFileManager(f"autoencoders_{identifier}")
+    dataset = datasets.get_dataset("") #TODO select correct dataset
     study_manager = StudyManager(
         file_manager,
-        dataset=dataset,
-        val_metrics=["accuracy"],
-        compare_strategy=("accuracy", "max"),
-        num_epochs=50
+        compare_strategy="min",
+        metric_key=("train", "loss"),
+        num_epochs=100
     )
     architectures = [
         ('L16',nn.Sequential(

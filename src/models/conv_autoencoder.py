@@ -1,0 +1,108 @@
+from core.util import conv_out_shape, transposed_conv_out_shape
+from core import util, datasets
+from core.modules.metrics import get_metric
+from typing import Literal, Sequence, assert_never
+from torch import nn
+import torch
+from core.nn.autoencoder import AutoEncoder
+from core import Trainer, MetricsLogger
+
+def make_model(
+        input_shape, 
+        conv_layers : Sequence[int | tuple[Literal['pool'], int]], 
+        linear_layers : Sequence[int], 
+        encoding_size : int, 
+        encoding_activation : Literal['relu', 'sigmoid'] = 'sigmoid',
+        kernel_size : int = 3
+    ):
+    same_padding = kernel_size-1
+    encoder_layers : list[nn.Module] = []
+    deconv_layers : list[int | tuple[Literal['pool'], int]] = []
+    in_channels = input_shape[0]
+    in_shape = input_shape[1:]
+    
+    for conv_layer in conv_layers:
+        match conv_layer:
+            case ('pool', pool_ksize):
+                encoder_layers.append(nn.MaxPool2d(pool_ksize, padding=0))
+                in_shape = conv_out_shape(in_shape, pool_ksize, padding=0)
+                deconv_layers.append(('pool', pool_ksize))
+            case out_channels:
+                assert isinstance(out_channels, int)
+                encoder_layers.append(nn.Conv2d(in_channels, out_channels, kernel_size, padding=same_padding))
+                encoder_layers.append(nn.ReLU())
+                deconv_layers.append(in_channels)
+                in_channels = out_channels
+    
+    last_conv_total_features = in_channels
+    for dim_size in in_shape:
+        last_conv_total_features *= dim_size
+    in_features = last_conv_total_features
+    encoder_layers.append(nn.Flatten())
+
+    for out_features in linear_layers:
+        encoder_layers.append(nn.Linear(in_features, out_features))
+        encoder_layers.append(nn.ReLU())
+        in_features = out_features
+
+    encoder_layers.append(nn.Linear(in_features, encoding_size))
+    match encoding_activation:
+        case 'relu':
+            encoder_layers.append(nn.ReLU())
+        case 'sigmoid':
+            encoder_layers.append(nn.Sigmoid())
+        case never:
+            assert_never(never)
+    in_features = encoding_size
+
+    
+    decoder_layers : list[nn.Module] = []
+    for out_features in reversed(linear_layers):
+        decoder_layers.append(nn.Linear(in_features, out_features))
+        decoder_layers.append(nn.ReLU())
+        in_features = out_features
+    decoder_layers.append(nn.Linear(in_features, last_conv_total_features))
+    decoder_layers.append(nn.ReLU())
+
+    decoder_layers.append(nn.Unflatten(0, [in_channels] + in_shape))
+    for i, conv_layer in enumerate(deconv_layers):
+        match conv_layer:
+            case ('pool', pool_ksize):
+                decoder_layers.append(nn.ConvTranspose2d(in_channels, in_channels, pool_ksize, padding=0))
+                in_shape = transposed_conv_out_shape(in_shape, pool_ksize, padding=0)
+            case out_channels:
+                assert isinstance(out_channels, int)
+                decoder_layers.append(nn.ConvTranspose2d(in_channels, out_channels, kernel_size, padding=same_padding))
+                if i == len(deconv_layers) - 1:
+                    decoder_layers.append(nn.Sigmoid())
+                else:
+                    decoder_layers.append(nn.ReLU())
+                in_channels = out_channels
+    
+    return AutoEncoder(
+        encoder=nn.Sequential(*encoder_layers),
+        decoder=nn.Sequential(*decoder_layers)
+    )
+
+def create_trainer(dataset_name : str, **kwargs) -> Trainer:
+    loss_fn = nn.MSELoss()
+    loss_metric = util.DecoratedTorchMetric(loss_fn)
+    dataset = datasets.get_dataset(dataset_name)
+    metrics = ['epoch_elapsed']
+    metric_functions : dict = {
+        'loss': loss_metric,
+    }
+    for metric in metrics:
+        metric_functions[metric] = get_metric(metric)
+    train_metrics = MetricsLogger(
+        identifier='train',
+        metric_functions=metric_functions,
+        dataset=dataset.for_training_eval
+    )
+    return Trainer(
+        model=make_model(**kwargs),
+        loss_fn=loss_fn,
+        optimizer=torch.optim.Adam,
+        training_set=dataset.for_training(),
+        metric_loggers=[train_metrics]
+    )

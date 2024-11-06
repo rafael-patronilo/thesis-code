@@ -53,6 +53,7 @@ class ModelFileManager:
         self.__metrics_bufferers : dict[str, _MetricsBufferer]= {}
         self.path = self.models_path.joinpath(path)
         self.model_name = self.path.name
+        self.__is_context = False
         self.__format_paths()
     
     def __format_paths(self):
@@ -123,14 +124,15 @@ class ModelFileManager:
         for bufferer in self.__metrics_bufferers.values():
             bufferer.flush()
 
-    def save_model_config(self, script, args, kwargs):
+    def save_config(self, config : TrainerConfig, ignore_existing = False):
         self.__assert_context()
+        if self.config_file.exists():
+            if ignore_existing:
+                logger.warning("Ignoring existing config file")
+                return
+            else:
+                raise FileExistsError(f"Config file already exists at {self.config_file}")
         with self.config_file.open('w') as f:
-            config = {
-                "model_script" : script,
-                "args" : args,
-                "kwargs" : kwargs
-            }
             json.dump(config, f, indent=4)
 
     def load_config(self) -> 'TrainerConfig':
@@ -160,30 +162,15 @@ class ModelFileManager:
             return None
     
     def __assert_context(self):
-        global _context_instance
-        if _context_instance is not self:
-                    raise RuntimeError("ModelFileManager must be used as a context manager")
+        if not self.__is_context:
+            raise RuntimeError("ModelFileManager must be used as a context manager")
 
-    def __enter__(self):
-        global _lock, _context_instance
-        if _lock.acquire(blocking=False):
-            _context_instance = self
-            return self
-        elif _context_instance is self:
-            return self
-        else:
-            raise RuntimeError("Conflicting context manager instances")
+    def __enter__(self) -> Self:
+        self.__is_context = True
+        return self
     
     def __exit__(self, exc_type, exc_value, traceback):
-        global _lock, _context_instance
         for bufferer in self.__metrics_bufferers.values():
             bufferer.stream.close()
         self.__metrics_bufferers.clear()
-        _context_instance = None
-        _lock.release()
-
-    @classmethod
-    def get_context_instance(cls) -> 'ModelFileManager':
-        if _context_instance is None:
-            raise RuntimeError("No ModelFileManager context available")
-        return _context_instance
+        self.__is_context = False

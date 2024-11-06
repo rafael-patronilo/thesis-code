@@ -1,7 +1,6 @@
-from typing import Iterable, Optional, Callable, TYPE_CHECKING
+from typing import Iterable, Optional, Callable, Sequence, Literal, TYPE_CHECKING
 import logging
-import functools
-import threading
+import re
 import signal
 if TYPE_CHECKING:
     import torch
@@ -35,6 +34,44 @@ def assert_type(obj, type_):
     if not isinstance(obj, type_):
         raise TypeError(f"Expected type {type_}, got {type(obj)}")
     
+_IMPORT_REGEX = re.compile(r"^[a-zA-Z0-9_]+(.[a-zA-Z0-9_]+)*$")
+
+def is_import_safe(import_str : str) -> bool:
+    return _IMPORT_REGEX.fullmatch(import_str) is not None
+
+def conv_out_shape(
+        in_shape : Sequence[int], 
+        kernel_size : int, 
+        stride : int = 1, 
+        padding : Literal['same'] | int ='same', 
+        dilation : int = 1
+    ):
+    if padding == 'same':
+        padding = (kernel_size - 1) // 2
+    out_shape = []
+    for size in in_shape:
+        value = size + 2 * padding - dilation * (kernel_size - 1) - 1
+        value = value // stride
+        value += 1
+        out_shape.append(value)
+    return out_shape
+
+def transposed_conv_out_shape(
+        in_shape : Sequence[int], 
+        kernel_size : int, 
+        stride : int = 1, 
+        padding : Literal['same'] | int ='same', 
+        dilation : int = 1
+    ):
+    if padding == 'same':
+        padding = (kernel_size - 1) // 2
+    out_shape = []
+    for size in in_shape:
+        value = (size - 1) * stride - 2 * padding + dilation*(kernel_size-1) + 1 
+        out_shape.append(value)
+    return out_shape
+
+
 class NoInterrupt:
     """
     Context object to trap interrupt signals to prevent abrupt termination of certain sections of the program.

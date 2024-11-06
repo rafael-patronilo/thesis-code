@@ -29,10 +29,12 @@ class MetricsLogger:
         def sort_key(metric):
             metric_name = metric[0]
             return (0 if metric_name.lower() == 'loss' else 1, metric_name)
-        self.ordered_metrics = sorted([(k, v) for k, v in self.__metric_functions.items()] , key=sort_key)
+        self.ordered_metrics : list[tuple[str, Any]] = sorted(
+            [(k, v) for k, v in self.__metric_functions.items()] , key=sort_key
+        )
         self.metrics_header = ['epoch'] + [k for (k, _) in self.ordered_metrics]
         self.sums : dict = {k: 0.0 for k, _ in self.ordered_metrics}
-        self.last_n = deque([{k: 0.0 for k, _ in self.ordered_metrics} for _ in range(last_n_size)])
+        self.last_n : deque[OrderedDict] = deque(OrderedDict((k, 0.0) for k, _ in self.ordered_metrics) for _ in range(last_n_size))
         self.sums_last_n : dict = {k: 0.0 for k, _ in self.ordered_metrics}
         self.total_measures = {k: 0.0 for k, _ in self.ordered_metrics}
         self.dataset_ref = dataset
@@ -51,13 +53,13 @@ class MetricsLogger:
     def state_dict(self):
         return {
             "sums": self.sums,
-            "last_n" : list(self.last_n),
+            "last_n" : self.last_n,
             "total_measures": self.total_measures
         }
     
     def load_state_dict(self, state_dict):
         sums : dict = state_dict["sums"]
-        last_n = state_dict["last_n"]
+        last_n : list[dict] = state_dict["last_n"]
         total_measures = state_dict["total_measures"]
         if sums.keys() != self.__metric_functions.keys():
             logger.error(f"Invalid sums keys ({sums.keys()}), ignoring value")
@@ -70,11 +72,18 @@ class MetricsLogger:
         if any(x.keys() != self.__metric_functions.keys() for x in last_n) or len(last_n) != len(self.last_n):
             logger.error(f"Invalid last n, ignoring value\nlast_n: {last_n}\n keys: {self.__metric_functions.keys()}")
         else:
-            self.last_n = deque(last_n)
-            self.sums = {k: 0.0 for k, _ in self.ordered_metrics}
+            def reorder(record : dict) -> OrderedDict:
+                ordered = OrderedDict()
+                for k, _ in self.ordered_metrics:
+                    ordered[k] = record[k]
+                return ordered
+            self.last_n = deque(reorder(record) for record in last_n)
+            self.last_record = self.last_n[0]
+            self.sums_last_n = {k: 0.0 for k, _ in self.ordered_metrics}
             for entry in last_n:
                 for k, v in entry.items():
-                    sums[k] += v
+                    self.sums_last_n[k] += v
+            
 
     def averages(self):
         return {
@@ -129,17 +138,17 @@ class MetricsLogger:
         for k, v in discarded.items():
             if not math.isnan(v):
                 self.sums_last_n[k] -= v
-        self.last_n.appendleft({})
+        
         y_pred, y_true = self._eval(model)
         for metric_name, metric_fn in self.ordered_metrics:
             value = metric_fn(epoch=epoch, y_pred=y_pred, y_true=y_true)
             record[metric_name] = value
-            self.last_record[metric_name] = value
             if not math.isnan(value):
                 self.sums[metric_name] += value
                 self.sums_last_n[metric_name] += value
-                self.last_n[0][metric_name] = value
                 self.total_measures[metric_name] += 1
+        self.last_n.appendleft(record)
+        self.last_record = record
         return record
     
     def __repr__(self):
