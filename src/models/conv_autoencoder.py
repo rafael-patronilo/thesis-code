@@ -88,6 +88,7 @@ def create_trainer(dataset_name : str, **kwargs) -> Trainer:
     loss_fn = nn.MSELoss()
     loss_metric = util.DecoratedTorchMetric(loss_fn)
     dataset = datasets.get_dataset(dataset_name)
+    input_shape = dataset.get_shape()
     metrics = ['epoch_elapsed']
     metric_functions : dict = {
         'loss': loss_metric,
@@ -100,7 +101,7 @@ def create_trainer(dataset_name : str, **kwargs) -> Trainer:
         dataset=dataset.for_training_eval
     )
     return Trainer(
-        model=make_model(**kwargs),
+        model=make_model(input_shape, **kwargs),
         loss_fn=loss_fn,
         optimizer=torch.optim.Adam,
         training_set=dataset.for_training(),

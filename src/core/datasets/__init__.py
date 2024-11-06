@@ -1,6 +1,8 @@
 from typing import Optional, NamedTuple, Any
 from core.util.typing import TorchDataset
 import logging
+from torch.utils.data import Dataset, IterableDataset
+
 logger = logging.getLogger(__name__)
 
 CollumnSubReferences = NamedTuple("CollumnSubReferences", [("names_to_collumn", dict[str, int]), ("collumns_to_names", list[str])])
@@ -28,6 +30,14 @@ class SplitDataset:
             return (self.__class__, (self.train_data, self.val_data, self.test_data, self.collumn_references))
         else:
             return (get_dataset, (getattr(self, 'name'),))
+
+    def get_shape(self):
+        dataset = self.for_training()
+        if isinstance(dataset, IterableDataset):
+            sample = next(iter(dataset))
+        else:
+            sample = dataset[0]
+        return sample.shape
 
     def get_metric(self, metric : str):
         raise NotImplementedError("Metric retrieval not implemented")
