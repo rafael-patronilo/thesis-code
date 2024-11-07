@@ -1,7 +1,8 @@
 from . import (
     xtrains_concepts, 
     xtrains_ontology_simplified,
-    xtrains_ontology
+    xtrains_ontology,
+    xtrains
 )
 
 import logging

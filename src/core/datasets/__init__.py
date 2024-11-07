@@ -68,7 +68,7 @@ class SplitDataset:
         if not hasattr(data, 'dataset'):
             data.dataset = self
 
-    def for_training(self) -> TorchDataset:
+    def for_training(self) -> Dataset:
         self._load()
         if self.train_data is None:
             raise ValueError("No training data available")
@@ -85,14 +85,14 @@ class SplitDataset:
         """
         return self.for_training()
 
-    def for_validation(self) -> TorchDataset:
+    def for_validation(self) -> Dataset:
         self._load()
         if self.val_data is None:
             raise ValueError("No validation data available")
         self._attach_self(self.val_data)
         return self.val_data
 
-    def for_testing(self) -> Optional[TorchDataset]:
+    def for_testing(self) -> Optional[Dataset]:
         self._load()
         if not self.has_testing():
             return None
@@ -111,8 +111,10 @@ class SplitDataset:
 
 
 from .csv_dataset import CSVDataset
+from .csv_img_dataset import CSVImageDataset
 from . import binary_generator
 from .random_dataset import RandomDataset
+from .autoencoder_dataset import AutoencoderDataset
 
 _dataset_registry : dict[str, SplitDataset] = {}
 

@@ -1,11 +1,13 @@
 from .csv_dataset import CSVDataset
-from typing import Optional, Callable
+from typing import Optional, Callable, TYPE_CHECKING
 import torch
 import torchvision
 import torchvision.transforms.v2 as transforms
 
 from torchvision.transforms.v2 import Transform
 from pathlib import Path
+if TYPE_CHECKING:
+    import pandas as pd
 
 _IDENTITY_TRANSFORM : Transform = transforms.Lambda(lambda x : x)
 
@@ -13,8 +15,8 @@ _IDENTITY_TRANSFORM : Transform = transforms.Lambda(lambda x : x)
 class CSVImageDataset(CSVDataset):
     def __init__(
         self,
-        csv_path: str,
-        images_path: str,
+        csv_path: str | Path,
+        images_path: str | Path,
         image_collumns : list[str | tuple[str, Callable[[str], str]]],
         target : str | list[str],
         features: Optional[list[str]] = None,
@@ -22,14 +24,16 @@ class CSVImageDataset(CSVDataset):
         global_transform : Optional[Transform] = None,
         collumn_transforms : Optional[dict[str, Transform]] = None,
         shuffle: bool = True,
-        random_state = None
+        random_state = None,
+        filter : Optional[Callable[[pd.Series], bool]] = None
     ):
         super().__init__(
             csv_path,
             target,
             features,
             shuffle=shuffle,
-            random_state=random_state
+            random_state=random_state,
+            filter=filter
         )
         self.images_path = Path(images_path)
         self.dtype = dtype

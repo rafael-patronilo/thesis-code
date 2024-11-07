@@ -10,7 +10,7 @@ CONVOLUTIONS = (
     [128, ('pool', 2)] * 2
 )
 
-DATASET = "" #TODO load dataset
+DATASET = "xtrains"
 
 EXPERIMENTS = [
     ('L16', [16]),
@@ -35,8 +35,7 @@ def make_config(linears):
 
 def main():
     # Load study manager
-    identifier = sys.argv[1]
-    file_manager = StudyFileManager(f"autoencoders_{identifier}")
+    file_manager = StudyFileManager(f"xtrains_autoencoders_1")
     study_manager = StudyManager(
         file_manager,
         compare_strategy="max",
