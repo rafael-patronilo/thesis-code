@@ -31,7 +31,7 @@ ModelDetails = NamedTuple(
 
 type MetricsSnapshot = dict[str, dict[str, Any]]
 
-CheckpointReason = Literal['interrupt', 'force_interrupt', "error", 'triggered', 'periodic', 'end']
+type CheckpointReason = Literal['interrupt', 'force_interrupt', "error", 'triggered', 'periodic', 'end']
 class TrainerConfig(TypedDict, total=True):
     build_script : str
     build_args : list[Any]
@@ -156,7 +156,8 @@ class Trainer:
     def _checkpoint(self, reason : CheckpointReason):
         if self.model_file_manager is None:
             raise ValueError("Model file manager not initialized")
-        self.model_file_manager.save_checkpoint(self.epoch, self.state_dict(reason))
+        is_abrupt = reason in ['force_interrupt', "error"]
+        self.model_file_manager.save_checkpoint(self.epoch, self.state_dict(reason), is_abrupt)
         self.model_file_manager.flush()
         averages = ""
         averages_last_n = ""

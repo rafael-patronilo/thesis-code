@@ -40,6 +40,7 @@ class ModelFileManager:
     MODEL_FILE_NAME = "model.pth"
     CONFIG_FILE_NAME = "config.json"
     CHECKPOINTS_DIR = "checkpoints"
+    LAST_CHECKPOINT = "last_checkpoint.pth"
     METRICS_FORMAT = "metrics_{identifier}.csv"
     METRICS_DIR = ""
     CHECKPOINT_FORMAT = "epoch_{epoch:0>9}.pth"
@@ -61,6 +62,7 @@ class ModelFileManager:
         self.model_file = self.path.joinpath(self.MODEL_FILE_NAME)
         self.config_file = self.path.joinpath(self.CONFIG_FILE_NAME)
         self.metrics_dest = self.path.joinpath(self.METRICS_DIR)
+        self.last_checkpoint = self.path.joinpath(self.LAST_CHECKPOINT)
 
     def __create_paths(self, exists_ok = False):
         logger.debug(f"Creating paths for model {self.model_name} at {self.path}")
@@ -143,16 +145,24 @@ class ModelFileManager:
         else:
             raise FileNotFoundError(f"Config file not found at {self.config_file}")
     
-    def save_checkpoint(self, epoch, state_dict):
+    def save_checkpoint(self, epoch, state_dict, abrupt):
         self.__assert_context()
         path = self.checkpoint_path.joinpath(self.CHECKPOINT_FORMAT.format(epoch=epoch))
         if path.exists():
             logger.warning(f"Overwriting existing checkpoint at {path}")
+        if not abrupt:
+            logger.info(f"Overwriting last checkpoint at {self.last_checkpoint}")
+            torch.save(state_dict, self.last_checkpoint)
+        else:
+            logger.warning("Abrupt checkpoint, not overwriting last checkpoint")
         logger.info(f"Saving checkpoint at {path}")
         torch.save(state_dict, path)
+        
 
     def load_last_checkpoint(self):
         self.__assert_context()
+        if self.last_checkpoint.exists():
+            return torch.load(self.last_checkpoint)
         checkpoint_files = self.checkpoint_path.glob("*")
         checkpoint_files = [(int(file.with_suffix("").name.split('_')[-1]), file) for file in checkpoint_files]
         checkpoint_files.sort(key=lambda x: x[0])
