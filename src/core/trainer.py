@@ -36,8 +36,6 @@ def debug_model(error : BaseException, model : 'nn.Module', X, Y):
     sb.append(f"\tError: {error}")
     sb.append(f"\tModel: {model}")
     if X is not None and Y is not None:
-        sb.append(f"\tX: {X}")
-        sb.append(f"\tY: {Y}")
         sb.append(f"\tX shape: {X.shape}")
         sb.append(f"\tY shape: {Y.shape}")
         sb.append(f"\tX dtype: {X.dtype}")
@@ -92,9 +90,11 @@ class Trainer:
             training_set : 'Dataset',
             metric_loggers : list[MetricsLogger],
             #callbacks = None,
-            epoch = 0,
+            epoch : int = 0,
+            batch_size : int = 32,
             checkpoint_each : Optional[int] = 10,
             checkpoint_triggers : Optional[list[Callable[[Any], bool]]] = None,
+            stop_criteria : Optional[list[Callable[['Trainer'], bool]]] = None
         ):
         self.model = model
         self.loss_fn = loss_fn
@@ -103,10 +103,13 @@ class Trainer:
         self.model_file_manager : Optional[ModelFileManager] = None
         self.metric_loggers : list[MetricsLogger] = metric_loggers
         #self.callbacks = callbacks or {}
-        self.start_epoch = epoch
-        self.epoch = epoch
+        self.start_epoch : int = epoch
+        self.epoch : int = epoch
         self.checkpoint_triggers = checkpoint_triggers or []
-        self.checkpoint_each = checkpoint_each
+        self.stop_criteria = stop_criteria or []
+        self.checkpoint_each = checkpoint_each,
+        self.batch_size = batch_size
+        self._training_loader = None
 
     def checkpoint_metadata(self, reason : CheckpointReason):
         assert self.model_file_manager is not None
@@ -130,11 +133,17 @@ class Trainer:
     def state_dict(self, reason : CheckpointReason):
         metadata = self.checkpoint_metadata(reason)
         logger.debug(f"Checkpoint metadata: {metadata}")
+        stop_criteria = {
+            criterion.__class__.__name__ : criterion.state_dict() 
+            for criterion in self.stop_criteria
+            if hasattr(criterion, 'state_dict')
+        }
         return {
             "model": self.model.state_dict(),
             "optimizer": self.optimizer.state_dict(),
             "epoch": self.epoch,
             "metrics": {metric_logger.identifier : metric_logger.state_dict() for metric_logger in self.metric_loggers},
+            "stop_criteria" : stop_criteria,
             "metadata": metadata
         }
     
@@ -145,6 +154,9 @@ class Trainer:
         self.start_epoch = state_dict["epoch"]
         for metric_logger in self.metric_loggers:
             metric_logger.load_state_dict(state_dict["metrics"][metric_logger.identifier])
+        for criterion in self.stop_criteria:
+            if hasattr(criterion, 'load_state_dict'):
+                criterion.load_state_dict(state_dict['stop_criteria'][criterion.__class__.__name__])
         logger.info(f"Loaded checkpoint: {utils.multiline_str(state_dict['metadata'])}")
 
     def train_indefinitely(self):
@@ -159,13 +171,13 @@ class Trainer:
     def metrics_snapshot(self) -> MetricsSnapshot:
         snapshot = {}
         for metric_logger in self.metric_loggers:
-            if metric_logger.last_record is not None:
-                snapshot[metric_logger.identifier] = metric_logger.last_record
+            snapshot[metric_logger.identifier] = metric_logger.last_record
         return snapshot
 
     def train_until(self, criteria : list[Callable[['Trainer'], bool]]):
         if self.model_file_manager is None:
             raise ValueError("Model file manager not initialized")
+        criteria = criteria + self.stop_criteria
         logger.info("Initiating training loop...\n"
                     f"Model: {self.model_file_manager.model_name}\n"
                     f"Epoch: {self.epoch}\n"
@@ -186,9 +198,11 @@ class Trainer:
         except (KeyboardInterrupt, utils.NoInterrupt.InterruptException):
             logger.log(NOTIFY, "Training safely interrupted. Saving checkpoint...")
             self._checkpoint('interrupt')
+            raise
         except (SystemExit, utils.NoInterrupt.ForcedInterruptException):
             logger.error("Forced interrupt. Saving checkpoint...")
             self._checkpoint('force_interrupt')
+            raise
         except:
             if self.epoch == 0:
                 logger.error("Exception caught at epoch 0. Skipping checkpoint...")
@@ -218,6 +232,11 @@ class Trainer:
             f"Avg:\n{averages}"
             f"Avg last {len(self.metric_loggers[0].last_n)}:\n{averages_last_n}"
             )
+        
+    def training_loader(self):
+        if self._training_loader is None:
+            self._training_loader = DataLoader(self.training_set, batch_size=32, shuffle=True)
+        return self._training_loader
     
     def eval_metrics(self):
         if self.model_file_manager is None:
@@ -235,7 +254,7 @@ class Trainer:
         batches = 0
         last_log = time.time()
         try:
-            for X, Y in self.training_set:
+            for X, Y in self.training_loader():
                 self.__train_step(X, Y)
                 batches += 1
                 now = time.time()
@@ -266,6 +285,8 @@ class Trainer:
         for k, v in self.__dict__.items():
             if k == 'model_file_manager':
                 continue
+            if k.startswith('_'):
+                continue
             if k == 'training_set' and hasattr(v, 'dataset'):
                 fields.append(f"{k} = {v.dataset}")
                 continue
@@ -293,6 +314,7 @@ class Trainer:
         # Sanitazion checks before loading the script
         assert utils.is_import_safe(build_script), f"Invalid build script name: {build_script}"
         trainer = importlib.import_module('.' + build_script, 'models').create_trainer(*build_args, **build_kwargs)
+        logger.info(trainer)
         return trainer
 
     @classmethod

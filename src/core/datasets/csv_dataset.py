@@ -143,6 +143,9 @@ Seed: \t {self.random_state}""")
             self.tensor_features = tensor_features
             self.tensor_targets = tensor_targets
 
+        def __len__(self):
+            return len(self.rows)
+
         def _torchify_row(
                 self, 
                 row : pd.Series, 

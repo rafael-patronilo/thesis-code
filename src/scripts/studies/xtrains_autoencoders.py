@@ -39,7 +39,7 @@ def main():
     study_manager = StudyManager(
         file_manager,
         compare_strategy="max",
-        metric_key=("train", "loss"),
+        metric_key=("val", "loss"),
         num_epochs=100
     )
     configs = ((name, [], make_config(linears)) for name, linears in EXPERIMENTS)

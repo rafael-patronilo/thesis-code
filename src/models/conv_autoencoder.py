@@ -1,6 +1,7 @@
 from core.util import conv_out_shape, transposed_conv_out_shape
 from core import util, datasets
 from core.modules.metrics import get_metric
+from core.modules.stop_criteria import EarlyStop
 from typing import Literal, Sequence, Any, assert_never
 from torch import nn
 import torch
@@ -44,7 +45,7 @@ def make_model(
     for dim_size in in_shape:
         last_conv_total_features *= dim_size
     in_features = last_conv_total_features
-    encoder_layers.append(nn.Flatten(start_dim=0))
+    encoder_layers.append(nn.Flatten())
     logger.debug(f"\tFlatten {in_features} ->")
 
     for out_features in linear_layers:
@@ -75,7 +76,7 @@ def make_model(
     decoder_layers.append(nn.ReLU())
     logger.debug(f"\tLinear {last_conv_total_features} ->")
 
-    decoder_layers.append(nn.Unflatten(0, [in_channels] + in_shape))
+    decoder_layers.append(nn.Unflatten(1, [in_channels] + in_shape)) # type: ignore
     logger.debug(f"\tUnflatten {in_channels} x {in_shape} ->")
     for i, conv_layer in enumerate(reversed(deconv_layers)):
         match conv_layer:
@@ -122,12 +123,18 @@ def create_trainer(dataset_name : str, **kwargs) -> Trainer:
     train_metrics = MetricsLogger(
         identifier='train',
         metric_functions=metric_functions,
-        dataset=dataset.for_training_eval
+        dataset=dataset.for_training
+    )
+    val_metrics = MetricsLogger(
+        identifier='val',
+        metric_functions=metric_functions,
+        dataset=dataset.for_validation
     )
     return Trainer(
         model=make_model(input_shape, **kwargs),
         loss_fn=loss_fn,
         optimizer=torch.optim.Adam,
         training_set=dataset.for_training(),
-        metric_loggers=[train_metrics]
+        metric_loggers=[train_metrics, val_metrics],
+        stop_criteria=[EarlyStop(threshold=0.01, patience=10)]
     )

@@ -53,8 +53,8 @@ class StudyManager:
                     self.stop_criteria = lambda x: metric_getter(x) <= value
                 case _:
                     assert_never(strategy)
-        elif stop_criteria is not None:
-            self.stop_criteria : Callable[[dict], bool] = stop_criteria
+        else:
+            self.stop_criteria : Optional[Callable[[dict], bool]] = stop_criteria
 
     def _create_trainer(self, model_file_manager, config : TrainerConfig):
         trainer = Trainer.from_config(config)

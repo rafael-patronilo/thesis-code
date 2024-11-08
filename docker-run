@@ -1,0 +1,4 @@
+#!#!/usr/bin/bash
+ARGS=()
+if [ -f .env ]; then
+    docker run --env-file .env

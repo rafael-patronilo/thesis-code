@@ -1,0 +1,11 @@
+#!/usr/bin/bash
+TAG=rpatronilo-thesis
+
+OLD_IMAGE=$(docker images -q $TAG)
+if [ -z $OLD_IMAGE ]; then
+    echo No old image
+fi
+
+docker build -t $TAG . && \
+echo Image successfully built with tag $TAG && \
+([ -z $OLD_IMAGE] || (docker rmi $OLD_IMAGE; echo Old image $OLD_IMAGE deleted))

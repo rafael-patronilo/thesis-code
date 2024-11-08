@@ -4,19 +4,25 @@ from torch.utils.data import Dataset, IterableDataset
 class _DatasetWrapper(Dataset):
     def __init__(self, dataset : Dataset) -> None:
         super().__init__()
-        self.wrapped : Dataset = dataset
+        self.dataset : Dataset = dataset
     
+    def __len__(self):
+        return len(self.dataset) # type: ignore
+
     def __getitem__(self, index):
-        x, _ = self.wrapped.__getitem__(index)
+        x, _ = self.dataset.__getitem__(index)
         return x, x
 
 class _IterableDatasetWrapper(IterableDataset):
     def __init__(self, dataset : IterableDataset) -> None:
         super().__init__()
-        self.wrapped : IterableDataset = dataset
+        self.dataset : IterableDataset = dataset
     
+    def __len__(self):
+        return len(self.dataset) # type: ignore
+
     def __iter__(self):
-        for x, _ in self.wrapped:
+        for x, _ in self.dataset:
             yield x, x
 
 def wrap_for_autoencoder(dataset : Dataset) -> Dataset:
