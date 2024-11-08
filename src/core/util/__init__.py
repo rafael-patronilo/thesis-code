@@ -103,7 +103,7 @@ class NoInterrupt:
     def signal_handler(self, sig, frame):
         if self.attempts > 0:
             self.logger.error(f"Received signal {signal.Signals(sig).name} again, exiting immediately")
-            raise NoInterrupt.InterruptException(self.interrupt_signal)
+            raise NoInterrupt.ForcedInterruptException(self.interrupt_signal)
         self.attempts += 1
         self.interrupt_signal = signal.Signals(sig)
         self.logger.warning(f"Intercepted signal {self.interrupt_signal.name} with reason {self.reason}.\n"
