@@ -33,11 +33,20 @@ class SplitDataset:
 
     def get_shape(self):
         dataset = self.for_training()
+        def get_shape_rec(shape):
+            if isinstance(shape, tuple):
+                return tuple(get_shape_rec(sub_shape) for sub_shape in shape)
+            elif isinstance(shape, list):
+                return [get_shape_rec(sub_shape) for sub_shape in shape]
+            elif isinstance(shape, dict):
+                return {key: get_shape_rec(sub_shape) for key, sub_shape in shape.items()}
+            else:
+                return shape.shape
         if isinstance(dataset, IterableDataset):
             sample = next(iter(dataset))
         else:
             sample = dataset[0]
-        return sample.shape
+        return get_shape_rec(sample)
 
     def get_metric(self, metric : str):
         raise NotImplementedError("Metric retrieval not implemented")

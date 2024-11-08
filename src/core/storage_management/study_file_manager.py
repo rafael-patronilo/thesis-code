@@ -15,26 +15,12 @@ class StudyFileManager:
     def __init__(
             self, 
             study_name : str, 
-            studies_path : Optional[str] = None,
-            conflict_strategy : Literal['new', 'error'] = 'new'
+            studies_path : Optional[str] = None
         ) -> None:
         self.studies_path = studies_path or STUDIES_PATH
         self.study_name = study_name
         self.path = Path(self.studies_path).joinpath(self.study_name)
-        match conflict_strategy:
-            case 'new':
-                if self.path.exists():
-                    self.study_name = self.study_name + datetime.datetime.now().isoformat()
-                    logger.debug(f"Study path already exists at {self.path}, changing identifier to {self.study_name}.")
-                    self.path = Path(self.studies_path).joinpath(self.study_name)
-                    if self.path.exists():
-                        raise FileExistsError(f"Failed to automatically solve conflict: New study path also exists at {self.path}")
-            case 'error':
-                if self.path.exists():
-                    raise FileExistsError(f"Study path already exists at {self.path}")
-            case never:
-                assert_never(never)
-        self.path.mkdir(parents=True, exist_ok=False)
+        self.path.mkdir(parents=True, exist_ok=True)
 
     def new_experiment(self, experiment_name : str) -> ModelFileManager:
         return ModelFileManager(experiment_name, models_path=self.path)

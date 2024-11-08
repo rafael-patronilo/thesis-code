@@ -7,6 +7,7 @@ import os
 from typing import Callable, Concatenate
 from . import assert_type
 import torch
+from types import SimpleNamespace
 root_logger = logging.getLogger()
 
 TENSOR_DEBUG_PATH = Path(os.getenv("TENSOR_DEBUG_PATH") or "debug")
@@ -66,3 +67,17 @@ def debug_tensors(file_name : PathLike, *args, **kwds):
         kwds = {k: _get_np(v) for k, v in kwds.items()}
         np.savez(path, *args, **kwds)
 
+def forward_hook_log(
+        level : int = logging.DEBUG,
+        tensor_shape : bool = True, 
+        tensor_values : bool = False
+    ) -> Callable:
+    def hook(module, input, output):
+        info = f"Hooked layer {module} called:\n"
+        if tensor_shape:
+            info += f"\tInput shape: {input[0].shape}\n"
+            info += f"\tOutput shape: {output.shape}"
+        if tensor_values:
+            info += f"\n{output}"
+        logging.log(level, info)
+    return hook

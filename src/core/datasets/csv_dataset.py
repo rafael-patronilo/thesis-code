@@ -159,7 +159,10 @@ Seed: \t {self.random_state}""")
             else:
                 tensors = [preprocessor(row[col]) for col, preprocessor in tensor_preprocessors]
             if scalars is None:
-                return tensors
+                if tensors is not None and len(tensors) == 1:
+                    return tensors[0]
+                else:
+                    return tensors
             elif tensors is None:
                 return scalars
             else:

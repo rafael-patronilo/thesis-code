@@ -1,7 +1,7 @@
 
 from collections import OrderedDict
 from pathlib import Path
-from typing import Literal, NamedTuple, Any, Optional, Self, TYPE_CHECKING
+from typing import Literal, NamedTuple, Any, Optional, Self, assert_never, TYPE_CHECKING
 import datetime
 import logging
 import torch
@@ -16,9 +16,6 @@ import importlib
 logger = logging.getLogger(__name__)
 
 MODELS_PATH = os.getenv("MODEL_PATH", "storage/models")
-_lock = threading.Lock()
-_context_instance : Optional['ModelFileManager'] = None
-
 METRICS_BUFFER_LIMIT = 10
 
 class _MetricsBufferer:
@@ -126,14 +123,27 @@ class ModelFileManager:
         for bufferer in self.__metrics_bufferers.values():
             bufferer.flush()
 
-    def save_config(self, config : TrainerConfig, ignore_existing = False):
+    def save_config(self, config : 'TrainerConfig', conflict_strategy : Literal['error', 'ignore', 'compare'] = 'compare'):
         self.__assert_context()
         if self.config_file.exists():
-            if ignore_existing:
-                logger.warning("Ignoring existing config file")
-                return
-            else:
-                raise FileExistsError(f"Config file already exists at {self.config_file}")
+            match conflict_strategy:
+                case 'ignore':
+                    logger.warning("Ignoring existing config file")
+                    return
+                case 'error':
+                    raise FileExistsError(f"Config file already exists at {self.config_file}")
+                case 'compare':
+                    existing_config = self.load_config()
+                    post_json_config = json.loads(json.dumps(config)) # Remove any non json objects (eg. tuples)
+                    if existing_config != post_json_config:
+                        raise FileExistsError(
+                            f"Config file already exists and is different from provided config. "
+                            f"Existing: {existing_config}, Provided: {config}")
+                    else:
+                        logger.warning("Config file already exists and is the same, not writing")
+                        return
+                case never:
+                    assert_never(never)
         with self.config_file.open('w') as f:
             json.dump(config, f, indent=4)
 
@@ -163,6 +173,8 @@ class ModelFileManager:
         self.__assert_context()
         if self.last_checkpoint.exists():
             return torch.load(self.last_checkpoint)
+        else:
+            logger.warning(f"No checkpoint found at {self.last_checkpoint}, searching latest checkpoint")
         checkpoint_files = self.checkpoint_path.glob("*")
         checkpoint_files = [(int(file.with_suffix("").name.split('_')[-1]), file) for file in checkpoint_files]
         checkpoint_files.sort(key=lambda x: x[0])

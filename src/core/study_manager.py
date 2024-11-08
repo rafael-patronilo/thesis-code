@@ -68,8 +68,8 @@ class StudyManager:
     def run_experiment(self, experiment_name : str, config: TrainerConfig):
         with self.file_manager.new_experiment(experiment_name) as model_file_manager:
             logger.info(f"Running experiment {experiment_name}")
-            model_file_manager.save_config(config)
             trainer = self._create_trainer(model_file_manager, config)
+            model_file_manager.save_config(config)
             if trainer.epoch >= self.num_epochs:
                 logger.info(f"Experiment {experiment_name} was already complete.")
             else:
@@ -97,7 +97,7 @@ class StudyManager:
     
     def run_with_script(self, script : str, config_generator : Iterable[tuple[str, list, dict]]):
         generator : Iterable[tuple[str, TrainerConfig]] = (
-            (name, dict(build_script=script, args=args, kwargs=kwargs)) 
+            (name, dict(build_script=script, build_args=args, build_kwargs=kwargs)) 
             for name, args, kwargs in config_generator
         ) # type: ignore
         self.run(generator)

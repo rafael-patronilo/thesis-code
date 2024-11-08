@@ -25,7 +25,7 @@ class CSVImageDataset(CSVDataset):
         collumn_transforms : Optional[dict[str, Transform]] = None,
         shuffle: bool = True,
         random_state = None,
-        filter : Optional[Callable[[pd.Series], bool]] = None
+        filter : Optional[Callable[['pd.Series'], bool]] = None
     ):
         super().__init__(
             csv_path,

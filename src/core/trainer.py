@@ -11,6 +11,7 @@ import importlib
 import torch
 from . import modules
 from . import util as utils
+import time
 if TYPE_CHECKING:
     from torch import nn
     from torch.optim.optimizer import Optimizer
@@ -29,6 +30,46 @@ ModelDetails = NamedTuple(
     ]
 )
 
+def debug_model(error : BaseException, model : 'nn.Module', X, Y):
+    sb = []
+    sb.append("\nModel debug info")
+    sb.append(f"\tError: {error}")
+    sb.append(f"\tModel: {model}")
+    if X is not None and Y is not None:
+        sb.append(f"\tX: {X}")
+        sb.append(f"\tY: {Y}")
+        sb.append(f"\tX shape: {X.shape}")
+        sb.append(f"\tY shape: {Y.shape}")
+        sb.append(f"\tX dtype: {X.dtype}")
+        sb.append(f"\tY dtype: {Y.dtype}")
+        sb.append(f"\tX device: {X.device}")
+        sb.append(f"\tY device: {Y.device}")
+    def debug_tensor(x) -> str:
+        if isinstance(x, torch.Tensor):
+            return f"Tensor {x.shape} {x.dtype} {x.device}"
+        elif isinstance(x, tuple):
+            return f"({', '.join(debug_tensor(sub) for sub in x)})"
+        elif isinstance(x, list):
+            return f"[{', '.join(debug_tensor(sub) for sub in x)}]"
+        else:
+            return str(x)
+    def forward_hook(module, input, output):
+        sb.append(f"\t\t{module.__class__.__name__} : {debug_tensor(input)} -> {debug_tensor(output)}")
+    sb.append(f"\tSub modules:")
+    for module in model.modules():
+        sb.append(f"\t\t{module.__class__.__name__}")
+    
+    sb.append(f"\tDebugging forward pass:")
+    torch.nn.modules.module.register_module_forward_hook(forward_hook, always_call=True)
+    try:
+        result = model.forward(X)
+        sb.append(f"\tResult shape: {result.shape}")
+        sb.append(f"\tExpected shape: {Y.shape}")
+    except BaseException as e:
+        sb.append(f"\tError during forward pass: {e}")
+        pass
+    return "\n".join(sb)
+
 type MetricsSnapshot = dict[str, dict[str, Any]]
 
 type CheckpointReason = Literal['interrupt', 'force_interrupt', "error", 'triggered', 'periodic', 'end']
@@ -38,6 +79,8 @@ class TrainerConfig(TypedDict, total=True):
     build_kwargs : dict[str, Any]
 
 logger = logging.getLogger(__name__)
+
+LOG_STEP_EVERY = 2*60
 
 class Trainer:
 
@@ -147,8 +190,11 @@ class Trainer:
             logger.error("Forced interrupt. Saving checkpoint...")
             self._checkpoint('force_interrupt')
         except:
-            logger.error("Exception caught while training. Saving checkpoint...")
-            self._checkpoint('error')
+            if self.epoch == 0:
+                logger.error("Exception caught at epoch 0. Skipping checkpoint...")
+            else:
+                logger.error("Exception caught while training. Saving checkpoint...")
+                self._checkpoint('error')
             raise
     
     
@@ -187,9 +233,18 @@ class Trainer:
         logger.info(f"Epoch {epoch}")
         self.model.train()
         batches = 0
-        for X, Y in self.training_set:
-            self.__train_step(X, Y)
-            batches += 1
+        last_log = time.time()
+        try:
+            for X, Y in self.training_set:
+                self.__train_step(X, Y)
+                batches += 1
+                now = time.time()
+                if now - last_log > LOG_STEP_EVERY:
+                    logger.info(f"\t\tRunning longer than {LOG_STEP_EVERY} seconds, current batch = {batches}")
+                    last_log = now
+        except BaseException as e:
+            logger.error(f"Exception during training loop {debug_model(e, self.model, X, Y)}")
+            raise
         logger.debug("Epoch complete")
         self.eval_metrics()
         if epoch > 0 and self.checkpoint_each is not None and epoch % self.checkpoint_each == 0:
@@ -231,6 +286,9 @@ class Trainer:
         build_script = config['build_script']
         build_args = config.get('build_args', [])
         build_kwargs = config.get('build_kwargs', {})
+        for key in config.keys():
+            if key not in ['build_script', 'build_args', 'build_kwargs']:
+                logger.warning(f"Unused key in config: {key}")
         logger.info(f"Creating trainer from script {build_script}")
         # Sanitazion checks before loading the script
         assert utils.is_import_safe(build_script), f"Invalid build script name: {build_script}"
@@ -252,6 +310,10 @@ class Trainer:
         checkpoint = file_manager.load_last_checkpoint()
         if checkpoint is not None:
             logger.info(f"Loading checkpoint")
+            metadata = checkpoint['metadata']
+            logger.info(f"Checkpoint info: {metadata}")
+            if metadata['reason'] in ['error', 'force_interrupt']:
+                logger.warning(f"Abrupt checkpoint: Checkpoint was saved due to {metadata['reason']}")
             trainer.load_state_dict(checkpoint)
         else:
             logger.info("No checkpoint found.")

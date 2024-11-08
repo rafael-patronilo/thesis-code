@@ -24,7 +24,7 @@ EXPERIMENTS = [
 
 def make_config(linears):
     return dict(
-        dataset_name =  DATASET,
+        dataset_name = DATASET,
         conv_layers = CONVOLUTIONS,
         linear_layers = linears,
         encoding_size = 9,

@@ -7,7 +7,7 @@ class _DatasetWrapper(Dataset):
         self.wrapped : Dataset = dataset
     
     def __getitem__(self, index):
-        x, _ = super().__getitem__(index)
+        x, _ = self.wrapped.__getitem__(index)
         return x, x
 
 class _IterableDatasetWrapper(IterableDataset):

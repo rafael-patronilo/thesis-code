@@ -36,6 +36,7 @@ class AutoEncoder(nn.Module):
             encoder (nn.Module): the encoder module
             decoder (nn.Module): the decoder module
         """
+        super(AutoEncoder, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
 
