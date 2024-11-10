@@ -111,11 +111,26 @@ class SplitDataset:
     def has_testing(self) -> bool:
         return hasattr(self, 'test_data') and self.test_data is not None
     
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
+        def try_len(dataset):
+            if dataset is None:
+                return '0'
+            try:
+                return f"{len(dataset):_}"
+            except:
+                return 'Unknown'
+        sizes = (
+            f"\tTraining: {try_len(self.for_training())} samples\n"
+            f"\tValidation: {try_len(self.for_validation())} samples\n"
+            f"\tTesting: {try_len(self.for_testing())} samples\n"
+        )
         if hasattr(self, 'name'):
-            return f"{self.__class__.__name__}({getattr(self, 'name')})"
+            return (
+                f"{self.__class__.__name__}(\n"
+                f"\t{getattr(self, 'name')}\n{sizes})"
+            )
         else:
-            return f"{self.__class__.__name__}()"
+            return f"{self.__class__.__name__}(\n{sizes})"
 
 
 

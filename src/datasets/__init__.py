@@ -7,4 +7,5 @@ from . import (
 
 import logging
 from core.datasets import _dataset_registry
-logging.getLogger(__name__).debug(f"Registered datasets:\n{"\n".join(_dataset_registry.keys())}")
+dataset_names = '\n'.join(_dataset_registry.keys())
+logging.getLogger(__name__).debug(f"Registered datasets:\n{dataset_names}")

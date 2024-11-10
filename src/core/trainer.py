@@ -1,11 +1,12 @@
 import logging
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, IterableDataset, Dataset, RandomSampler
 from typing import Optional, Any, Callable, Literal, NamedTuple, TypedDict, TYPE_CHECKING
 from .metrics_logger import MetricsLogger
 from .datasets import SplitDataset
 from .storage_management.model_file_manager import ModelFileManager
 from .datasets import get_dataset
 from logging_setup import NOTIFY, logfile
+
 import re
 import importlib
 import torch
@@ -15,7 +16,6 @@ import time
 if TYPE_CHECKING:
     from torch import nn
     from torch.optim.optimizer import Optimizer
-    from torch.utils.data import Dataset
 
 # Deprecated TODO: Remove\Replace
 ModelDetails = NamedTuple(
@@ -78,7 +78,7 @@ class TrainerConfig(TypedDict, total=True):
 
 logger = logging.getLogger(__name__)
 
-LOG_STEP_EVERY = 2*60
+LOG_STEP_EVERY = 5*60 #seconds
 
 class Trainer:
 
@@ -92,6 +92,7 @@ class Trainer:
             #callbacks = None,
             epoch : int = 0,
             batch_size : int = 32,
+            shuffle : bool = True,
             checkpoint_each : Optional[int] = 10,
             checkpoint_triggers : Optional[list[Callable[[Any], bool]]] = None,
             stop_criteria : Optional[list[Callable[['Trainer'], bool]]] = None
@@ -109,6 +110,7 @@ class Trainer:
         self.stop_criteria = stop_criteria or []
         self.checkpoint_each = checkpoint_each,
         self.batch_size = batch_size
+        self.shuffle = shuffle
         self._training_loader = None
 
     def checkpoint_metadata(self, reason : CheckpointReason):
@@ -235,7 +237,11 @@ class Trainer:
         
     def training_loader(self):
         if self._training_loader is None:
-            self._training_loader = DataLoader(self.training_set, batch_size=32, shuffle=True)
+            sampler = None
+            if self.shuffle:
+                generator = torch.Generator(device=torch.get_default_device())
+                sampler = RandomSampler(self.training_set, generator=generator) # type: ignore
+            self._training_loader = DataLoader(self.training_set, batch_size=self.batch_size, sampler=sampler)
         return self._training_loader
     
     def eval_metrics(self):
@@ -252,9 +258,14 @@ class Trainer:
         logger.info(f"Epoch {epoch}")
         self.model.train()
         batches = 0
-        last_log = time.time()
+        epoch_start_time = time.time()
+        last_log = epoch_start_time
         try:
+            X = None
+            Y = None
             for X, Y in self.training_loader():
+                X = X.to(torch.get_default_device())
+                Y = Y.to(torch.get_default_device())
                 self.__train_step(X, Y)
                 batches += 1
                 now = time.time()
@@ -264,7 +275,7 @@ class Trainer:
         except BaseException as e:
             logger.error(f"Exception during training loop {debug_model(e, self.model, X, Y)}")
             raise
-        logger.debug("Epoch complete")
+        logger.debug(f"Epoch complete ({time.time() - epoch_start_time} seconds)")
         self.eval_metrics()
         if epoch > 0 and self.checkpoint_each is not None and epoch % self.checkpoint_each == 0:
             logger.info(f"Periodic checkpoint")
@@ -287,8 +298,11 @@ class Trainer:
                 continue
             if k.startswith('_'):
                 continue
-            if k == 'training_set' and hasattr(v, 'dataset'):
-                fields.append(f"{k} = {v.dataset}")
+            if k == 'training_set':
+                if hasattr(v, 'dataset'):
+                    fields.append(f"{k} = {v.dataset}")
+                else:
+                    fields.append(f"{k} = {v.__class__.__name__}")
                 continue
             fields.append(f"{k} = {v}")
         return f"Trainer(\n{',\n'.join(fields)}\n)"

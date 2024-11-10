@@ -8,4 +8,4 @@ fi
 
 docker build -t $TAG . && \
 echo Image successfully built with tag $TAG && \
-([ -z $OLD_IMAGE] || (docker rmi $OLD_IMAGE; echo Old image $OLD_IMAGE deleted))
+([ -z $OLD_IMAGE ] || (docker rmi -f $OLD_IMAGE; echo Old image $OLD_IMAGE deleted))

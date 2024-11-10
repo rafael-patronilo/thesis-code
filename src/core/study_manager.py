@@ -67,7 +67,7 @@ class StudyManager:
     
     def run_experiment(self, experiment_name : str, config: TrainerConfig):
         with self.file_manager.new_experiment(experiment_name) as model_file_manager:
-            logger.info(f"Running experiment {experiment_name}")
+            logger.info(f"Running experiment {experiment_name} for {self.num_epochs} epochs")
             trainer = self._create_trainer(model_file_manager, config)
             model_file_manager.save_config(config)
             if trainer.epoch >= self.num_epochs:

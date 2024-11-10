@@ -1,4 +1,43 @@
-#!#!/usr/bin/bash
-ARGS=()
+#!/usr/bin/bash
+IMAGE=rpatronilo-thesis
+CONTAINER_NAME=$IMAGE
+
+ARGS=(--gpus all --name $CONTAINER_NAME)
+
+
+
+if docker ps -a --filter "name=$CONTAINER_NAME"; then
+    echo Attempting to remove old container...
+    docker rm $CONTAINER_NAME
+fi
+
+HOST_DIR=${HOST_DIR:-$(pwd)}
+CONTAINER_DIR=/workspace/
+MOUNTS=(logs data storage debug)
+
+for dir in ${MOUNTS[@]}; do
+    ARGS+=(-v $HOST_DIR$dir:$CONTAINER_DIR$dir)
+done
+
 if [ -f .env ]; then
-    docker run --env-file .env
+    ARGS+=(--env-file .env)
+fi
+
+for arg in $@; do
+    if [[ $arg == "IMG" ]]; then
+        ARGS+=($IMAGE)
+    else
+        ARGS+=($arg)
+    fi
+done
+
+CMD="docker run ${ARGS[@]}"
+
+echo Running command: 
+echo
+echo $CMD
+echo
+eval $CMD
+
+
+

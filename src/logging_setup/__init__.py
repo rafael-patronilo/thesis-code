@@ -80,9 +80,12 @@ def showwarning_hook(message, category, filename, lineno, file=None, line=None):
     python_warnings_logger.warning(text)
 
 def log_break(msg = "LOG BREAK"):
-    cols, lines = os.get_terminal_size()
-    half_width = (cols - len(msg)) // 2
-    print(f"\n\n\033[34m{'='*half_width}{msg}{'='*half_width}\033[0m\n\n", file=true_stdout)
+    try:
+        cols, lines = os.get_terminal_size()
+        half_width = (cols - len(msg)) // 2
+        print(f"\n\n\033[34m{'='*half_width}{msg}{'='*half_width}\033[0m\n\n", file=true_stdout)
+    except:
+        pass # ignore if terminal size cannot be determined
 
 def setup_logging(git_status : bool = True):
     global logfile, true_stderr, true_stdout

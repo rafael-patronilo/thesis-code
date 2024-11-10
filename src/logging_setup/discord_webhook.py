@@ -159,8 +159,11 @@ class DiscordWebhookHandler(logging.Handler):
             target=self._buffer_consumer, 
             name='discord_webhook_log_handler')
         super().__init__()
-        self.__buffer_consumer_thread.start()
-        self.message_buffer.get_queue().put({"content": "# LOG BREAK"})
+        if self._try_send_message({"content": "# LOG BREAK"}):
+            time.sleep(self.CONSUMER_COOLDOWN)
+            self.__buffer_consumer_thread.start()
+        else:
+            logger.error("Failed to send initial message to discord webhook. Discord logging will be disabled.")
     
     def _try_send_message(self, payload) -> bool:
         try:
@@ -228,6 +231,7 @@ class DiscordWebhookHandler(logging.Handler):
     
     def close(self):
         self.message_buffer.close()
-        self.__buffer_consumer_thread.join()
+        if self.__buffer_consumer_thread.is_alive():
+            self.__buffer_consumer_thread.join()
         self.client.close()
         super().close()

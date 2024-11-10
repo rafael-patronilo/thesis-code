@@ -25,6 +25,9 @@ class DecoratedTorchMetric:
             y_pred = y_pred.flatten()
             y_true = y_true.flatten()
         return self.metric(y_pred, y_true).item()
+    
+    def __repr__(self):
+        return f"DecoratedTorchMetric({self.metric})"
 
 __all_metrics : dict[str, MetricFunction | type] = {
     'accuracy' : DecoratedTorchMetric(torch_metrics.binary_accuracy, flatten_tensors=True),

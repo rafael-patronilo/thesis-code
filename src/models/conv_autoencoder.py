@@ -136,5 +136,6 @@ def create_trainer(dataset_name : str, **kwargs) -> Trainer:
         optimizer=torch.optim.Adam,
         training_set=dataset.for_training(),
         metric_loggers=[train_metrics, val_metrics],
-        stop_criteria=[EarlyStop(threshold=0.01, patience=10)]
+        stop_criteria=[EarlyStop(threshold=0.01, patience=10)],
+        batch_size=64
     )
