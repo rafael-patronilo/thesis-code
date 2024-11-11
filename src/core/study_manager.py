@@ -63,6 +63,8 @@ class StudyManager:
         if checkpoint is not None:
             logger.info(f"Checkpoint found, loading...")
             trainer.load_state_dict(checkpoint)
+        else:
+            logger.info("No checkpoint")
         return trainer
     
     def run_experiment(self, experiment_name : str, config: TrainerConfig):

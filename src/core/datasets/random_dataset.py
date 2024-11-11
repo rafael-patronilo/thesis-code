@@ -49,9 +49,9 @@ class RandomDataset(SplitDataset):
                 return self.samples
     
             def __getitem__(self, idx):
-                rng = torch.Generator()
+                rng = torch.Generator(device='cpu')
                 if self.seed is not None:
-                    rng = torch.Generator().manual_seed(self.seed + idx)
+                    rng = torch.Generator(device='cpu').manual_seed(self.seed + idx)
                 return _generate_sample_excluding(self.generator_function, rng, self.exclude)
 
     def _generate(
@@ -61,13 +61,13 @@ class RandomDataset(SplitDataset):
         exclude : set
     ) -> tuple[tuple[torch.Tensor, torch.Tensor], set]:
         if seed is not None:
-            rng = torch.Generator().manual_seed(seed)
+            rng = torch.Generator(device='cpu').manual_seed(seed)
         else:
-            rng = torch.Generator()
+            rng = torch.Generator(device='cpu')
         samples_set = set()
         first_sample = _generate_sample_excluding(self.generator_function, rng, exclude)
-        features = torch.empty((samples, len(first_sample[0])))
-        labels = torch.empty((samples, len(first_sample[1])))
+        features = torch.empty((samples, len(first_sample[0])), device='cpu')
+        labels = torch.empty((samples, len(first_sample[1])), device='cpu')
         features[0], labels[0] = first_sample
         samples_set.add(_hashable_tensor_tuple(first_sample))
         for i in range(1, samples):

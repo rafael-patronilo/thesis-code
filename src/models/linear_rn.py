@@ -14,7 +14,7 @@ def create_model(layer_sizes : list[int], num_outputs : int) -> nn.Module:
 
 def create_trainer(layer_sizes : list[int], num_outputs : int, dataset_name : str) -> Trainer:
     loss_fn = torch.nn.BCELoss()
-    loss_metric = util.DecoratedTorchMetric(loss_fn)
+    loss_metric = util.DecoratedTorchMetric(loss_fn) #TODO metrics here need to be updated
     dataset = datasets.get_dataset(dataset_name)
     metrics = ['accuracy', 'f1_score', 'epoch_elapsed']
     metric_functions : dict = {

@@ -5,11 +5,17 @@ from collections import OrderedDict, deque
 import torch
 from torch.utils.data import DataLoader
 from .modules.metrics import select_metrics, NamedMetricFunction, MetricFunction
+import time
 import math
 from core.util import debug, safe_div
 from core.util.typing import TorchDataset
+from torcheval.metrics import Metric as TorchMetric
 
 logger = logging.getLogger(__name__)
+def _dataloader_worker_init_fn(worker_id):
+    logger.debug(f"Evaluation dataloader worker {worker_id} initialized")
+    torch.set_default_device('cpu')
+
 
 class MetricsLogger:
     def __init__(self, 
@@ -17,7 +23,9 @@ class MetricsLogger:
                 metric_functions : dict[str, MetricFunction] | Sequence[NamedMetricFunction],
                 dataset : Callable[[],TorchDataset],
                 target_module : Optional[str] = None,
-                last_n_size = 10
+                last_n_size = 10,
+                batch_size = 64,
+                num_loaders = 2
                 ):
         self.identifier = identifier
         self.__metric_functions : dict[str, Any]
@@ -25,6 +33,7 @@ class MetricsLogger:
             self.__metric_functions = select_metrics(metric_functions)
         else:
             self.__metric_functions = metric_functions # type: ignore
+        self.torch_metrics = {k: v for k, v in self.__metric_functions.items() if isinstance(v, TorchMetric)}
         self.last_record = None
         def sort_key(metric):
             metric_name = metric[0]
@@ -38,22 +47,29 @@ class MetricsLogger:
         self.sums_last_n : dict = {k: 0.0 for k, _ in self.ordered_metrics}
         self.total_measures = {k: 0.0 for k, _ in self.ordered_metrics}
         self.dataset_ref = dataset
-        self.dataloader = DataLoader(self.dataset_ref())
+        if dataset is not None:
+            self.dataloader = DataLoader(
+                self.dataset_ref(), 
+                batch_size=batch_size, 
+                num_workers=num_loaders,
+                worker_init_fn=_dataloader_worker_init_fn,
+                pin_memory=True
+            )
         self.target_module = target_module
+
 
     def __getstate__(self) -> object:
         state = self.__dict__.copy()
         del state["dataloader"]
         return state
-    
+
     def __setstate__(self, state):
         self.__dict__.update(state)
-        self.dataloader = DataLoader(self.dataset_ref())
 
     def state_dict(self):
         return {
             "sums": self.sums,
-            "last_n" : self.last_n,
+            "last_n" : list(self.last_n),
             "total_measures": self.total_measures
         }
     
@@ -113,36 +129,38 @@ class MetricsLogger:
     def _eval(self, model):
         model.eval()
         module = self.get_target_module(model)
-        y_preds = []
-        y_trues = []
+        for metric_fn in self.torch_metrics.values():
+            metric_fn.to(device=torch.get_default_device())
+            metric_fn.reset()
+        y_pred = None
+        y_true = None
+        #logger.info(f"Producing predictions for metrics logger {self.identifier}")
         with torch.no_grad():
             for x, y_true in self.dataloader:
-                y_preds.append(module(x))
-                y_trues.append(y_true)
-        y_preds = torch.cat(y_preds)
-        y_trues = torch.cat(y_trues)
+                x = x.to(torch.get_default_device())
+                y_true = y_true.to(torch.get_default_device())
+                y_true = torch.flatten(y_true, start_dim=1)
+                y_pred = module(x)
+                y_pred = torch.flatten(y_pred, start_dim=1)
+                for metric_fn in self.torch_metrics.values():
+                    metric_fn.update(y_pred, y_true)
+        if y_pred is not None and y_true is not None:
+            # store predictions for debugging
+            debug.debug_table(f"{self.identifier}_preds.csv", y_preds=y_pred, y_trues=y_true)
+            debug.debug_table(f"{self.identifier}_round_preds.csv", 
+                          y_preds=lambda:torch.round(y_pred), 
+                          y_trues=lambda:torch.round(y_true))
         
-        # store predictions for debugging
-        debug.debug_table(f"{self.identifier}_preds.csv", y_preds=y_preds, y_trues=y_trues)
-        debug.debug_table(f"{self.identifier}_round_preds.csv", 
-                          y_preds=lambda:torch.round(y_preds), 
-                          y_trues=lambda:torch.round(y_trues))
-        return y_preds, y_trues
     
 
-    def log_record(self, epoch, model) -> OrderedDict[str, Any]:
-        record = OrderedDict()
-        record['epoch'] = epoch
-        self.last_record = {}
+    def log_record(self, epoch, model, record : OrderedDict[str, Any] | None = None) -> OrderedDict[str, Any]:
+        record = record or self.produce_record(epoch, model)
         discarded = self.last_n.pop()
         for k, v in discarded.items():
             if not math.isnan(v):
                 self.sums_last_n[k] -= v
-        
-        y_pred, y_true = self._eval(model)
-        for metric_name, metric_fn in self.ordered_metrics:
-            value = metric_fn(epoch=epoch, y_pred=y_pred, y_true=y_true)
-            record[metric_name] = value
+        for metric_name, _ in self.ordered_metrics:
+            value = record[metric_name]
             if not math.isnan(value):
                 self.sums[metric_name] += value
                 self.sums_last_n[metric_name] += value
@@ -151,5 +169,22 @@ class MetricsLogger:
         self.last_record = record
         return record
     
+    def produce_record(self, epoch, model) -> OrderedDict[str, Any]:
+        record = OrderedDict()
+        record['epoch'] = epoch
+        
+        self._eval(model) #TODO rework this class and the concept of metric
+        for metric_name, metric_fn in self.ordered_metrics:
+            if isinstance(metric_fn, TorchMetric):
+                value = metric_fn.compute().item()
+            else:
+                value = metric_fn(epoch=epoch)
+            record[metric_name] = value
+        return record
+
     def __repr__(self):
         return f"MetricsLogger({self.identifier}, metrics=[{self.ordered_metrics}])"
+
+class TrainLossLogger(MetricsLogger):
+    def __init__(self, identifier='train'):
+        super(TrainLossLogger, self).__init__(identifier, {'loss' : None}, dataset=None) # type:ignore

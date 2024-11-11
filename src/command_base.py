@@ -42,6 +42,8 @@ try:
         exit_gracefully(-1)
     torch.set_default_device(device)
     logger.info("Using torch device: %s", device)
+    from collections import deque
+    torch.serialization.add_safe_globals([deque])
 except BaseException as e:
     logger.exception("Failed to import torch: %s", e)
     exit_gracefully(-1)

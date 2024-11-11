@@ -156,7 +156,7 @@ Seed: \t {self.random_state}""")
                 scalars = None
             else:
                 scalars = [preprocessor(row[col]) for col, preprocessor in scalar_preprocessors]
-                scalars = torch.tensor(scalars)
+                scalars = torch.tensor(scalars, device='cpu')
             if len(tensor_preprocessors) == 0:
                 tensors = None
             else:

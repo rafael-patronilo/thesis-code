@@ -1,7 +1,8 @@
+from collections import OrderedDict
 import logging
 from torch.utils.data import DataLoader, IterableDataset, Dataset, RandomSampler
 from typing import Optional, Any, Callable, Literal, NamedTuple, TypedDict, TYPE_CHECKING
-from .metrics_logger import MetricsLogger
+from .metrics_logger import MetricsLogger, TrainLossLogger
 from .datasets import SplitDataset
 from .storage_management.model_file_manager import ModelFileManager
 from .datasets import get_dataset
@@ -29,6 +30,10 @@ ModelDetails = NamedTuple(
         ("batch_size", int),
     ]
 )
+
+def _dataloader_worker_init_fn(worker_id):
+    logger.debug(f"Training Dataloader worker {worker_id} initialized")
+    torch.set_default_device('cpu')
 
 def debug_model(error : BaseException, model : 'nn.Module', X, Y):
     sb = []
@@ -70,7 +75,10 @@ def debug_model(error : BaseException, model : 'nn.Module', X, Y):
 
 type MetricsSnapshot = dict[str, dict[str, Any]]
 
-type CheckpointReason = Literal['interrupt', 'force_interrupt', "error", 'triggered', 'periodic', 'end']
+type CheckpointReason = Literal['interrupt', 'force_interrupt', "error", "eval_error", 'triggered', 'periodic', 'end']
+
+ABRUPT_CHECKPOINT_REASONS = ['force_interrupt', "error"]
+
 class TrainerConfig(TypedDict, total=True):
     build_script : str
     build_args : list[Any]
@@ -79,6 +87,11 @@ class TrainerConfig(TypedDict, total=True):
 logger = logging.getLogger(__name__)
 
 LOG_STEP_EVERY = 5*60 #seconds
+
+class _EvalExceptionWrapper(BaseException):
+    def __init__(self, inner : BaseException):
+        self.inner = inner
+
 
 class Trainer:
 
@@ -92,6 +105,7 @@ class Trainer:
             #callbacks = None,
             epoch : int = 0,
             batch_size : int = 32,
+            num_loaders : int = 2,
             shuffle : bool = True,
             checkpoint_each : Optional[int] = 10,
             checkpoint_triggers : Optional[list[Callable[[Any], bool]]] = None,
@@ -108,8 +122,9 @@ class Trainer:
         self.epoch : int = epoch
         self.checkpoint_triggers = checkpoint_triggers or []
         self.stop_criteria = stop_criteria or []
-        self.checkpoint_each = checkpoint_each,
+        self.checkpoint_each = checkpoint_each
         self.batch_size = batch_size
+        self.num_loaders = num_loaders
         self.shuffle = shuffle
         self._training_loader = None
 
@@ -159,7 +174,17 @@ class Trainer:
         for criterion in self.stop_criteria:
             if hasattr(criterion, 'load_state_dict'):
                 criterion.load_state_dict(state_dict['stop_criteria'][criterion.__class__.__name__])
-        logger.info(f"Loaded checkpoint: {utils.multiline_str(state_dict['metadata'])}")
+        metadata = state_dict['metadata']
+        logger.info(f"Loaded checkpoint: {utils.multiline_str(metadata)}")
+        if metadata['reason'] in ABRUPT_CHECKPOINT_REASONS:
+            logger.warning(f"Abrupt checkpoint: Checkpoint was saved due to {metadata['reason']}")
+        elif metadata['reason'] == 'eval_error':
+            logger.warning(f"Checkpoint was saved due to evaluation error. Attempting to evaluate again...")
+            self.eval_metrics()
+            if self.model_file_manager is not None:
+                self.model_file_manager.flush()
+            logger.info(self._metrics_str())
+        self.epoch += 1
 
     def train_indefinitely(self):
         self.train_until([])
@@ -205,6 +230,10 @@ class Trainer:
             logger.error("Forced interrupt. Saving checkpoint...")
             self._checkpoint('force_interrupt')
             raise
+        except _EvalExceptionWrapper as e:
+            logger.error(f"Exception caught during evaluation. Saving checkpoint...")
+            self._checkpoint('eval_error')
+            raise e.inner
         except:
             if self.epoch == 0:
                 logger.error("Exception caught at epoch 0. Skipping checkpoint...")
@@ -213,14 +242,7 @@ class Trainer:
                 self._checkpoint('error')
             raise
     
-    
-
-    def _checkpoint(self, reason : CheckpointReason):
-        if self.model_file_manager is None:
-            raise ValueError("Model file manager not initialized")
-        is_abrupt = reason in ['force_interrupt', "error"]
-        self.model_file_manager.save_checkpoint(self.epoch, self.state_dict(reason), is_abrupt)
-        self.model_file_manager.flush()
+    def _metrics_str(self):
         averages = ""
         averages_last_n = ""
         last_record = ""
@@ -228,27 +250,45 @@ class Trainer:
             averages += f"\t{metric_logger.identifier} : {metric_logger.averages()}\n"
             averages_last_n += f"\t{metric_logger.identifier} : {metric_logger.averages_last_n()}\n"
             last_record += f"\t{metric_logger.identifier} : {metric_logger.last_record}\n"
-        logger.info(
-            f"Checkpoint at Epoch {self.epoch}\n" 
+        return (
             f"Metrics:\n{last_record}"
             f"Avg:\n{averages}"
             f"Avg last {len(self.metric_loggers[0].last_n)}:\n{averages_last_n}"
             )
+
+    def _checkpoint(self, reason : CheckpointReason):
+        if self.model_file_manager is None:
+            raise ValueError("Model file manager not initialized")
+        is_abrupt = reason in ABRUPT_CHECKPOINT_REASONS
+        self.model_file_manager.save_checkpoint(self.epoch, self.state_dict(reason), is_abrupt)
+        self.model_file_manager.flush()
+        logger.info(f"Checkpoint at Epoch {self.epoch}\n{self._metrics_str()}")
         
     def training_loader(self):
         if self._training_loader is None:
-            sampler = None
-            if self.shuffle:
-                generator = torch.Generator(device=torch.get_default_device())
-                sampler = RandomSampler(self.training_set, generator=generator) # type: ignore
-            self._training_loader = DataLoader(self.training_set, batch_size=self.batch_size, sampler=sampler)
+            generator = torch.Generator(device=torch.get_default_device())
+            self._training_loader = DataLoader(
+                self.training_set, 
+                batch_size=self.batch_size,
+                num_workers=self.num_loaders,
+                shuffle=self.shuffle,
+                generator=generator,
+                worker_init_fn=_dataloader_worker_init_fn,
+                pin_memory=True
+            )
         return self._training_loader
     
-    def eval_metrics(self):
+    def eval_metrics(self, epoch_loss = None):
         if self.model_file_manager is None:
             raise ValueError("Model file manager not initialized")
         for metric_logger in self.metric_loggers:
-            record = metric_logger.log_record(self.epoch, self.model)
+            if isinstance(metric_logger, TrainLossLogger):
+                record = OrderedDict()
+                record['epoch'] = self.epoch
+                record['loss'] = epoch_loss or float('nan')
+                record = metric_logger.log_record(self.epoch, None, record=record)
+            else:
+                record = metric_logger.log_record(self.epoch, self.model)
             self.model_file_manager.write_metrics(metric_logger.identifier, record)
 
     def _train_epoch(self, epoch, first = False):
@@ -260,23 +300,27 @@ class Trainer:
         batches = 0
         epoch_start_time = time.time()
         last_log = epoch_start_time
+        loss_sum = 0
         try:
             X = None
             Y = None
             for X, Y in self.training_loader():
                 X = X.to(torch.get_default_device())
                 Y = Y.to(torch.get_default_device())
-                self.__train_step(X, Y)
+                loss_sum += self.__train_step(X, Y).item()
                 batches += 1
                 now = time.time()
                 if now - last_log > LOG_STEP_EVERY:
-                    logger.info(f"\t\tRunning longer than {LOG_STEP_EVERY} seconds, current batch = {batches}")
+                    logger.info(f"\t\tRunning longer than {LOG_STEP_EVERY} seconds ({now - epoch_start_time:.0f}), current batch = {batches}")
                     last_log = now
         except BaseException as e:
             logger.error(f"Exception during training loop {debug_model(e, self.model, X, Y)}")
             raise
-        logger.debug(f"Epoch complete ({time.time() - epoch_start_time} seconds)")
-        self.eval_metrics()
+        logger.info(f"Epoch complete ({time.time() - epoch_start_time:.0f} seconds)")
+        try:
+            self.eval_metrics(epoch_loss=loss_sum/batches)
+        except BaseException as e:
+            raise _EvalExceptionWrapper(e)
         if epoch > 0 and self.checkpoint_each is not None and epoch % self.checkpoint_each == 0:
             logger.info(f"Periodic checkpoint")
             self._checkpoint('periodic')
@@ -284,8 +328,7 @@ class Trainer:
             logger.info(f"Triggered checkpoint")
             self._checkpoint('triggered')
         elif first:
-            metrics = {metric_logger.identifier : metric_logger.last_record for metric_logger in self.metric_loggers}
-            logger.info(f"Metrics: {metrics}")
+            logger.info(self._metrics_str())
 
             
         #for callback in self.callbacks:
@@ -348,8 +391,6 @@ class Trainer:
             logger.info(f"Loading checkpoint")
             metadata = checkpoint['metadata']
             logger.info(f"Checkpoint info: {metadata}")
-            if metadata['reason'] in ['error', 'force_interrupt']:
-                logger.warning(f"Abrupt checkpoint: Checkpoint was saved due to {metadata['reason']}")
             trainer.load_state_dict(checkpoint)
         else:
             logger.info("No checkpoint found.")

@@ -2,7 +2,9 @@
 IMAGE=rpatronilo-thesis
 CONTAINER_NAME=$IMAGE
 
-ARGS=(--gpus all --name $CONTAINER_NAME)
+SHM_SIZE=1G
+
+ARGS=(--gpus all --name $CONTAINER_NAME --shm-size=$SHM_SIZE)
 
 
 

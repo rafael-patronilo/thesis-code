@@ -6,7 +6,8 @@ from typing import Literal, Sequence, Any, assert_never
 from torch import nn
 import torch
 from core.nn.autoencoder import AutoEncoder
-from core import Trainer, MetricsLogger
+from core import Trainer, MetricsLogger, TrainLossLogger
+import torcheval.metrics as torch_metrics
 import logging
 logger = logging.getLogger(__name__)
 
@@ -109,7 +110,7 @@ def make_model(
 
 def create_trainer(dataset_name : str, **kwargs) -> Trainer:
     loss_fn = nn.MSELoss()
-    loss_metric = util.DecoratedTorchMetric(loss_fn)
+    loss_metric = torch_metrics.MeanSquaredError()
     dataset = datasets.get_dataset(dataset_name)
     dataset = datasets.AutoencoderDataset(dataset)
     input_shape = dataset.get_shape()[0]
@@ -118,13 +119,15 @@ def create_trainer(dataset_name : str, **kwargs) -> Trainer:
     metric_functions : dict = {
         'loss': loss_metric,
     }
+    def train_loss_metric(loss):
+        return loss
     for metric in metrics:
         metric_functions[metric] = get_metric(metric)
-    train_metrics = MetricsLogger(
-        identifier='train',
-        metric_functions=metric_functions,
-        dataset=dataset.for_training
-    )
+    #train_metrics = MetricsLogger(
+    #    identifier='train',
+    #    metric_functions={'loss':train_loss_metric}, #type:ignore
+    #    dataset=dataset.for_training
+    #)
     val_metrics = MetricsLogger(
         identifier='val',
         metric_functions=metric_functions,
@@ -135,7 +138,7 @@ def create_trainer(dataset_name : str, **kwargs) -> Trainer:
         loss_fn=loss_fn,
         optimizer=torch.optim.Adam,
         training_set=dataset.for_training(),
-        metric_loggers=[train_metrics, val_metrics],
+        metric_loggers=[TrainLossLogger(), val_metrics],
         stop_criteria=[EarlyStop(threshold=0.01, patience=10)],
         batch_size=64
     )

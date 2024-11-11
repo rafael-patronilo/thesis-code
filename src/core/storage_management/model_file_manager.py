@@ -172,7 +172,8 @@ class ModelFileManager:
     def load_last_checkpoint(self):
         self.__assert_context()
         if self.last_checkpoint.exists():
-            return torch.load(self.last_checkpoint)
+            # TODO load weights only (currently not working)
+            return torch.load(self.last_checkpoint, weights_only=False)
         else:
             logger.warning(f"No checkpoint found at {self.last_checkpoint}, searching latest checkpoint")
         checkpoint_files = self.checkpoint_path.glob("*")

@@ -164,10 +164,10 @@ class BinaryGenerator:
         return dataset
     
     def generate_random(self, rng : torch.Generator) -> tuple[torch.Tensor, torch.Tensor]:
-        return self.generate_samples(torch.randint(0, 2, (self.to_generate,), generator=rng))
+        return self.generate_samples(torch.randint(0, 2, (self.to_generate,), generator=rng, device='cpu'))
     
     def generate_from_int(self, value : int, force_valid : bool = True) -> tuple[torch.Tensor, torch.Tensor]:
-        bits = torch.tensor([int(x) for x in f"{value:0{self.to_generate}b}"])
+        bits = torch.tensor([int(x) for x in f"{value:0{self.to_generate}b}"], device='cpu')
         return self.generate_samples(bits, force_valid)
     
     def _attach_valid_label(self, attribution : torch.Tensor, force_valid : bool, labels):
@@ -180,7 +180,7 @@ class BinaryGenerator:
                 all(node.is_valid(attribution) for node in self.labels)
             )
         if valid is not None:
-            labels.append(torch.tensor(1 if valid else 0))
+            labels.append(torch.tensor(1 if valid else 0, device='cpu'))
         return labels
 
     def generate_samples(self, attribution : torch.Tensor, force_valid : bool = True) -> tuple[torch.Tensor, torch.Tensor]:
