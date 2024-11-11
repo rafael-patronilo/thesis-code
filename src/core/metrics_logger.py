@@ -16,6 +16,8 @@ def _dataloader_worker_init_fn(worker_id):
     logger.debug(f"Evaluation dataloader worker {worker_id} initialized")
     torch.set_default_device('cpu')
 
+LOG_STEP_EVERY = 5*60 # 5 minutes
+
 
 class MetricsLogger:
     def __init__(self, 
@@ -25,7 +27,7 @@ class MetricsLogger:
                 target_module : Optional[str] = None,
                 last_n_size = 10,
                 batch_size = 64,
-                num_loaders = 2
+                num_loaders = 4
                 ):
         self.identifier = identifier
         self.__metric_functions : dict[str, Any]
@@ -126,24 +128,40 @@ class MetricsLogger:
                 submodule = getattr(submodule, p)
             return submodule
 
-    def _eval(self, model):
-        model.eval()
-        module = self.get_target_module(model)
+    def _prepare_torch_metrics(self):
         for metric_fn in self.torch_metrics.values():
             metric_fn.to(device=torch.get_default_device())
             metric_fn.reset()
+
+    def _update_torch_metrics(self, y_pred, y_true):
+        y_pred = torch.flatten(y_pred, start_dim=1)
+        y_true = torch.flatten(y_true, start_dim=1)
+        for metric_fn in self.torch_metrics.values():
+            metric_fn.update(y_pred, y_true)
+
+    def _eval(self, model):
+        if hasattr(self, '_evaluated_externally') and self._evaluated_externally: # type: ignore
+            return
+        model.eval()
+        module = self.get_target_module(model)
+        self._prepare_torch_metrics()
         y_pred = None
         y_true = None
         #logger.info(f"Producing predictions for metrics logger {self.identifier}")
+        start_time = time.time()
+        last_log = start_time
+        batches = 0
         with torch.no_grad():
             for x, y_true in self.dataloader:
                 x = x.to(torch.get_default_device())
                 y_true = y_true.to(torch.get_default_device())
-                y_true = torch.flatten(y_true, start_dim=1)
                 y_pred = module(x)
-                y_pred = torch.flatten(y_pred, start_dim=1)
-                for metric_fn in self.torch_metrics.values():
-                    metric_fn.update(y_pred, y_true)
+                self._update_torch_metrics(y_pred, y_true)
+                now = time.time()
+                if now - last_log > LOG_STEP_EVERY:
+                    logger.info(f"\t\tEvaluating longer than {LOG_STEP_EVERY} seconds ({now - start_time:.0f}), current batch = {batches}")
+                    last_log = now
+                batches += 1
         if y_pred is not None and y_true is not None:
             # store predictions for debugging
             debug.debug_table(f"{self.identifier}_preds.csv", y_preds=y_pred, y_trues=y_true)
@@ -157,7 +175,7 @@ class MetricsLogger:
         record = record or self.produce_record(epoch, model)
         discarded = self.last_n.pop()
         for k, v in discarded.items():
-            if not math.isnan(v):
+            if not math.isnan(v) and not k == 'epoch':
                 self.sums_last_n[k] -= v
         for metric_name, _ in self.ordered_metrics:
             value = record[metric_name]
@@ -185,6 +203,10 @@ class MetricsLogger:
     def __repr__(self):
         return f"MetricsLogger({self.identifier}, metrics=[{self.ordered_metrics}])"
 
-class TrainLossLogger(MetricsLogger):
-    def __init__(self, identifier='train'):
-        super(TrainLossLogger, self).__init__(identifier, {'loss' : None}, dataset=None) # type:ignore
+class TrainingLogger(MetricsLogger):
+    def __init__(
+            self, 
+            metric_functions : dict[str, MetricFunction] | Sequence[NamedMetricFunction],
+            identifier='train'):
+        super(TrainingLogger, self).__init__(identifier, metric_functions=metric_functions, dataset=None) # type:ignore
+        self._evaluated_externally = True

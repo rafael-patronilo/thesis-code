@@ -6,7 +6,7 @@ from typing import Literal, Sequence, Any, assert_never
 from torch import nn
 import torch
 from core.nn.autoencoder import AutoEncoder
-from core import Trainer, MetricsLogger, TrainLossLogger
+from core import Trainer, MetricsLogger, TrainingLogger
 import torcheval.metrics as torch_metrics
 import logging
 logger = logging.getLogger(__name__)
@@ -110,15 +110,13 @@ def make_model(
 
 def create_trainer(dataset_name : str, **kwargs) -> Trainer:
     loss_fn = nn.MSELoss()
-    loss_metric = torch_metrics.MeanSquaredError()
+    loss_metric = torch_metrics.MeanSquaredError
     dataset = datasets.get_dataset(dataset_name)
     dataset = datasets.AutoencoderDataset(dataset)
     input_shape = dataset.get_shape()[0]
     logger.debug(f"Input shape: {input_shape}")
     metrics = ['epoch_elapsed']
-    metric_functions : dict = {
-        'loss': loss_metric,
-    }
+    metric_functions : dict = {}
     def train_loss_metric(loss):
         return loss
     for metric in metrics:
@@ -130,15 +128,18 @@ def create_trainer(dataset_name : str, **kwargs) -> Trainer:
     #)
     val_metrics = MetricsLogger(
         identifier='val',
-        metric_functions=metric_functions,
+        metric_functions=metric_functions | {'loss': loss_metric()}, #type:ignore
         dataset=dataset.for_validation
+    )
+    train_metrics = TrainingLogger(
+        metric_functions=metric_functions | {'loss': loss_metric()}  #type:ignore
     )
     return Trainer(
         model=make_model(input_shape, **kwargs),
         loss_fn=loss_fn,
         optimizer=torch.optim.Adam,
         training_set=dataset.for_training(),
-        metric_loggers=[TrainLossLogger(), val_metrics],
+        metric_loggers=[train_metrics, val_metrics],
         stop_criteria=[EarlyStop(threshold=0.01, patience=10)],
         batch_size=64
     )

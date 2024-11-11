@@ -28,6 +28,9 @@ fi
 for arg in $@; do
     if [[ $arg == "IMG" ]]; then
         ARGS+=($IMAGE)
+    elif [[ $arg == "-d" ]]; then
+        ARGS+=($arg)
+        DETACHED=true
     else
         ARGS+=($arg)
     fi
@@ -41,5 +44,15 @@ echo $CMD
 echo
 eval $CMD
 
+if [[ $DETACHED == true ]]; then
+    echo
+    echo Container running in detached mode
+    echo
+    echo To stop the container, run:
+    echo docker stop $CONTAINER_NAME
+    echo
+    echo "Attaching to logs... (you can detach with Ctrl+C)"
+    docker logs -f $CONTAINER_NAME
+fi
 
 

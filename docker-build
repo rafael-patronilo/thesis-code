@@ -7,5 +7,6 @@ if [ -z $OLD_IMAGE ]; then
 fi
 
 docker build -t $TAG . && \
-echo Image successfully built with tag $TAG && \
-([ -z $OLD_IMAGE ] || (docker rmi -f $OLD_IMAGE; echo Old image $OLD_IMAGE deleted))
+NEW_IMAGE=$(docker images -q $TAG)
+echo Image successfully built with tag $TAG and id $NEW_IMAGE && \
+([[ -z $OLD_IMAGE &&  $OLD_IMAGE != $NEW_IMAGE ]] || (docker rmi -f $OLD_IMAGE; echo Old image $OLD_IMAGE deleted))

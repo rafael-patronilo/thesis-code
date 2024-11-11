@@ -2,7 +2,7 @@ from collections import OrderedDict
 import logging
 from torch.utils.data import DataLoader, IterableDataset, Dataset, RandomSampler
 from typing import Optional, Any, Callable, Literal, NamedTuple, TypedDict, TYPE_CHECKING
-from .metrics_logger import MetricsLogger, TrainLossLogger
+from .metrics_logger import MetricsLogger, TrainingLogger
 from .datasets import SplitDataset
 from .storage_management.model_file_manager import ModelFileManager
 from .datasets import get_dataset
@@ -105,7 +105,7 @@ class Trainer:
             #callbacks = None,
             epoch : int = 0,
             batch_size : int = 32,
-            num_loaders : int = 2,
+            num_loaders : int = 4,
             shuffle : bool = True,
             checkpoint_each : Optional[int] = 10,
             checkpoint_triggers : Optional[list[Callable[[Any], bool]]] = None,
@@ -117,6 +117,12 @@ class Trainer:
         self.training_set = training_set
         self.model_file_manager : Optional[ModelFileManager] = None
         self.metric_loggers : list[MetricsLogger] = metric_loggers
+        self.train_logger = None
+        _train_logger = [logger for logger in metric_loggers if isinstance(logger, TrainingLogger)]
+        if len(_train_logger) > 1:
+            raise ValueError("Multiple TrainLossLoggers found")
+        elif len(_train_logger) == 1:
+            self.train_logger = _train_logger[0]
         #self.callbacks = callbacks or {}
         self.start_epoch : int = epoch
         self.epoch : int = epoch
@@ -278,17 +284,11 @@ class Trainer:
             )
         return self._training_loader
     
-    def eval_metrics(self, epoch_loss = None):
+    def eval_metrics(self):
         if self.model_file_manager is None:
             raise ValueError("Model file manager not initialized")
         for metric_logger in self.metric_loggers:
-            if isinstance(metric_logger, TrainLossLogger):
-                record = OrderedDict()
-                record['epoch'] = self.epoch
-                record['loss'] = epoch_loss or float('nan')
-                record = metric_logger.log_record(self.epoch, None, record=record)
-            else:
-                record = metric_logger.log_record(self.epoch, self.model)
+            record = metric_logger.log_record(self.epoch, self.model)
             self.model_file_manager.write_metrics(metric_logger.identifier, record)
 
     def _train_epoch(self, epoch, first = False):
@@ -300,14 +300,18 @@ class Trainer:
         batches = 0
         epoch_start_time = time.time()
         last_log = epoch_start_time
-        loss_sum = 0
+        update_metrics = lambda _, __ : None
+        if self.train_logger is not None:
+            self.train_logger._prepare_torch_metrics()
+            update_metrics = self.train_logger._update_torch_metrics
         try:
             X = None
             Y = None
             for X, Y in self.training_loader():
                 X = X.to(torch.get_default_device())
                 Y = Y.to(torch.get_default_device())
-                loss_sum += self.__train_step(X, Y).item()
+                _, pred = self.__train_step(X, Y)
+                update_metrics(pred, Y)
                 batches += 1
                 now = time.time()
                 if now - last_log > LOG_STEP_EVERY:
@@ -318,7 +322,7 @@ class Trainer:
             raise
         logger.info(f"Epoch complete ({time.time() - epoch_start_time:.0f} seconds)")
         try:
-            self.eval_metrics(epoch_loss=loss_sum/batches)
+            self.eval_metrics()
         except BaseException as e:
             raise _EvalExceptionWrapper(e)
         if epoch > 0 and self.checkpoint_each is not None and epoch % self.checkpoint_each == 0:
@@ -353,10 +357,11 @@ class Trainer:
     def __train_step(self, X, Y):
         self.model.train()
         self.optimizer.zero_grad()
-        loss = self.loss_fn(self.model.forward(X), Y)
+        pred = self.model.forward(X)
+        loss = self.loss_fn(pred, Y)
         loss.backward()
         self.optimizer.step()
-        return loss
+        return loss, pred
 
 
     @classmethod
