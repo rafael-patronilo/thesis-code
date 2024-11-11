@@ -38,7 +38,7 @@ def main():
     file_manager = StudyFileManager(f"xtrains_autoencoders_1")
     study_manager = StudyManager(
         file_manager,
-        compare_strategy="max",
+        compare_strategy="min",
         metric_key=("val", "loss"),
         num_epochs=35
     )
