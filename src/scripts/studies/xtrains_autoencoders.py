@@ -40,7 +40,7 @@ def main():
         file_manager,
         compare_strategy="min",
         metric_key=("val", "loss"),
-        num_epochs=35
+        num_epochs=100
     )
     configs = ((name, [], make_config(linears)) for name, linears in EXPERIMENTS)
     study_manager.run_with_script('conv_autoencoder', configs)

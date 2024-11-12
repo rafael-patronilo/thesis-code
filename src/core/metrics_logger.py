@@ -1,4 +1,4 @@
-from typing import Optional, Any, Sequence, Callable
+from typing import Literal, Optional, Any, Sequence, Callable
 from .storage_management.model_file_manager import ModelFileManager
 import logging
 from collections import OrderedDict, deque
@@ -10,6 +10,7 @@ import math
 from core.util import debug, safe_div
 from core.util.typing import TorchDataset
 from torcheval.metrics import Metric as TorchMetric
+import os
 
 logger = logging.getLogger(__name__)
 def _dataloader_worker_init_fn(worker_id):
@@ -27,7 +28,7 @@ class MetricsLogger:
                 target_module : Optional[str] = None,
                 last_n_size = 10,
                 batch_size = 64,
-                num_loaders = 4
+                num_loaders : int = int(os.getenv('NUM_THREADS', 4)),
                 ):
         self.identifier = identifier
         self.__metric_functions : dict[str, Any]
@@ -87,7 +88,7 @@ class MetricsLogger:
             logger.error(f"Invalid total measures keys ({total_measures.keys()}), ignoring value")
         else:
             self.total_measures = total_measures
-        if any(x.keys() != self.__metric_functions.keys() for x in last_n) or len(last_n) != len(self.last_n):
+        if any(x.keys() != self.__metric_functions.keys()  | {'epoch'} for x in last_n) or len(last_n) != len(self.last_n):
             logger.error(f"Invalid last n, ignoring value\nlast_n: {last_n}\n keys: {self.__metric_functions.keys()}")
         else:
             def reorder(record : dict) -> OrderedDict:
@@ -100,7 +101,8 @@ class MetricsLogger:
             self.sums_last_n = {k: 0.0 for k, _ in self.ordered_metrics}
             for entry in last_n:
                 for k, v in entry.items():
-                    self.sums_last_n[k] += v
+                    if k != 'epoch':
+                        self.sums_last_n[k] += v
             
 
     def averages(self):

@@ -2,6 +2,7 @@ from core.util import conv_out_shape, transposed_conv_out_shape
 from core import util, datasets
 from core.modules.metrics import get_metric
 from core.modules.stop_criteria import EarlyStop
+from core.modules.checkpoint_triggers import BestMetric
 from typing import Literal, Sequence, Any, assert_never
 from torch import nn
 import torch
@@ -140,6 +141,9 @@ def create_trainer(dataset_name : str, **kwargs) -> Trainer:
         optimizer=torch.optim.Adam,
         training_set=dataset.for_training(),
         metric_loggers=[train_metrics, val_metrics],
-        stop_criteria=[EarlyStop(threshold=0.01, patience=10)],
+        stop_criteria=[EarlyStop(
+            metric='loss', prefer='min', metrics_logger ='val', threshold=0.01, patience=10)],
+        checkpoint_triggers=[BestMetric(
+            metric='loss', prefer='min', metrics_logger ='val', threshold=0.01)],
         batch_size=64
     )

@@ -8,7 +8,7 @@ from .storage_management.model_file_manager import ModelFileManager
 from .datasets import get_dataset
 from logging_setup import NOTIFY, logfile
 
-import re
+import os
 import importlib
 import torch
 from . import modules
@@ -105,7 +105,7 @@ class Trainer:
             #callbacks = None,
             epoch : int = 0,
             batch_size : int = 32,
-            num_loaders : int = 4,
+            num_loaders : int = int(os.getenv('NUM_THREADS', 4)),
             shuffle : bool = True,
             checkpoint_each : Optional[int] = 10,
             checkpoint_triggers : Optional[list[Callable[[Any], bool]]] = None,
@@ -226,6 +226,7 @@ class Trainer:
                         self.epoch += 1
                     self._train_epoch(self.epoch, first=first)
                     first = False
+            self.epoch += 1
             self._checkpoint('end')
             logger.log(NOTIFY, "Training complete.")
         except (KeyboardInterrupt, utils.NoInterrupt.InterruptException):
@@ -295,7 +296,7 @@ class Trainer:
         if self.model_file_manager is None:
             raise ValueError("Model file manager not initialized")
         self.epoch = epoch
-        logger.info(f"Epoch {epoch}")
+        logger.info(f"Epoch {epoch} - Starting")
         self.model.train()
         batches = 0
         epoch_start_time = time.time()
@@ -315,12 +316,12 @@ class Trainer:
                 batches += 1
                 now = time.time()
                 if now - last_log > LOG_STEP_EVERY:
-                    logger.info(f"\t\tRunning longer than {LOG_STEP_EVERY} seconds ({now - epoch_start_time:.0f}), current batch = {batches}")
+                    logger.info(f"Epoch {epoch} - \t\tRunning longer than {LOG_STEP_EVERY} seconds ({now - epoch_start_time:.0f}), current batch = {batches}")
                     last_log = now
         except BaseException as e:
             logger.error(f"Exception during training loop {debug_model(e, self.model, X, Y)}")
             raise
-        logger.info(f"Epoch complete ({time.time() - epoch_start_time:.0f} seconds)")
+        logger.info(f"Epoch {epoch} - Training complete ({time.time() - epoch_start_time:.0f} seconds)")
         try:
             self.eval_metrics()
         except BaseException as e:

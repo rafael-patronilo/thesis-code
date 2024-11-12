@@ -76,7 +76,7 @@ class StudyManager:
                 logger.info(f"Experiment {experiment_name} was already complete.")
             else:
                 trainer.train_until_epoch(self.num_epochs)
-                logger.info(f"Experiment {experiment_name} complete")
+                logger.log(NOTIFY, f"Experiment {experiment_name} complete")
 
             if self.best_results is None:
                 self.best_results = (experiment_name, trainer.metrics_snapshot())

@@ -2,6 +2,7 @@
 IMAGE=rpatronilo-thesis
 CONTAINER_NAME=$IMAGE
 
+# Set shared memory for multiprocessing data loading
 SHM_SIZE=1G
 
 ARGS=(--gpus all --name $CONTAINER_NAME --shm-size=$SHM_SIZE)
