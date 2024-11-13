@@ -6,7 +6,23 @@ if [ -z $OLD_IMAGE ]; then
     echo No old image
 fi
 
+# Add version info
+echo Docker image built at $(date) > version.txt
+echo
+if which git > /dev/null ; then
+    echo "$ git status" >> version.txt
+    git status >> version.txt
+    echo "$ git log -1" >> version.txt
+    git log -1 >> version.txt
+else
+    echo "Git not found, skipping version info"
+fi
+echo "Version info:"
+cat version.txt
+echo
+
 docker build -t $TAG . && \
 NEW_IMAGE=$(docker images -q $TAG)
+rm -f version.txt
 echo Image successfully built with tag $TAG and id $NEW_IMAGE && \
 ([[ -z $OLD_IMAGE &&  $OLD_IMAGE != $NEW_IMAGE ]] || (docker rmi -f $OLD_IMAGE; echo Old image $OLD_IMAGE deleted))

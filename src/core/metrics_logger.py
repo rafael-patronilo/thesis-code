@@ -46,7 +46,7 @@ class MetricsLogger:
         )
         self.metrics_header = ['epoch'] + [k for (k, _) in self.ordered_metrics]
         self.sums : dict = {k: 0.0 for k, _ in self.ordered_metrics}
-        self.last_n : deque[OrderedDict] = deque(OrderedDict((k, 0.0) for k, _ in self.ordered_metrics) for _ in range(last_n_size))
+        self.last_n : deque[OrderedDict] = deque(OrderedDict((k, 0.0) for k in self.metrics_header) for _ in range(last_n_size))
         self.sums_last_n : dict = {k: 0.0 for k, _ in self.ordered_metrics}
         self.total_measures = {k: 0.0 for k, _ in self.ordered_metrics}
         self.dataset_ref = dataset
@@ -76,6 +76,49 @@ class MetricsLogger:
             "total_measures": self.total_measures
         }
     
+    def _load_last_n(self, last_n):
+        sb = []
+        fatal_error = False
+        if len(last_n) > len(self.last_n):
+            sb.append(f"Invalid last_n length ({len(last_n)}), ignoring last {len(last_n) - len(self.last_n)} records")
+            last_n = last_n[:len(self.last_n)]
+            return
+        new_last_n = deque(maxlen=len(self.last_n))
+        new_sums_last_n = {k: 0.0 for k, _ in self.ordered_metrics}
+        for i, record in enumerate(last_n):
+            new_record = OrderedDict()
+            for key in self.metrics_header:
+                if key not in record:
+                    sb.append(f"Missing key {key} in record {i}, adding NaN")
+                    new_record[key] = float('nan')
+                else:
+                    new_record[key] = record[key]
+                    if key != 'epoch':
+                        new_sums_last_n[key] += record[key]
+            for key, value in record:
+                if key != 'epoch' and key not in new_record:
+                    sb.append(f"Ivalid {key} in record {i} with value {value}, ignoring")
+            new_last_n.append(new_record)
+        if len(new_last_n) < len(self.last_n):
+            sb.append(f"Invalid last_n length ({len(new_last_n)}), appending 0s")
+            for _ in range(len(new_last_n), len(self.last_n)):
+                new_last_n.append(OrderedDict((k, 0.0) for k, in self.metrics_header))
+        if len(new_last_n) != len(self.last_n):
+            sb.append(f"FATAL: Invalid last_n length (got {len(new_last_n)}, expected {len(self.last_n)}) after all corrections")
+            fatal_error = True
+        if fatal_error:
+            logger.error("Fatal error while trying to load last n records from checkpoint:\n"
+                         + "\n".join(f"\t{m}" for m in sb)
+                         + "\nLast n will be reset")
+        else:
+            self.last_n = new_last_n
+            self.sums_last_n = new_sums_last_n
+            self.last_record = self.last_n[0]
+            if len(sb) > 0:
+                logger.warning("Errors while trying to load last n records from checkpoint.\n"
+                               + "\n".join(f"\t{m}" for m in sb)
+                               + "\nLast n was corrected")
+
     def load_state_dict(self, state_dict):
         sums : dict = state_dict["sums"]
         last_n : list[dict] = state_dict["last_n"]
@@ -88,22 +131,7 @@ class MetricsLogger:
             logger.error(f"Invalid total measures keys ({total_measures.keys()}), ignoring value")
         else:
             self.total_measures = total_measures
-        if any(x.keys() != self.__metric_functions.keys()  | {'epoch'} for x in last_n) or len(last_n) != len(self.last_n):
-            logger.error(f"Invalid last n, ignoring value\nlast_n: {last_n}\n keys: {self.__metric_functions.keys()}")
-        else:
-            def reorder(record : dict) -> OrderedDict:
-                ordered = OrderedDict()
-                for k, _ in self.ordered_metrics:
-                    ordered[k] = record[k]
-                return ordered
-            self.last_n = deque(reorder(record) for record in last_n)
-            self.last_record = self.last_n[0]
-            self.sums_last_n = {k: 0.0 for k, _ in self.ordered_metrics}
-            for entry in last_n:
-                for k, v in entry.items():
-                    if k != 'epoch':
-                        self.sums_last_n[k] += v
-            
+        self._load_last_n(last_n)
 
     def averages(self):
         return {

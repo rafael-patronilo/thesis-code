@@ -87,7 +87,30 @@ def log_break(msg = "LOG BREAK"):
     except:
         pass # ignore if terminal size cannot be determined
 
-def setup_logging(git_status : bool = True):
+def log_version_info(logger, path = Path("version.txt")):
+    sb = ["Version Info"]
+    if path.exists():
+        sb.append(path.read_text())
+    else:
+        try:
+            status = subprocess.run(
+                ["git", "status"],
+                capture_output=True,
+                text=True
+            )
+            commit_info = subprocess.run(
+                ["git", "log", "-1"],
+                capture_output=True,
+                text=True
+            )
+            sb.append(f"Git status:\n{status.stdout}")
+            sb.append(f"Last commit:\n{commit_info.stdout}")
+        except BaseException as e:
+            logger.warning(f"Failed to get git info: {e}")
+            return
+    logger.info("\n".join(sb))
+
+def setup_logging(version_info : bool = True):
     global logfile, true_stderr, true_stdout
     formatter=MultiLineFormatter(logging.Formatter(FORMAT))
     logger = logging.getLogger()
@@ -138,21 +161,7 @@ Level: {LOG_LEVEL if type(LOG_LEVEL) == str else logging.getLevelName(LOG_LEVEL)
 Active Handlers: {", ".join(type(handler).__name__ for handler in logger.handlers)}
 Log file: {logfile}"""
 )
-    if git_status:
-        try:
-            status = subprocess.run(
-                ["git", "status"],
-                capture_output=True,
-                text=True
-            )
-            commit_info = subprocess.run(
-                ["git", "log", "-1"],
-                capture_output=True,
-                text=True
-            )
-            logger.info(f"Git status:\n{status.stdout}")
-            logger.info(f"Last commit:\n{commit_info.stdout}")
-        except BaseException as e:
-            logger.warning(f"Failed to get git info: {e}")
+    if version_info:
+        log_version_info(logger)
     for handler in logger.handlers:
         handler.flush()

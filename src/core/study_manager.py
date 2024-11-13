@@ -24,6 +24,7 @@ class StudyManager:
         self.num_epochs = num_epochs
         self.best_results : Optional[tuple[str, MetricsSnapshot]] = None
         self.results = {}
+        self.skip_comparison = False
         if metric_key is not None:
             logger_identifier, metric_name = metric_key
         metric_getter = lambda x: x[logger_identifier][metric_name]
@@ -77,15 +78,26 @@ class StudyManager:
             else:
                 trainer.train_until_epoch(self.num_epochs)
                 logger.log(NOTIFY, f"Experiment {experiment_name} complete")
+            if self.skip_comparison:
+                logger.warning("Skipping automatic results comparison")
+            else:
+                try:
+                    self._evaluate_experiment(experiment_name, trainer)
+                except BaseException as e:
+                    logger.error(f"Error comparing experiment {experiment_name}: {e}\n" +
+                                 "Training will continue skipping comparison")
+                    self.skip_comparison = True
 
-            if self.best_results is None:
+
+    def _evaluate_experiment(self, experiment_name : str, trainer : Trainer):
+        if self.best_results is None:
                 self.best_results = (experiment_name, trainer.metrics_snapshot())
                 logger.debug(f"Saved first experiment {experiment_name} as best")
-            else:
-                snapshot = trainer.metrics_snapshot()
-                if self.compare_strategy(snapshot, self.best_results[1]):
-                    self.best_results = (experiment_name, snapshot)
-                    logger.info(f"New best experiment {experiment_name}")
+        else:
+            snapshot = trainer.metrics_snapshot()
+            if self.compare_strategy(snapshot, self.best_results[1]):
+                self.best_results = (experiment_name, snapshot)
+                logger.info(f"New best experiment {experiment_name}")
 
     def check_stop_criteria(self) -> bool:
         if self.best_results is None:

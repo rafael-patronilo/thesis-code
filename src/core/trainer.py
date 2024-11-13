@@ -226,9 +226,9 @@ class Trainer:
                         self.epoch += 1
                     self._train_epoch(self.epoch, first=first)
                     first = False
-            self.epoch += 1
             self._checkpoint('end')
             logger.log(NOTIFY, "Training complete.")
+            self.epoch += 1
         except (KeyboardInterrupt, utils.NoInterrupt.InterruptException):
             logger.log(NOTIFY, "Training safely interrupted. Saving checkpoint...")
             self._checkpoint('interrupt')
