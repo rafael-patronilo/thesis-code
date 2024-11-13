@@ -95,8 +95,8 @@ class MetricsLogger:
                     new_record[key] = record[key]
                     if key != 'epoch':
                         new_sums_last_n[key] += record[key]
-            for key, value in record:
-                if key != 'epoch' and key not in new_record:
+            for key, value in record.items():
+                if key not in new_record:
                     sb.append(f"Ivalid {key} in record {i} with value {value}, ignoring")
             new_last_n.append(new_record)
         if len(new_last_n) < len(self.last_n):
@@ -203,6 +203,9 @@ class MetricsLogger:
 
     def log_record(self, epoch, model, record : OrderedDict[str, Any] | None = None) -> OrderedDict[str, Any]:
         record = record or self.produce_record(epoch, model)
+        if 'epoch' not in record:
+            record['epoch'] = epoch
+            record.move_to_end('epoch', last=False)
         discarded = self.last_n.pop()
         for k, v in discarded.items():
             if not math.isnan(v) and not k == 'epoch':
