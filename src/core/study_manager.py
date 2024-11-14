@@ -90,11 +90,13 @@ class StudyManager:
 
 
     def _evaluate_experiment(self, experiment_name : str, trainer : Trainer):
+        snapshot = trainer.metrics_snapshot()
+        self.results[experiment_name] = snapshot
         if self.best_results is None:
-                self.best_results = (experiment_name, trainer.metrics_snapshot())
+                self.best_results = (experiment_name, snapshot)
                 logger.debug(f"Saved first experiment {experiment_name} as best")
         else:
-            snapshot = trainer.metrics_snapshot()
+            
             if self.compare_strategy(snapshot, self.best_results[1]):
                 self.best_results = (experiment_name, snapshot)
                 logger.info(f"New best experiment {experiment_name}")
@@ -122,7 +124,12 @@ class StudyManager:
             if self.check_stop_criteria():
                 break
         logger.log(NOTIFY, f"Study complete")
+        self.store_results()
+
+    def store_results(self):
         if self.best_results is not None:
             logger.info(f"Best experiment: {self.best_results[0]}")
             logger.info(f"Metrics: {self.best_results[1]}")
             self.file_manager.save_results(self.results, self.best_results[0])
+        else:
+            logger.warning("No results to store")

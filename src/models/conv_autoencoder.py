@@ -142,8 +142,8 @@ def create_trainer(dataset_name : str, **kwargs) -> Trainer:
         training_set=dataset.for_training(),
         metric_loggers=[train_metrics, val_metrics],
         stop_criteria=[EarlyStop(
-            metric='loss', prefer='min', metrics_logger ='val', threshold=0.01, patience=10)],
+            metric='loss', prefer='min', metrics_logger ='val', threshold=0.0005, patience=10)],
         checkpoint_triggers=[BestMetric(
-            metric='loss', prefer='min', metrics_logger ='val', threshold=0.01)],
+            metric='loss', prefer='min', metrics_logger ='val', threshold=0.0005)],
         batch_size=64
     )
