@@ -133,6 +133,8 @@ class Trainer:
         self.num_loaders = num_loaders
         self.shuffle = shuffle
         self._training_loader = None
+        self.first_epoch = True
+        self.epoch_checkpoint = False
 
     def checkpoint_metadata(self, reason : CheckpointReason):
         assert self.model_file_manager is not None
@@ -218,17 +220,14 @@ class Trainer:
                     f"Keyboard interrupt to save checkpoint and exit.")
         
         try:
-            first = True
             no_interrupt = utils.NoInterrupt("mid epoch", logger)
             while not any(criterion(self) for criterion in criteria):
                 with no_interrupt:
-                    if not first:
+                    if not self.first_epoch:
                         self.epoch += 1
-                    self._train_epoch(self.epoch, first=first)
-                    first = False
+                    self._train_epoch(self.epoch)
             self._checkpoint('end')
             logger.log(NOTIFY, "Training complete.")
-            self.epoch += 1
         except (KeyboardInterrupt, utils.NoInterrupt.InterruptException):
             logger.log(NOTIFY, "Training safely interrupted. Saving checkpoint...")
             self._checkpoint('interrupt')
@@ -264,11 +263,15 @@ class Trainer:
             )
 
     def _checkpoint(self, reason : CheckpointReason):
+        if self.epoch_checkpoint:
+            logger.warning("Checkpoint already saved for this epoch, skipping")
+            return
         if self.model_file_manager is None:
             raise ValueError("Model file manager not initialized")
         is_abrupt = reason in ABRUPT_CHECKPOINT_REASONS
         self.model_file_manager.save_checkpoint(self.epoch, self.state_dict(reason), is_abrupt)
         self.model_file_manager.flush()
+        self.epoch_checkpoint = True
         logger.info(f"Checkpoint at Epoch {self.epoch}\n{self._metrics_str()}")
         
     def training_loader(self):
@@ -292,10 +295,11 @@ class Trainer:
             record = metric_logger.log_record(self.epoch, self.model)
             self.model_file_manager.write_metrics(metric_logger.identifier, record)
 
-    def _train_epoch(self, epoch, first = False):
+    def _train_epoch(self, epoch):
         if self.model_file_manager is None:
             raise ValueError("Model file manager not initialized")
         self.epoch = epoch
+        self.epoch_checkpoint = False
         logger.info(f"Epoch {epoch} - Starting")
         self.model.train()
         batches = 0
@@ -318,6 +322,7 @@ class Trainer:
                 if now - last_log > LOG_STEP_EVERY:
                     logger.info(f"Epoch {epoch} - \t\tRunning longer than {LOG_STEP_EVERY} seconds ({now - epoch_start_time:.0f}), current batch = {batches}")
                     last_log = now
+            self.first_epoch = False
         except BaseException as e:
             logger.error(f"Exception during training loop {debug_model(e, self.model, X, Y)}")
             raise
@@ -332,7 +337,7 @@ class Trainer:
         elif any(trigger(self) for trigger in self.checkpoint_triggers):
             logger.info(f"Triggered checkpoint")
             self._checkpoint('triggered')
-        elif first:
+        elif self.first_epoch:
             logger.info(self._metrics_str())
 
             
