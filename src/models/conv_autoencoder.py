@@ -10,10 +10,12 @@ from core.nn.autoencoder import AutoEncoder
 from core import Trainer, MetricsLogger, TrainingLogger
 import torcheval.metrics as torch_metrics
 import logging
-from
+from types import SimpleNamespace
 logger = logging.getLogger(__name__)
 
-EARLY_STOP = 
+EARLY_STOP = SimpleNamespace()
+EARLY_STOP.patience = 10
+EARLY_STOP.threshold = 0.0001
 
 def make_model(
         input_shape : Sequence[int], 
@@ -145,8 +147,8 @@ def create_trainer(dataset_name : str, **kwargs) -> Trainer:
         training_set=dataset.for_training(),
         metric_loggers=[train_metrics, val_metrics],
         stop_criteria=[EarlyStop(
-            metric='loss', prefer='min', metrics_logger ='val', threshold=0.0001, patience=10)],
+            metric='loss', prefer='min', metrics_logger ='val', threshold=EARLY_STOP.threshold, patience=EARLY_STOP.patience)],
         checkpoint_triggers=[BestMetric(
-            metric='loss', prefer='min', metrics_logger ='val', threshold=0.0001)],
+            metric='loss', prefer='min', metrics_logger ='val', threshold=EARLY_STOP.threshold)],
         batch_size=64
     )
