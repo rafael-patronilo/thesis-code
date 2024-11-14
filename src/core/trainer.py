@@ -263,6 +263,9 @@ class Trainer:
             )
 
     def _checkpoint(self, reason : CheckpointReason):
+        if self.first_epoch:
+            logger.warning("No training done yet, skipping checkpoint")
+            return
         if self.epoch_checkpoint:
             logger.warning("Checkpoint already saved for this epoch, skipping")
             return
