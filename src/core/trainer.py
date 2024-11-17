@@ -11,7 +11,7 @@ from logging_setup import NOTIFY, logfile
 import os
 import importlib
 import torch
-from . import modules
+
 from . import util as utils
 import time
 if TYPE_CHECKING:

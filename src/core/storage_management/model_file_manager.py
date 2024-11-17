@@ -37,6 +37,7 @@ class ModelFileManager:
     MODEL_FILE_NAME = "model.pth"
     CONFIG_FILE_NAME = "config.json"
     CHECKPOINTS_DIR = "checkpoints"
+    RESULTS_DIR = "results"
     LAST_CHECKPOINT = "last_checkpoint.pth"
     METRICS_FORMAT = "metrics_{identifier}.csv"
     METRICS_DIR = ""
@@ -59,6 +60,7 @@ class ModelFileManager:
         self.model_file = self.path.joinpath(self.MODEL_FILE_NAME)
         self.config_file = self.path.joinpath(self.CONFIG_FILE_NAME)
         self.metrics_dest = self.path.joinpath(self.METRICS_DIR)
+        self.results_dest = self.path.joinpath(self.RESULTS_DIR)
         self.last_checkpoint = self.path.joinpath(self.LAST_CHECKPOINT)
 
     def __create_paths(self, exists_ok = False):

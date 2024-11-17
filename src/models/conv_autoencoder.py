@@ -1,8 +1,8 @@
 from core.util import conv_out_shape, transposed_conv_out_shape
 from core import util, datasets
-from core.modules.metrics import get_metric
-from core.modules.stop_criteria import EarlyStop
-from core.modules.checkpoint_triggers import BestMetric
+from core.metrics import get_metric
+from core.stop_criteria import EarlyStop
+from core.checkpoint_triggers import BestMetric
 from typing import Literal, Sequence, Any, assert_never
 from torch import nn
 import torch
@@ -11,6 +11,8 @@ from core import Trainer, MetricsLogger, TrainingLogger
 import torcheval.metrics as torch_metrics
 import logging
 from types import SimpleNamespace
+
+from core.datasets import dataset_wrappers
 logger = logging.getLogger(__name__)
 
 EARLY_STOP = SimpleNamespace()
@@ -118,7 +120,7 @@ def create_trainer(dataset_name : str, **kwargs) -> Trainer:
     loss_fn = nn.MSELoss()
     loss_metric = torch_metrics.MeanSquaredError
     dataset = datasets.get_dataset(dataset_name)
-    dataset = datasets.AutoencoderDataset(dataset)
+    dataset = dataset_wrappers.ForAutoencoder(dataset)
     input_shape = dataset.get_shape()[0]
     logger.debug(f"Input shape: {input_shape}")
     metrics = ['epoch_elapsed']

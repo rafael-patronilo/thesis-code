@@ -9,7 +9,44 @@ CollumnSubReferences = NamedTuple("CollumnSubReferences", [("names_to_collumn", 
 class CollumnReferences(NamedTuple):
     features: CollumnSubReferences 
     labels : CollumnSubReferences
-    eval_only_collumns : Optional[list[str]] = None
+
+    def as_sample(self) -> tuple[list[str], list[str]]:
+        return (self.features.collumns_to_names, self.labels.collumns_to_names)
+    
+    def get_feature_indices(self, collumns : list[str]) -> list[int]:
+        """Get indices for a list of feature collumn names. Respects argument order
+
+        Args:
+            collumns (list[str]): Names of collumns
+
+        Returns:
+            list[int]: Indices of collumns, in the same order as the respective name in `collumns`
+        """
+        return [self.features.names_to_collumn[collumn] for collumn in collumns]
+    
+    def get_label_indices(self, collumns : list[str]) -> list[int]:
+        """Get indices for a list of label collumn names. Respects argument order
+        
+        Args:
+            collumns (list[str]): Names of collumns
+
+        Returns:
+            list[int]: Indices of collumns, in the same order as the respective name in `collumns`
+        """
+        return [self.labels.names_to_collumn[collumn] for collumn in collumns]
+    
+    @classmethod
+    def from_sample(cls, sample : tuple[list[str], list[str]]):
+        return cls(
+            CollumnSubReferences(
+                {name: idx for idx, name in enumerate(sample[0])},
+                sample[0]
+            ),
+            CollumnSubReferences(
+                {name: idx for idx, name in enumerate(sample[1])},
+                sample[1]
+            )
+        )
 
 class SplitDataset:
     
@@ -138,7 +175,7 @@ from .csv_dataset import CSVDataset
 from .csv_img_dataset import CSVImageDataset
 from . import binary_generator
 from .random_dataset import RandomDataset
-from .autoencoder_dataset import AutoencoderDataset
+
 
 _dataset_registry : dict[str, SplitDataset] = {}
 

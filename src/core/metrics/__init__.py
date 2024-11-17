@@ -3,6 +3,7 @@ from typing import Any, Optional, Sequence
 import torch
 import inspect
 from torcheval.metrics import functional as torch_metrics
+from torcheval.metrics import Metric
 from core.datasets import SplitDataset
 from .elapsed import Elapsed
 from typing import Callable
@@ -34,6 +35,7 @@ __all_metrics : dict[str, MetricFunction | type] = {
     'f1_score' : DecoratedTorchMetric(torch_metrics.binary_f1_score, flatten_tensors=True),
     'epoch_elapsed' : Elapsed,
 }
+
 
 def get_metric(name : str) -> MetricFunction | None:
     if name in __all_metrics:

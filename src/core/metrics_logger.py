@@ -4,7 +4,7 @@ import logging
 from collections import OrderedDict, deque
 import torch
 from torch.utils.data import DataLoader
-from .modules.metrics import select_metrics, NamedMetricFunction, MetricFunction
+from .metrics import select_metrics, NamedMetricFunction, MetricFunction
 import time
 import math
 from core.util import debug, safe_div
@@ -13,7 +13,7 @@ from torcheval.metrics import Metric as TorchMetric
 import os
 
 logger = logging.getLogger(__name__)
-def _dataloader_worker_init_fn(worker_id):
+def dataloader_worker_init_fn(worker_id):
     logger.debug(f"Evaluation dataloader worker {worker_id} initialized")
     torch.set_default_device('cpu')
 
@@ -55,7 +55,7 @@ class MetricsLogger:
                 self.dataset_ref(), 
                 batch_size=batch_size, 
                 num_workers=num_loaders,
-                worker_init_fn=_dataloader_worker_init_fn,
+                worker_init_fn=dataloader_worker_init_fn,
                 pin_memory=True
             )
         self.target_module = target_module
