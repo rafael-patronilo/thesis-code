@@ -6,8 +6,6 @@ from .metrics_logger import MetricsLogger, TrainingLogger, NamedMetricFunction, 
 from .study_manager import StudyManager
 
 
-
-from . import modules
 from . import datasets
 from torch.utils.data import DataLoader
 

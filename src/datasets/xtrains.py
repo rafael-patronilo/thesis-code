@@ -1,7 +1,7 @@
 from core.datasets import CSVImageDataset, register_datasets
 from pathlib import Path
 
-PATH=Path("data/xtrains_mine")
+PATH=Path("data/xtrains_dataset")
 
 
 SEED = 42
@@ -13,68 +13,78 @@ IMAGE_COLLUMN = 'name'
 def name_getter(x):
     return f"{int(x):07d}.png"
 
+CONCEPTS = [
+    'PassengerCar',
+    'FreightWagon',
+    'EmptyWagon',
+    'LongWagon',
+    'ReinforcedCar',
+    'LongPassengerCar',
+    'AtLeast2PassengerCars',
+    'AtLeast2FreightWagons',
+    'AtLeast3Wagons'
+]
 
-def xtrains_dataset(
-    unfiltered=False,
-    with_targets=True,
-    with_concepts=False,
-    with_unsimplied_concepts=False,
-    seed=SEED
-):
-    target = []
-    if with_targets:
-        target += ['TypeA', 'TypeB', 'TypeC']
-    if with_concepts:
-        target += []
-    if with_unsimplied_concepts:
-        target += []
-    return CSVImageDataset(
+CLASSES = ['TypeA', 'TypeB', 'TypeC']
+
+# def xtrains_dataset(
+#     unfiltered=False,
+#     with_targets=True,
+#     with_concepts=False,
+#     with_unsimplied_concepts=False,
+#     seed=SEED
+# ):
+#     target = []
+#     if with_targets:
+#         target += ['TypeA', 'TypeB', 'TypeC']
+#     if with_concepts:
+#         target += []
+#     if with_unsimplied_concepts:
+#         target += []
+#     filter = some_class if not unfiltered else None
+#     return CSVImageDataset(
+#         csv_path = PATH.joinpath('trains.csv'),
+#         images_path = PATH.joinpath('images'),
+#         image_collumns = [
+#             (IMAGE_COLLUMN, name_getter),
+#         ],
+#         target = ['TypeA', 'TypeB', 'TypeC'],
+#         features = [IMAGE_COLLUMN],
+#         filter = filter,
+#         random_state=seed
+#     )
+
+register_datasets(
+    xtrains_unfiltered = CSVImageDataset(
         csv_path = PATH.joinpath('trains.csv'),
         images_path = PATH.joinpath('images'),
         image_collumns = [
             (IMAGE_COLLUMN, name_getter),
         ],
-        target = ['TypeA', 'TypeB', 'TypeC'],
+        target = CLASSES,
         features = [IMAGE_COLLUMN],
         random_state=SEED
+    ),
+    xtrains = CSVImageDataset(
+        csv_path = PATH.joinpath('trains.csv'),
+        images_path = PATH.joinpath('images'),
+        image_collumns = [
+            (IMAGE_COLLUMN, name_getter),
+        ],
+        target = CLASSES,
+        features = [IMAGE_COLLUMN],
+        filter = some_class,
+        random_state=SEED
+    ),
+    xtrains_with_concepts = CSVImageDataset(
+        csv_path = PATH.joinpath('extended_trains.csv'),
+        images_path = PATH.joinpath('images'),
+        image_collumns = [
+            (IMAGE_COLLUMN, name_getter),
+        ],
+        target = CLASSES + CONCEPTS,
+        features = [IMAGE_COLLUMN],
+        filter = some_class,
+        random_state=SEED
     )
-
-xtrains_unfiltered = CSVImageDataset(
-    csv_path = PATH.joinpath('trains.csv'),
-    images_path = PATH.joinpath('images'),
-    image_collumns = [
-        (IMAGE_COLLUMN, name_getter),
-    ],
-    target = ['TypeA', 'TypeB', 'TypeC'],
-    features = [IMAGE_COLLUMN],
-    random_state=SEED
 )
-
-xtrains = CSVImageDataset(
-    csv_path = PATH.joinpath('trains.csv'),
-    images_path = PATH.joinpath('images'),
-    image_collumns = [
-        (IMAGE_COLLUMN, name_getter),
-    ],
-    target = ['TypeA', 'TypeB', 'TypeC'],
-    features = [IMAGE_COLLUMN],
-    filter = some_class,
-    random_state=SEED
-)
-
-xtrains_with_concepts = CSVImageDataset(
-    csv_path = PATH.joinpath('trains.csv'),
-    images_path = PATH.joinpath('images'),
-    image_collumns = [
-        (IMAGE_COLLUMN, name_getter),
-    ],
-    target = [
-        'TypeA', 
-        'TypeB', 
-        'TypeC'],
-    features = [IMAGE_COLLUMN],
-    filter = some_class,
-    random_state=SEED
-)
-
-

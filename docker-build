@@ -1,6 +1,14 @@
 #!/usr/bin/bash
 TAG=rpatronilo-thesis
 
+if DOCKER_PS_RESULT=$(docker ps); then
+    echo "Docker is running"
+else
+    echo $DOCKER_PS_RESULT
+    exit -1
+fi
+unset DOCKER_PS_RESULT
+
 OLD_IMAGE=$(docker images -q $TAG)
 if [ -z $OLD_IMAGE ]; then
     echo No old image

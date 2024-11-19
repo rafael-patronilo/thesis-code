@@ -42,6 +42,7 @@ class ModelFileManager:
     METRICS_FORMAT = "metrics_{identifier}.csv"
     METRICS_DIR = ""
     CHECKPOINT_FORMAT = "epoch_{epoch:0>9}.pth"
+    DEBUG_DIR = "debug"
     
 
     def __init__(self,
@@ -61,6 +62,7 @@ class ModelFileManager:
         self.config_file = self.path.joinpath(self.CONFIG_FILE_NAME)
         self.metrics_dest = self.path.joinpath(self.METRICS_DIR)
         self.results_dest = self.path.joinpath(self.RESULTS_DIR)
+        self.debug_dir = self.path.joinpath(self.DEBUG_DIR)
         self.last_checkpoint = self.path.joinpath(self.LAST_CHECKPOINT)
 
     def __create_paths(self, exists_ok = False):
@@ -68,6 +70,8 @@ class ModelFileManager:
         self.path.mkdir(parents=True, exist_ok=exists_ok)
         self.checkpoint_path.mkdir(parents=True, exist_ok=True)
         self.metrics_dest.mkdir(parents=True, exist_ok=True)
+        self.results_dest.mkdir(parents=True, exist_ok=True)
+        self.debug_dir.mkdir(parents=True, exist_ok=True)
 
     def init_directory(self):
         self.__create_paths(exists_ok=True)

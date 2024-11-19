@@ -1,5 +1,5 @@
 from typing import Callable
-from src.core.datasets import CollumnReferences, SplitDataset
+from core.datasets import CollumnReferences, SplitDataset
 from torch.utils.data import Dataset, IterableDataset
 
 class SplitDatasetWrapper(SplitDataset):
