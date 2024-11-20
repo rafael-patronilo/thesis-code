@@ -138,7 +138,7 @@ def setup_logging(version_info : bool = True):
 
     # setup discord webhook logging (if available)
     discord_webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
-    if discord_webhook_url is not None:
+    if discord_webhook_url is not None and len(discord_webhook_url) > 0:
         discord_webhook_handler = discord_webhook.DiscordWebhookHandler(
             webhook_url=discord_webhook_url,
             mention_everyone_levels=[NOTIFY]

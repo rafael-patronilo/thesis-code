@@ -28,14 +28,14 @@ def make_config(linears):
         conv_layers = CONVOLUTIONS,
         linear_layers = linears,
         encoding_size = 9,
-        encoding_activation = 'sigmoid',
+        encoding_activation = 'relu',
         kernel_size = 3
     )
 
 
 def main():
     # Load study manager
-    file_manager = StudyFileManager(f"xtrains_autoencoders_1")
+    file_manager = StudyFileManager(f"xtrains_autoencoders_2")
     study_manager = StudyManager(
         file_manager,
         compare_strategy="min",

@@ -4,6 +4,7 @@ from typing import Iterable, Sequence
 import math
 
 import torcheval.metrics
+from core.util.debug import debug_tensor
 from core import Trainer, ModelFileManager
 from core.datasets import SplitDataset, dataset_wrappers
 
@@ -37,7 +38,7 @@ CLASSES = [
 class Tests:
     PERMUTATIONS = torch.tensor([
             [0, 1, 2],
-            [2, 0, 1],
+            [0, 2, 1],
             [2, 1, 0]
         ], dtype=torch.int32)
     
@@ -54,12 +55,12 @@ class Tests:
     REARRANGED_PRED = torch.tensor([
             [
                 [0.9, 0.2, 0.3],
-                [0.3, 0.9, 0.2],
+                [0.9, 0.3, 0.2],
                 [0.3, 0.2, 0.9]
             ],
             [
                 [0.4, 0.6, 0.7],
-                [0.7, 0.4, 0.6],
+                [0.4, 0.7, 0.6],
                 [0.7, 0.6, 0.4]
             ]
         ])
@@ -78,7 +79,7 @@ class Tests:
     
     EXPECTED_COUNTS = torch.tensor([
             [0, 1, 1],
-            [2, 1, 1],
+            [0, 1, 1],
             [2, 1, 1]
         ])
     @classmethod
@@ -144,12 +145,17 @@ def evaluate_batch(
         permutations : torch.Tensor,
         correct_counts : torch.Tensor,
         ):
+    logger.debug(f"Original\n\tpred_y: {pred_y}, true_y: {true_y}")
     r_pred_y, r_true_y = rearrange_batch(pred_y, true_y, permutations)
-    correct_counts += produce_counts(r_pred_y, r_true_y)
+    logger.debug(f"Rearranged with permutations\n\tpred_y: {r_pred_y}, true_y: {r_true_y}")
+    counts = produce_counts(r_pred_y, r_true_y)
+    debug_tensor('counts.txt', counts)
+    correct_counts += counts
+
 
 def produce_counts(pred_y, true_y):
-    result = torch.where(torch.abs(pred_y - true_y) < 0.5, 1, 0)
-    return result.sum(dim=1)
+    result = torch.where((pred_y > 0.5) == (true_y > 0.5), 1, 0)
+    return result.sum(dim=0)
 
 def rearrange_batch(
         pred_y : torch.Tensor,
@@ -175,23 +181,28 @@ def evaluate_permutations(
     permutations = generate_permutations_tensor(indices)
     logger.info(f"{permutations.size(0)} permutations generated")
 
-    correct_counts = torch.zeros(permutations.size(0), num_classes, dtype=torch.int32)
+    correct_counts = torch.zeros(permutations.size(0), num_classes)
     loader = torch_data.DataLoader(
-        dataset, batch_size=128, num_workers=4, worker_init_fn=dataloader_worker_init_fn)
+        dataset, batch_size=64, num_workers=4, worker_init_fn=dataloader_worker_init_fn)
     total_samples = 0
     
     logger.info("Starting evaluation...")
     for x, y in loader:
+        x = x.to(torch.get_default_device())
+        y = y.to(torch.get_default_device())
         total_samples += x.size(0)
-        pred = trainer.model(x)
+        pred = trainer.model.encoder(x)
+        del x
         evaluate_batch(pred, y, permutations, correct_counts)
         logger.info(f"Batch finished, total samples: {total_samples}")
+        
     
     logger.info("Evaluation done, storing results...")
     torch.save(correct_counts, file_manager.debug_dir.joinpath("permut_correct_counts.pt"))
     global_accuracy = correct_counts.sum(dim=1).float() / (total_samples*num_classes)
 
-    file_manager.init_metrics_file("permutations", ["permutation", "accuracy"])
+    file_manager.init_metrics_file("permutations", ["permutation", "accuracy"] 
+                                   + [f"{cls}_acc" for cls in classes])
     best_permutation = None,
     best_accuracy = -1
     for i in range(permutations.size(0)):
@@ -204,7 +215,7 @@ def evaluate_permutations(
             best_permutation = permutation
         record['accuracy'] = accuracy
         for j, cls in enumerate(classes):
-            record[f"{cls}_acc"] = correct_counts[i, j].item()
+            record[f"{cls}_acc"] = correct_counts[i, j].item() / total_samples
         file_manager.write_metrics("permutations", record)
     file_manager.flush()
     logger.info("Results stored")

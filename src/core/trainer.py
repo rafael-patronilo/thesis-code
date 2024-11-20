@@ -312,13 +312,15 @@ class Trainer:
         if self.train_logger is not None:
             self.train_logger._prepare_torch_metrics()
             update_metrics = self.train_logger._update_torch_metrics
+        loss_sum = 0
         try:
             X = None
             Y = None
             for X, Y in self.training_loader():
                 X = X.to(torch.get_default_device())
                 Y = Y.to(torch.get_default_device())
-                _, pred = self.__train_step(X, Y)
+                loss, pred = self.__train_step(X, Y)
+                loss_sum += loss.item()
                 update_metrics(pred, Y)
                 batches += 1
                 now = time.time()
@@ -329,7 +331,8 @@ class Trainer:
         except BaseException as e:
             logger.error(f"Exception during training loop {debug_model(e, self.model, X, Y)}")
             raise
-        logger.info(f"Epoch {epoch} - Training complete ({time.time() - epoch_start_time:.0f} seconds)")
+        loss_avg = loss_sum / batches
+        logger.info(f"Epoch {epoch} - Training complete ({time.time() - epoch_start_time:.0f} seconds, {loss_avg:.4f} avg loss)")
         try:
             self.eval_metrics()
         except BaseException as e:

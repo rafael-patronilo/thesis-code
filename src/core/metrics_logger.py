@@ -192,7 +192,7 @@ class MetricsLogger:
                     logger.info(f"\t\tEvaluating longer than {LOG_STEP_EVERY} seconds ({now - start_time:.0f}), current batch = {batches}")
                     last_log = now
                 batches += 1
-        if y_pred is not None and y_true is not None:
+        if y_pred is not None and y_true is not None and len(y_pred.shape) <= 2:
             # store predictions for debugging
             debug.debug_table(f"{self.identifier}_preds.csv", y_preds=y_pred, y_trues=y_true)
             debug.debug_table(f"{self.identifier}_round_preds.csv", 
