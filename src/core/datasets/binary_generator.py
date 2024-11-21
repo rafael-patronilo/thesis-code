@@ -252,7 +252,8 @@ class BinaryGeneratorBuilder:
         self._to_generate = 0
         self.features : dict[str, BinaryASTNode] = {}
         self.labels : dict[str, BinaryASTNode] = {}
-        pass
+        self.validation_node : Optional[BinaryASTNode] = None
+        self.valid_label = 'valid'
 
     def simplify(
         self,
@@ -274,6 +275,33 @@ class BinaryGeneratorBuilder:
         """
         return _FreeVariable(self._gen_idx())
     
+    
+    def implied_by(self, node : BinaryASTNode) -> BinaryASTNode:
+        """Defines a node that is logically implied by another.
+        This is different from `free_variable() | node` because the implication may be broken 
+            if generating invalid samples is allowed.
+
+        Args:
+            node (BinaryASTNode): The implying node
+
+        Returns:
+            The implied node
+        """
+        return _ImpliedVariable(self._gen_idx(), node)
+
+    def require(self, node : BinaryASTNode):
+        """Adds a node that must be valid. 
+        If called multiple times it considers a conjunction of all requirements.
+
+        Args:
+            node (BinaryASTNode): The node to require
+
+        """
+        if self.validation_node is None:
+            self.validation_node = node
+        else:
+            self.validation_node = self.validation_node & node
+    
     def build(self) -> BinaryGenerator:
         """Builds the generator
 
@@ -292,7 +320,9 @@ class BinaryGeneratorBuilder:
             sorted_feature_nodes, 
             sorted_label_nodes,
             feature_names=sorted_feature_names,
-            label_names=sorted_label_names
+            label_names=sorted_label_names,
+            validation_node=self.validation_node,
+            valid_label=self.valid_label
         )
     
     def clone(self) -> 'BinaryGeneratorBuilder':
@@ -365,6 +395,15 @@ f"""{self.__class__.__name__}(
                 warnings.warn(f"Unrecognized label {l}")
         self.labels = {k : v for k, v in self.labels.items() if k in labels}
         return self
+    
+    def with_valid_label(self, label : str) -> 'BinaryGeneratorBuilder':
+        """Sets the name of the valid label
+
+        Returns:
+            itself for chaining
+        """
+        self.valid_label = label
+        return self
 
     def with_features(self, *features) -> 'BinaryGeneratorBuilder':
         """Removes all but the specified features
@@ -378,16 +417,3 @@ f"""{self.__class__.__name__}(
         self.features = {k : v for k, v in self.features.items() if k in features}
         
         return self
-
-    def implied_by(self, node : BinaryASTNode) -> BinaryASTNode:
-        """Defines a node that is logically implied by another.
-        This is different from `free_variable() | node` because the implication may be broken 
-            if generating invalid samples is allowed.
-
-        Args:
-            node (BinaryASTNode): The implying node
-
-        Returns:
-            The implied node
-        """
-        return _ImpliedVariable(self._gen_idx(), node)

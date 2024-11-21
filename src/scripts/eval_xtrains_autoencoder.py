@@ -241,9 +241,12 @@ def sample_images(
 
 def main():
     model_name = sys.argv[1]
+    model_path = None
+    if len(sys.argv) > 2:
+        model_path = sys.argv[2]
     Tests.run_all()
     with torch.no_grad():
-        with ModelFileManager(model_name) as file_manager:
+        with ModelFileManager(model_name, model_path) as file_manager:
             trainer = Trainer.load_checkpoint(file_manager)
             trainer.model.eval()
             dataset = get_dataset('xtrains_with_concepts')
@@ -253,7 +256,7 @@ def main():
 
             label_indices = dataset.get_collumn_references().get_label_indices(CLASSES)
             selected_val_set = dataset_wrappers.SelectCols(dataset, select_y=label_indices).for_validation()
-            evaluate_permutations(trainer, file_manager, selected_val_set, CLASSES)
+            #evaluate_permutations(trainer, file_manager, selected_val_set, CLASSES)
 
 
 

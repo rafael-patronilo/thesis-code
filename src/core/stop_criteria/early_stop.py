@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Literal, Optional, Callable, Any
 from core import Trainer, MetricsLogger
 import logging
 
@@ -14,7 +14,9 @@ class EarlyStop:
         self.best_value = None
         self.best_epoch = None
         self.metric = metric
-        self.prefer = lambda x, y : x > y if prefer == 'max' else lambda x, y : x < y
+        self.prefer : Callable[[Any, Any], bool] = (
+            (lambda x, y : x > y) if prefer == 'max' else (lambda x, y : x < y)
+        )
         self.threshold = threshold
         self.metrics_logger = metrics_logger
         self.patience = patience

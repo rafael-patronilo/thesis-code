@@ -1,5 +1,5 @@
 from core import Trainer, MetricsLogger, util, datasets
-from core.modules.metrics import get_metric
+from core.metrics import get_metric
 from torch import nn
 import torch
 
@@ -36,6 +36,6 @@ def create_trainer(layer_sizes : list[int], num_outputs : int, dataset_name : st
         model=create_model(layer_sizes, num_outputs),
         loss_fn=torch.nn.BCELoss(),
         optimizer=torch.optim.Adam,
-        training_set=dataset.for_training(),
+        training_set=dataset,
         metric_loggers=[train_metrics, val_metrics],
     )

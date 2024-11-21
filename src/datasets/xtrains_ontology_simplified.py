@@ -5,7 +5,10 @@ import logging
 logger = logging.getLogger(__name__)
 PREFIX = 'xtrains_ontology_simplified'
 
-def _build_ontology(simplify: bool = True, include_intermediary: bool = False) -> BinaryGeneratorBuilder:
+def _build_ontology(
+        simplify: bool = True,
+        include_intermediary: bool = False, 
+        require_some_class: bool = False) -> BinaryGeneratorBuilder:
     gen = BinaryGeneratorBuilder()
     
     # Features
@@ -73,6 +76,8 @@ def _build_ontology(simplify: bool = True, include_intermediary: bool = False) -
     gen.labels["typeA"] = typeA
     gen.labels["typeB"] = typeB
     gen.labels["typeC"] = typeC
+    if require_some_class:
+        gen.require(typeA | typeB | typeC)
 
     return gen
 
@@ -95,25 +100,32 @@ def _random_dataset(func) -> RandomDataset:
         test_seed=43
     )
 
-generators = {
-    "typeA" : _build_ontology().with_labels("typeA").build(),
-    "typeB" : _build_ontology().with_labels("typeB").build(),
-    "typeC" : _build_ontology().with_labels("typeC").build(),
-    "all"   : _build_ontology().build()
-}
+def generators(**kwargs):
+    return{
+        "typeA" : _build_ontology(**kwargs).with_labels("typeA").build(),
+        "typeB" : _build_ontology(**kwargs).with_labels("typeB").build(),
+        "typeC" : _build_ontology(**kwargs).with_labels("typeC").build(),
+        "all"   : _build_ontology(**kwargs).build()
+    }
 
 random_datasets : dict[str, RandomDataset] = {
     f"{PREFIX}_rand_{k}" : _random_dataset(v.generate_random) 
-    for k, v in generators.items()}
+    for k, v in generators().items()}
 
 complete_datasets : dict[str, SplitDataset] = {
     f"{PREFIX}_comp_{k}" : v.as_complete_dataset() 
-    for k, v in generators.items()}
+    for k, v in generators().items()}
 
 complete_inv_datasets : dict[str, SplitDataset] = {
     f"{PREFIX}_comp_inv_{k}" : v.as_complete_dataset(force_valid=False) 
-    for k, v in generators.items()}
+    for k, v in generators().items()}
+
+complete_some_class : dict[str, SplitDataset] = {
+    f"{PREFIX}_comp_some_{k}" : v.as_complete_dataset(force_valid=False) 
+    for k, v in generators(require_some_class=True).items()}
+
 
 register_datasets(**random_datasets)
 register_datasets(**complete_datasets)
 register_datasets(**complete_inv_datasets)
+register_datasets(**complete_some_class)

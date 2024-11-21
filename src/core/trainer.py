@@ -94,13 +94,12 @@ class _EvalExceptionWrapper(BaseException):
 
 
 class Trainer:
-
     def __init__(
             self,
             model : 'nn.Module',
             loss_fn : Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
             optimizer : Callable[[Any], 'Optimizer'],
-            training_set : 'Dataset',
+            training_set : 'SplitDataset | Dataset',
             metric_loggers : list[MetricsLogger],
             #callbacks = None,
             epoch : int = 0,
@@ -280,8 +279,13 @@ class Trainer:
     def training_loader(self):
         if self._training_loader is None:
             generator = torch.Generator(device=torch.get_default_device())
+            
+            if isinstance(self.training_set, SplitDataset):
+                training_set = self.training_set.for_training()
+            else:
+                training_set = self.training_set
             self._training_loader = DataLoader(
-                self.training_set, 
+                training_set, 
                 batch_size=self.batch_size,
                 num_workers=self.num_loaders,
                 shuffle=self.shuffle,
@@ -290,7 +294,7 @@ class Trainer:
                 pin_memory=True
             )
         return self._training_loader
-    
+
     def eval_metrics(self):
         if self.model_file_manager is None:
             raise ValueError("Model file manager not initialized")
@@ -350,22 +354,6 @@ class Trainer:
         #for callback in self.callbacks:
         #    callback(self.model, self.optimizer, self.metrics, epoch)
 
-    def __repr__(self) -> str:
-        fields = []
-        for k, v in self.__dict__.items():
-            if k == 'model_file_manager':
-                continue
-            if k.startswith('_'):
-                continue
-            if k == 'training_set':
-                if hasattr(v, 'dataset'):
-                    fields.append(f"{k} = {v.dataset}")
-                else:
-                    fields.append(f"{k} = {v.__class__.__name__}")
-                continue
-            fields.append(f"{k} = {v}")
-        return f"Trainer(\n{',\n'.join(fields)}\n)"
-
     def __train_step(self, X, Y):
         self.model.train()
         self.optimizer.zero_grad()
@@ -374,6 +362,35 @@ class Trainer:
         loss.backward()
         self.optimizer.step()
         return loss, pred
+
+    def try_get_validation_set(self) -> Dataset:
+        if isinstance(self.training_set, SplitDataset):
+            return self.training_set.for_validation()
+        elif hasattr(self.training_set, 'dataset') and isinstance(self.training_set.dataset, SplitDataset): # type: ignore
+            return self.training_set.dataset.for_validation() # type: ignore
+        elif hasattr(self.training_set, 'for_validation'):
+            return self.training_set.for_validation() # type: ignore
+        else:
+            return self.training_set
+
+    def __repr__(self) -> str:
+        fields = []
+        for k, v in self.__dict__.items():
+            if k == 'model_file_manager':
+                continue
+            if k.startswith('_'):
+                continue
+            if k == 'training_set':
+                if isinstance(v, SplitDataset):
+                    fields.append(f"{k} = {v}")
+                elif hasattr(v, 'dataset'):
+                    fields.append(f"{k} = {v.dataset}")
+                else:
+                    fields.append(f"{k} = {v.__class__.__name__}")
+                continue
+            fields.append(f"{k} = {v}")
+        return f"Trainer(\n{',\n'.join(fields)}\n)"
+
 
 
     @classmethod

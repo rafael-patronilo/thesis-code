@@ -146,7 +146,7 @@ def create_trainer(dataset_name : str, **kwargs) -> Trainer:
         model=make_model(input_shape, **kwargs),
         loss_fn=loss_fn,
         optimizer=torch.optim.Adam,
-        training_set=dataset.for_training(),
+        training_set=dataset,
         metric_loggers=[train_metrics, val_metrics],
         stop_criteria=[EarlyStop(
             metric='loss', prefer='min', metrics_logger ='val', threshold=EARLY_STOP.threshold, patience=EARLY_STOP.patience)],
