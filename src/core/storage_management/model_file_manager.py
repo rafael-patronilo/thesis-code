@@ -50,6 +50,8 @@ class ModelFileManager:
             models_path : Optional['PathLike'] = None
         ) -> None:
         self.models_path = Path(models_path or MODELS_PATH)
+        if not self.models_path.exists() or not self.models_path.is_dir():
+            raise NotADirectoryError(f"Models path not found at {self.models_path}")
         self.__metrics_bufferers : dict[str, _MetricsBufferer]= {}
         self.path = self.models_path.joinpath(path)
         self.model_name = self.path.name
