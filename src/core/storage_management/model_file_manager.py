@@ -1,7 +1,7 @@
 
 from collections import OrderedDict
 from pathlib import Path
-from typing import Literal, NamedTuple, Any, Optional, Self, assert_never, TYPE_CHECKING
+from typing import Callable, Literal, NamedTuple, Any, Optional, Self, assert_never, TYPE_CHECKING
 import datetime
 import logging
 import torch
@@ -43,6 +43,7 @@ class ModelFileManager:
     METRICS_DIR = ""
     CHECKPOINT_FORMAT = "epoch_{epoch:0>9}.pth"
     DEBUG_DIR = "debug"
+    CACHE_DIR = "cache"
     
 
     def __init__(self,
@@ -66,6 +67,7 @@ class ModelFileManager:
         self.results_dest = self.path.joinpath(self.RESULTS_DIR)
         self.debug_dir = self.path.joinpath(self.DEBUG_DIR)
         self.last_checkpoint = self.path.joinpath(self.LAST_CHECKPOINT)
+        self.cache_dir = self.path.joinpath(self.CACHE_DIR)
 
     def __create_paths(self, exists_ok = False):
         logger.debug(f"Creating paths for model {self.model_name} at {self.path}")
@@ -74,6 +76,7 @@ class ModelFileManager:
         self.metrics_dest.mkdir(parents=True, exist_ok=True)
         self.results_dest.mkdir(parents=True, exist_ok=True)
         self.debug_dir.mkdir(parents=True, exist_ok=True)
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
 
     def init_directory(self):
         self.__create_paths(exists_ok=True)
@@ -125,6 +128,17 @@ class ModelFileManager:
             logger.error(f"Metrics file for {identifier} not initialized")
         bufferer.add(records)
         #TODO tensorboard logging?
+
+    def cache(self, key : str, factory : Callable[[], Any]) -> Any:
+        self.__assert_context()
+        path = self.cache_dir.joinpath(key)
+        if not path.exists():
+            value = factory()
+            torch.save(value, path)
+        else:
+            logger.info(f"Loading cached value for {key}")
+            value = torch.load(path, weights_only=False)
+        return value
 
     def flush(self):
         self.__assert_context()

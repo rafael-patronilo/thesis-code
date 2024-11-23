@@ -171,7 +171,7 @@ def rearrange_batch(
     new_ty = true_y.unsqueeze(1).expand_as(new_py)
     return new_py, new_ty
 
-def get_min_max(model : torch.nn.Module, dataloader : torch_data.DataLoader):
+def create_min_max_normalizer(model : torch.nn.Module, dataloader : torch_data.DataLoader):
     """Create a MinMax normalization function
 
     Args:
@@ -181,10 +181,13 @@ def get_min_max(model : torch.nn.Module, dataloader : torch_data.DataLoader):
     min_value = float('inf')
     max_value = float('-inf')
     for x, _ in dataloader:
+        x = x.to(torch.get_default_device())
         pred : torch.Tensor = model(x)
         min_value = min(min_value, pred.min().item())
         max_value = max(max_value, pred.max().item())
-    return min_value, max_value
+    logger.info(f"Min: {min_value}, Max: {max_value}")
+    value_range = max_value - min_value
+    return lambda tensor : (tensor - min_value) / value_range
 
 def find_best_permutation(
         permutations : torch.Tensor,
@@ -195,10 +198,8 @@ def find_best_permutation(
     correct_counts = torch.zeros(permutations.size(0), num_classes)
     model : torch.nn.Module = trainer.model.encoder
     total_samples : int = 0
-    min, max = get_min_max(model, loader)
-    value_range = max - min
-    def normalize(tensor : torch.Tensor):
-        return (tensor - min) / value_range
+    logger.info("Computing min and max")
+    normalize = create_min_max_normalizer(model, loader)
     last_log = time.time()
     for x, y in loader:
         x = x.to(torch.get_default_device())
@@ -223,12 +224,17 @@ def find_best_permutation(
     accuracies = accuracies.tolist()
     accuracy = best_sums[best_permutation_i] / (total_samples * num_classes)
     accuracy = accuracy.item()
+    logger.debug(
+        f"Best counts: {best_counts[best_permutation_i]}\n"
+        f"Best sums: {best_sums[best_permutation_i]}\n"
+        f"Total samples: {total_samples}")
     logger.log(NOTIFY, f"Best permutation is {best_permutation} with the feature inversion {best_negate}\n"
                 f"\tGlobal accuracy: {accuracy}\n"
                 f"\tConcept accuracies: {accuracies}")
+    
     return normalize, best_permutation, best_negate, accuracy, accuracies
 
-def evaluate_permutations(
+def evaluate_encoding(
         trainer : Trainer,
         file_manager : ModelFileManager, 
         dataset : SplitDataset,
@@ -236,10 +242,10 @@ def evaluate_permutations(
         ):
     num_classes = len(classes)
     indices = list(range(num_classes))
-    logger.info(f"Evaluating permutations for {classes}")
+    logger.info(f"Evaluating if encoding can find classes {classes}")
     
     logger.info("Generating permutations tensor...")
-    permutations = generate_permutations_tensor(indices)
+    permutations = file_manager.cache('permutations', lambda:generate_permutations_tensor(indices))
     logger.info(f"{permutations.size(0)} permutations generated")
 
     training_loader = torch_data.DataLoader(
@@ -250,17 +256,20 @@ def evaluate_permutations(
     normalize, best_permutation, best_negate, train_accuracy, train_accuracies = find_best_permutation(
         permutations, num_classes, trainer, training_loader)
     del permutations
+    del training_loader
     val_loader = torch_data.DataLoader(
-        dataset.for_training(), 
+        dataset.for_validation(), 
         batch_size=64, num_workers=NUM_WORKERS, worker_init_fn=dataloader_worker_init_fn)
     counts = torch.zeros(num_classes)
     total_samples = 0
     logger.info("Starting evaluation on validation dataset...")
     for x, y in val_loader:
+        x = x.to(torch.get_default_device())
+        y = y.to(torch.get_default_device())
         pred : torch.Tensor = trainer.model.encoder(x)
         pred = normalize(pred)
-        pred = pred[best_permutation]
-        pred = torch.where(best_negate, -pred, pred)
+        pred = pred[:, best_permutation]
+        pred = torch.where(best_negate, 1-pred, pred)
         counts += produce_counts(pred, y)
         total_samples += x.size(0)
     accuracies = counts / total_samples
@@ -270,8 +279,11 @@ def evaluate_permutations(
     logger.info("Validation:\n"                
                 f"\tGlobal accuracy: {accuracy}\n"
                 f"\tConcept accuracies: {accuracies}")
+    logger.debug(
+        f"\tCounts: {counts}\n"
+        f"\tTotal samples: {total_samples}")
     best_permutation = best_permutation.tolist()
-    best_negate = (-1 if val else 1 for val in best_negate)
+    best_negate = [-1 if val else 1 for val in best_negate]
     result_json = json.dumps({
         'best_permutation':best_permutation,
         'best_negate':best_negate,
@@ -320,7 +332,7 @@ def main():
 
             label_indices = dataset.get_collumn_references().get_label_indices(CLASSES)
             selected_set = dataset_wrappers.SelectCols(dataset, select_y=label_indices)
-            evaluate_permutations(trainer, file_manager, selected_set, CLASSES)
+            evaluate_encoding(trainer, file_manager, selected_set, CLASSES)
             logger.log(NOTIFY, 'Done')
 
 
