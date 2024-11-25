@@ -168,6 +168,18 @@ class SplitDataset:
             )
         else:
             return f"{self.__class__.__name__}(\n{sizes})"
+        
+    @classmethod
+    def of(cls, dataset : 'Dataset | SplitDataset') -> 'SplitDataset':
+        if isinstance(dataset, cls):
+            return dataset
+        elif hasattr(dataset, 'dataset'):
+            return cls.of(getattr(dataset, 'dataset'))
+        elif isinstance(dataset, SplitDataset):
+            return dataset.__class__.of(dataset)
+        else:
+            raise ValueError(f"Cannot convert {dataset} to SplitDataset")
+
 
 
 

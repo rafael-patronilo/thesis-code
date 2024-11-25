@@ -23,13 +23,14 @@ LOG_STEP_EVERY = 5*60 # 5 minutes
 class MetricsLogger:
     def __init__(self, 
                 identifier : str,
-                metric_functions : dict[str, MetricFunction] | Sequence[NamedMetricFunction],
+                metric_functions : dict[str, TorchMetric],
                 dataset : Callable[[],TorchDataset],
                 target_module : Optional[str] = None,
                 last_n_size = 10,
                 batch_size = 64,
                 num_loaders : int = int(os.getenv('NUM_THREADS', 4)),
                 ):
+        #TODO deprecated checks in this constructor
         self.identifier = identifier
         self.__metric_functions : dict[str, Any]
         if type(metric_functions) is list:
@@ -227,7 +228,9 @@ class MetricsLogger:
         self._eval(model) #TODO rework this class and the concept of metric
         for metric_name, metric_fn in self.ordered_metrics:
             if isinstance(metric_fn, TorchMetric):
-                value = metric_fn.compute().item()
+                value = metric_fn.compute()
+                if isinstance(value, torch.Tensor):
+                    value = value.item()
             else:
                 value = metric_fn(epoch=epoch)
             record[metric_name] = value

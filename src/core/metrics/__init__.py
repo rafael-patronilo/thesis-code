@@ -8,7 +8,7 @@ from core.datasets import SplitDataset
 from .elapsed import Elapsed
 from typing import Callable
 
-MetricFunction = Callable[[torch.Tensor, torch.Tensor], float]
+MetricFunction = Callable[[torch.Tensor, torch.Tensor], float] | Metric
 NamedMetricFunction = str | tuple[str, MetricFunction]
 
 class DecoratedTorchMetric:
@@ -31,9 +31,7 @@ class DecoratedTorchMetric:
         return f"DecoratedTorchMetric({self.metric})"
 
 __all_metrics : dict[str, MetricFunction | type] = {
-    'accuracy' : DecoratedTorchMetric(torch_metrics.binary_accuracy, flatten_tensors=True),
-    'f1_score' : DecoratedTorchMetric(torch_metrics.binary_f1_score, flatten_tensors=True),
-    'epoch_elapsed' : Elapsed,
+    'epoch_elapsed' : Elapsed
 }
 
 

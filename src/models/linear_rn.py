@@ -1,6 +1,8 @@
+import torcheval.metrics
 from core import Trainer, MetricsLogger, util, datasets
-from core.metrics import get_metric
+from core.metrics import Elapsed, metric_wrappers
 from torch import nn
+import torcheval
 import torch
 
 def create_model(layer_sizes : list[int], num_outputs : int) -> nn.Module:
@@ -13,23 +15,23 @@ def create_model(layer_sizes : list[int], num_outputs : int) -> nn.Module:
     return nn.Sequential(*layers)
 
 def create_trainer(layer_sizes : list[int], num_outputs : int, dataset_name : str) -> Trainer:
-    loss_fn = torch.nn.BCELoss()
-    loss_metric = util.DecoratedTorchMetric(loss_fn) #TODO metrics here need to be updated
     dataset = datasets.get_dataset(dataset_name)
-    metrics = ['accuracy', 'f1_score', 'epoch_elapsed']
-    metric_functions : dict = {
-        'loss': loss_metric,
+    metrics_per_clas = {
+        'accuracy':torcheval.metrics.BinaryAccuracy,
+        'f1_score':torcheval.metrics.BinaryF1Score
     }
-    for metric in metrics:
-        metric_functions[metric] = get_metric(metric)
+
+    def metrics_factory() -> dict[str, torcheval.metrics.Metric]:
+        return metric_wrappers.SelectCol.col_wise(dataset, metrics_per_clas) | {'epoch_elapsed':Elapsed()}
+    
     train_metrics = MetricsLogger(
         identifier='train',
-        metric_functions=metric_functions,
+        metric_functions=metrics_factory(),
         dataset=dataset.for_training_eval
     )
     val_metrics = MetricsLogger(
         identifier='val',
-        metric_functions=metric_functions,
+        metric_functions=metrics_factory(),
         dataset=dataset.for_validation
     )
     return Trainer(

@@ -34,6 +34,13 @@ class SplitDatasetWrapper(SplitDataset):
     def __repr__(self):
         fields = "".join(f", {k}={v}" for k, v in self.__dict__.items() if k != 'inner')
         return f"{self.__class__.__name__}({self.inner}{fields})"
+    
+    @classmethod
+    def of(cls, dataset : Dataset | SplitDataset) -> SplitDataset:
+        if isinstance(dataset, cls):
+            return dataset.unwrap()
+        else:
+            return SplitDataset.of(dataset)
 
 def unwrap(dataset : SplitDataset) -> SplitDataset:
     if isinstance(dataset, SplitDatasetWrapper):

@@ -4,7 +4,7 @@ import torch
 import abc
 import numpy as np
 from . import random_dataset
-from . import SplitDataset, CollumnReferences
+from . import SplitDataset, CollumnReferences, CollumnSubReferences
 from torch.utils.data import Dataset, Subset
 import warnings
 
@@ -150,18 +150,31 @@ class BinaryGenerator:
         self.labels : list[BinaryASTNode] = labels
         self.feature_names = feature_names
         self.valid_label = valid_label
-        self.label_names = label_names + [valid_label] if label_names is not None else None
+        self.label_names = label_names
         self.validation_node = validation_node
 
-    def get_collumn_references(self) -> CollumnReferences:
-        raise NotImplementedError("Collumn references not available")
-    
-    def _attach_collumn_references[T : SplitDataset](self, dataset : T) -> T:
-        # TODO
-        #col_refs = self.get_collumn_references()
-        #if col_refs is not None:
-        #    dataset.collumn_references = col_refs
+    def _attach_collumn_references[T:SplitDataset](self, dataset : T) -> T:
+        include_valid = dataset.get_shape()[1][0] == len(self.labels) + 1
+        dataset.collumn_references = self.get_collumn_references(include_valid)
         return dataset
+
+    def get_collumn_references(self, include_valid = False) -> CollumnReferences:
+        if self.feature_names is None or self.label_names is None:
+            raise ValueError("Feature and label names must be defined")
+        if include_valid:
+            label_names = self.label_names + [self.valid_label]
+        else:
+            label_names = self.label_names
+        return CollumnReferences(
+            CollumnSubReferences(
+                {name: idx for idx, name in enumerate(self.feature_names)},
+                self.feature_names
+            ),
+            CollumnSubReferences(
+                {name: idx for idx, name in enumerate(label_names)},
+                label_names
+            )
+        )
     
     def generate_random(self, rng : torch.Generator) -> tuple[torch.Tensor, torch.Tensor]:
         return self.generate_samples(torch.randint(0, 2, (self.to_generate,), generator=rng, device='cpu'))

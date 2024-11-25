@@ -17,7 +17,7 @@ def main():
     # Load study manager
     file_manager = StudyFileManager("rn_xtrains_1")
     dataset = datasets.get_dataset(DATASET)
-    num_ouputs = dataset.get_shape()[1].size(0)
+    num_ouputs = dataset.get_shape()[1][0]
     study_manager = StudyManager(
         file_manager,
         compare_strategy="max",

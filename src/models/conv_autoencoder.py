@@ -24,13 +24,22 @@ def make_model(
         conv_layers : Sequence[int | tuple[Literal['pool'], int]], 
         linear_layers : Sequence[int], 
         encoding_size : int, 
-        encoding_activation : Literal['relu', 'sigmoid'] = 'sigmoid',
+        hidden_activations : Literal['relu'] | tuple[Literal['leaky_relu'], float] = 'relu',
+        encoding_activation : Literal['relu', 'sigmoid'] | tuple[Literal['leaky_relu'], float] = 'sigmoid',
         kernel_size : int = 3
     ):
     logger.debug(f"Creating convolutional autoencoder...")
     same_padding = (kernel_size - 1) // 2
     encoder_layers : list[nn.Module] = []
     deconv_layers : list[int | tuple[Literal['pool'], int, Sequence[int]]] = []
+    def hidden_activation():
+        match hidden_activations:
+            case 'relu':
+                return nn.ReLU()
+            case ('leaky_relu', alpha):
+                return nn.LeakyReLU(alpha)
+            case never:
+                assert_never(never)
     in_channels = input_shape[0]
     in_shape = input_shape[1:]
     logger.debug(f"\t{in_channels} x {in_shape} -> ")
@@ -44,7 +53,7 @@ def make_model(
             case out_channels:
                 assert isinstance(out_channels, int)
                 encoder_layers.append(nn.Conv2d(in_channels, out_channels, kernel_size, padding=same_padding))
-                encoder_layers.append(nn.ReLU())
+                encoder_layers.append(hidden_activation())
                 deconv_layers.append(in_channels)
                 in_channels = out_channels
                 logger.debug(f"\tconv")
@@ -59,7 +68,7 @@ def make_model(
 
     for out_features in linear_layers:
         encoder_layers.append(nn.Linear(in_features, out_features))
-        encoder_layers.append(nn.ReLU())
+        encoder_layers.append(hidden_activation())
         in_features = out_features
         logger.debug(f"\tLinear {out_features} ->")
     
@@ -70,6 +79,8 @@ def make_model(
             encoder_layers.append(nn.ReLU())
         case 'sigmoid':
             encoder_layers.append(nn.Sigmoid())
+        case ('leaky_relu', alpha):
+            encoder_layers.append(nn.LeakyReLU(alpha))
         case never:
             assert_never(never)
     in_features = encoding_size
@@ -78,11 +89,11 @@ def make_model(
     decoder_layers : list[nn.Module] = []
     for out_features in reversed(linear_layers):
         decoder_layers.append(nn.Linear(in_features, out_features))
-        decoder_layers.append(nn.ReLU())
+        decoder_layers.append(hidden_activation())
         in_features = out_features
         logger.debug(f"\tLinear {out_features} ->")
     decoder_layers.append(nn.Linear(in_features, last_conv_total_features))
-    decoder_layers.append(nn.ReLU())
+    decoder_layers.append(hidden_activation())
     logger.debug(f"\tLinear {last_conv_total_features} ->")
 
     decoder_layers.append(nn.Unflatten(1, [in_channels] + in_shape)) # type: ignore
@@ -105,7 +116,7 @@ def make_model(
                 if i == len(deconv_layers) - 1:
                     decoder_layers.append(nn.Sigmoid())
                 else:
-                    decoder_layers.append(nn.ReLU())
+                    decoder_layers.append(hidden_activation())
                 in_channels = out_channels
                 logger.debug(f"\tconv transpose")
         logger.debug(f"\t{in_channels} x {in_shape} ->")
