@@ -4,6 +4,8 @@ from typing import NamedTuple
 from torch import nn
 import sys
 
+STUDY_NAME = "xtrains_autoencoders_3"
+
 CONVOLUTIONS = (
     [32, 32, ('pool', 2)] + 
     [64, ('pool', 2)] * 2 + 
@@ -28,14 +30,15 @@ def make_config(linears):
         conv_layers = CONVOLUTIONS,
         linear_layers = linears,
         encoding_size = 9,
-        encoding_activation = 'relu',
+        encoding_activation = ('leaky_relu', 0.01),
+        hidden_activations = ('leaky_relu', 0.01),
         kernel_size = 3
     )
 
 
 def main():
     # Load study manager
-    file_manager = StudyFileManager(f"xtrains_autoencoders_2")
+    file_manager = StudyFileManager(STUDY_NAME)
     study_manager = StudyManager(
         file_manager,
         compare_strategy="min",

@@ -5,6 +5,7 @@ import warnings
 
 if TYPE_CHECKING:
     from torch.utils.data import Dataset as TorchDataset
+    import torch
 
 class MetricWrapper(Metric):
     def __init__(self, inner : Metric) -> None:
@@ -59,7 +60,8 @@ class SelectCol(MetricWrapper):
             select : int | list[int],
             apply_to_preds : bool = True,
             apply_to_true : bool = True,
-            flatten : bool = True
+            flatten : bool = True,
+            batched : bool = True
         ) -> None:
         super().__init__(inner)
         if isinstance(select, int):
@@ -68,16 +70,22 @@ class SelectCol(MetricWrapper):
         self.apply_to_preds = apply_to_preds
         self.apply_to_true = apply_to_true
         self.flatten = flatten
+        self.batched = batched
+
+    def _select_tensor(self, tensor : 'torch.Tensor') -> 'torch.Tensor':
+        if self.batched:
+            tensor = tensor[:, self.select]
+        else:
+            tensor = tensor[self.select]
+        if self.flatten:
+            tensor = tensor.flatten()
+        return tensor
 
     def update(self, y_pred, y_true):
         if self.apply_to_preds:
-            y_pred = y_pred[self.select]
-            if self.flatten:
-                y_pred = y_pred.flatten()
+            y_pred = self._select_tensor(y_pred)
         if self.apply_to_true:
-            y_true = y_true[self.select]
-            if self.flatten:
-                y_true = y_true.flatten()
+            y_true = self._select_tensor(y_true)
         return self.inner.update(y_pred, y_true)
     
     @classmethod
@@ -94,3 +102,19 @@ class SelectCol(MetricWrapper):
             for label_idx, label_name in enumerate(label_names):
                 result[f"{name}_{label_name}"] = cls(metric_factory(), label_idx)
         return result
+    
+    @classmethod
+    def from_names(
+            cls, 
+            names : str | list[str],  
+            dataset : 'TorchDataset | SplitDataset',  
+            metric : Metric, 
+            **kwargs
+        ) -> 'SelectCol':
+        split_dataset = SplitDataset.of(dataset)
+        names_to_cols = split_dataset.get_collumn_references().labels.names_to_collumn
+        if not isinstance(names, list):
+            names = [names]
+        cols = [names_to_cols[name] for name in names]
+        return SelectCol(metric, cols, **kwargs)
+        
