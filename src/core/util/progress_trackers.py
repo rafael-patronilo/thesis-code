@@ -1,127 +1,169 @@
+"""Utility classes for keeping track of progress on long tasks
+"""
 from abc import ABC, abstractmethod
 from datetime import timedelta, datetime
-from typing import Callable, ContextManager, Concatenate, Generator
+from typing import Callable, ContextManager, Concatenate, Generator, TextIO
+from contextlib import contextmanager
 from functools import wraps
 import logging
 
-class ProgressTickCallback[**P](ABC):
-    def __init__(self):
-        pass
-    
-    @abstractmethod
-    def tick(self, *args : P.args, **kwargs : P.kwargs):
-        raise NotImplementedError()
-
-class ProgressTracker[**P](ContextManager[ProgressTickCallback[P]]):
-    pass
-
-def decorator[**D, T, R](
-        tracker : ProgressTracker[T],  func : Callable[D, Generator[T, None, R]]) -> Callable[D, R]:
-    @wraps(func)
-    def wrapped(*args : D.args, **kwargs : D.kwargs):
-        with tracker as tick_callback:
-            gen = iter(func(*args, **kwargs))
-            try:
-                while True:
-                    yielded = next(gen)
-                    tick_callback.tick(yielded)
-            except StopIteration as s:
-                return s.value
-    return wrapped
-
-class IntervalProgressTracker[**P](ProgressTracker[P]):
+class ProgressTracker:
     def __init__(
-            self,
-            interval : float | timedelta,
-            tick_callback : Callable[Concatenate[timedelta, P], None],
-            start_callback : Callable[[], None] | None = None,
-            end_callback :  Callable[[timedelta], None] | None = None,
-            do_first_tick : bool = False
+            self, 
+            expected_total : float | None = None,
+            callbacks : list[Callable[['ProgressTracker'], None]] = [],
+            counter_name : str | None = ""
         ):
-        if isinstance(interval, (int, float)):
-            interval = timedelta(seconds=interval)
-        self.interval : timedelta = interval
-        self.tick_callback = tick_callback
-        self.start_callback : Callable[[], None] = start_callback or (lambda : None)
-        self.end_callback : Callable[[timedelta], None] = end_callback or (lambda _ : None)
-        self.do_first_tick = do_first_tick
-        self.callback_object = None
-    
-    def __enter__(self) -> ProgressTickCallback[P]:
-        if self.callback_object is not None:
-            raise ValueError("Context manager already in use")
-        class _CMObject(ProgressTickCallback[P]):
-            def __init__(self, cm : IntervalProgressTracker):
-                self.cm = cm
-                self.enter_time = datetime.now()
-                if cm.do_first_tick:
-                    self.last_tick = datetime.min
-                else:
-                    
-                    self.last_tick = self.enter_time
-            def tick(self, *args : P.args, **kwargs: P.kwargs):
-                now = datetime.now()
-                if now - self.last_tick >= self.cm.interval:
-                    self.cm.tick_callback(now - self.enter_time, *args, **kwargs)
-                    self.last_tick = now
-        self.callback_object = _CMObject(self)
-        return self.callback_object
-
-    def __exit__(self, _t, _v, _tb) -> bool | None:
-        if self.callback_object is None:
-            raise ValueError("Context manager not in use")
-        else:
-            now = datetime.now()
-            delta : timedelta = now - self.callback_object.enter_time
-            self.end_callback(delta)
-            self.callback_object = None
-
-
-class CountingTracker(ProgressTracker[int]):
-    def __init__(self, counter_name : str, inner_tracker : ProgressTracker[str], start_value : int = 0):
+        self.progress : float = 0
+        self.expected_total = expected_total
+        self.callbacks = callbacks
+        self.start_time = datetime.now()
         self.counter_name = counter_name
-        self.inner_tracker = inner_tracker
-        self.start_value = start_value
+    
+    
+    def tick(self, steps : float = 1, expected_total : float | None = None):
+        """Ticks the tracker, adding `steps` to progress counter
 
-    def __enter__(self) -> ProgressTickCallback[int]:
-        inner_tick_callback = self.inner_tracker.__enter__()
-        class _TickCallback(ProgressTickCallback[int]):
-            def __init__(self, counter_name : str, start_value : int):
-                self.counter_name = counter_name
-                self.counter = start_value
+        Args:
+            steps (float): Amount of steps taken since last tick
+            expected_total (float | None, optional): The total expected number of steps. 
+                Can be used to defer determining the total or to modify the total later. Defaults to None.
+        """
+        self.set_progress(self.progress + steps)
+
+    
+    def set_progress(self, progress : float, expected_total : float | None = None):
+        """Ticks the tracker, overwritin progress with the given argument
+
+        Args:
+            progress (float): Amount of steps taken since last tick
+            expected_total (float | None, optional): The total expected number of steps. 
+                Can be used to defer determining the total or to modify the total later. Defaults to None.
+        """
+        self.progress = progress
+        if expected_total is not None:
+            self.expected_total = expected_total
+        if self.expected_total is not None and self.expected_total < self.progress:
+            self.expected_total = self.progress
+        for callback in self.callbacks:
+            callback(self)
+    
+    def elapsed_time(self) -> timedelta:
+        return datetime.now() - self.start_time
+
+    def time_per_step(self) -> timedelta:
+        return self.elapsed_time() / self.progress
+    
+    def percent_done(self) -> float | None:
+        if self.expected_total is None:
+            return None
+        return self.progress / self.expected_total
+    
+    def percent_left(self) -> float | None:
+        done = self.percent_done()
+        if done is None:
+            return None
+        return 1.0 - done
+    
+    def steps_left(self) -> float | None:
+        if self.expected_total is None:
+            return None
+        return self.expected_total - self.progress
+
+    def estimated_time_left(self) -> timedelta | None:
+        steps = self.steps_left()
+        if steps is None:
+            return None
+        return self.time_per_step() * steps
+    
+    
+
+    def __format__(self, specification : str):
+        TOKENS = ['/','l',' ', '\t']
+        invalid = [c for c in specification if c not in TOKENS]
+        if len(invalid) > 0: raise ValueError(f'Unrecognized format tokens: {invalid}')
+        del invalid, TOKENS
         
-            def tick(self, amount : int):
-                self.counter += amount
-                inner_tick_callback.tick(f"{self.counter_name} = {self.counter}")
-        return _TickCallback(self.counter_name, self.start_value)
+        result = specification
+
+        if self.counter_name is not None:
+            result = result.replace('l', self.counter_name)
+        else:
+            result = ''.join(part.rstrip() for part in result.split('l'))
+        parts = result.split('/')
+        if len(parts) == 2:
+            if self.expected_total is not None:
+                x = f'{self.expected_total:.0f}'
+                if 'x' in parts[1]: parts[1] = parts[1].replace('x', x)
+                else: parts[1] += x
+            else:
+                del parts[1]
+        elif len(parts) > 2:
+            raise ValueError("Too many occurence of '/' in format specifier")
+        x = f'{self.progress:.0f}'
+        if 'x' in parts[0]: parts[0].replace('x', x)
+        else: parts[0] += x
+        return ''.join(parts)
+    
+    def __str__(self):
+        return f'{self:x l / x}'
+
+class LogProgressTracker(ProgressTracker):
+        def __init__(self, task_name : str, cooldown : timedelta, log_callback : Callable[[str], None], **kwargs):
+            super().__init__(**kwargs)
+            self.last_log = self.start_time
+            self.cooldown = cooldown
+            self.task_name = task_name
+            self.log_callback = log_callback
+            self.callbacks.append(self.tick_callback)
 
 
-    def __exit__(self, exc_type, exc_value, traceback) -> bool | None:
-        return self.inner_tracker.__exit__(exc_type, exc_value, traceback)
+        def tick_callback(self,_):
+            now = datetime.now()
+            if now - self.last_log >= self.cooldown:
+                self.last_log = now
+                self.log_callback(self.produce_message())
 
+        def produce_message(self):
+            message = (f'\t{self.task_name} taking longer than {self.cooldown} ({self.elapsed_time}).\n' 
+                f'\t\tProgress: {self:x l / x}')
+            if self.expected_total is not None:
+                estimated : timedelta = self.estimated_time_left() #type:ignore
+                percent_done : float = self.percent_done() #type:ignore
+                message += (f'({percent_done:.2%})\n'
+                        f'Estimated time left: {estimated}'
+                )
+            return message
 
-class IntervalLogger(IntervalProgressTracker[str]):
-    def __init__(
-        self,
-        logger : logging.Logger, 
-        op_name : str, 
-        interval : float | timedelta = timedelta(minutes=2),
-        level : int =  logging.INFO,
-        log_start : bool | Callable[[], None] = True,
-        log_end : bool | Callable[[timedelta], None] = True
+@contextmanager
+def log_cooldown(
+        logger : logging.Logger | TextIO, 
+        task_name : str,
+        cooldown : float | timedelta = timedelta(minutes=2),
+        counter_name : str | None = None,
+        log_level : int = logging.INFO,
+        expected_total : int | None = None
     ):
-        if not isinstance(interval, timedelta):
-            interval = timedelta(seconds=interval)
-        tick_callback = lambda delta, msg : logger.log(level, f'\t{op_name} running longer than {interval} ({delta}). {msg}')
-        
-        def default_or_none(value, default):
-            return {True: default, False : None}.get(value, value)
-        start_callback = lambda : logger.log(level, f"{op_name} starting")
-        start_callback = default_or_none(log_start, start_callback)
-        end_callback = lambda delta : logger.log(level, f'{op_name} complete. ({delta}).')
-        end_callback = default_or_none(log_end, end_callback)
-        super().__init__(interval, tick_callback, start_callback, end_callback)
+    if not isinstance(cooldown, timedelta):
+        cooldown = timedelta(seconds=cooldown)
+    def log(msg):
+        if isinstance(logger, logging.Logger):
+            logger.log(log_level, msg)
+        else:
+            logger.write(msg + '\n')
+    log(f'{task_name} starting')
 
-    def counting(self, counter_name : str, start_value : int = 0) -> CountingTracker:
-        return CountingTracker(counter_name, self, start_value)
+    tracker = LogProgressTracker(
+        cooldown=cooldown,
+        task_name= task_name,
+        expected_total=expected_total,
+        log_callback=log,
+        counter_name=counter_name
+    )
+    try:
+        yield tracker
+    finally:
+        log(f'{task_name} complete ({tracker.elapsed_time()})')
+
+
 

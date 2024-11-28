@@ -14,16 +14,17 @@ import torch
 from torch import nn
 from datetime import timedelta
 from . import util as utils
-from core.util.progress_trackers import IntervalProgressTracker
+from core.util.progress_trackers import log_cooldown
 if TYPE_CHECKING:
     from torch.optim.optimizer import Optimizer
 
 LOG_STEP_INTERVAL = timedelta(minutes=5)
 def _epoch_step_logger(epoch : int):
-    return IntervalProgressTracker.log_at_interval(
+    return log_cooldown(
         logger,
         f'Epoch {epoch}',
-        LOG_STEP_INTERVAL
+        LOG_STEP_INTERVAL,
+        counter_name='batches'
     )
 
 def _dataloader_worker_init_fn(worker_id):
@@ -334,7 +335,7 @@ class Trainer:
                     loss_sum += loss.item()
                     update_metrics(pred, Y)
                     batches += 1
-                    progress_tracker.tick(f'{batches=}')
+                    progress_tracker.tick()
             self.first_epoch = False
         except BaseException as e:
             logger.error(f"Exception during training loop {debug_model(e, self.model, X, Y)}")

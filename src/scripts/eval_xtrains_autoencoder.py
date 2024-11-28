@@ -6,7 +6,7 @@ import math
 from core.util.debug import debug_tensor
 from core import Trainer, ModelFileManager
 from core.datasets import SplitDataset, dataset_wrappers
-from core.util.progress_trackers import IntervalLogger
+from core.util.progress_trackers import log_cooldown
 
 from core.metrics import metric_wrappers as metric_wrappers
 import torch
@@ -178,7 +178,7 @@ def create_min_max_normalizer(model : torch.nn.Module, num_classes : int, datalo
     min_value = torch.full((num_classes,), float('inf'))
     max_value = torch.full((num_classes,), float('-inf'))
 
-    with IntervalLogger(logger, 'Min and max computation').counting('samples') as tracker:
+    with log_cooldown(logger, 'Min and max computation', counter_name='samples') as tracker:
         for x, _ in dataloader:
             x = x.to(torch.get_default_device())
             pred : torch.Tensor = model(x)
@@ -203,15 +203,16 @@ def evaluate_permutations(
     correct_counts = torch.zeros(permutations.size(0), num_classes)
     total_samples : int = 0
     
-    with IntervalLogger(logger, 'Permutations evaluation') as tracker:
+    with log_cooldown(logger, 'Permutations evaluation', 
+                      counter_name='batches', expected_total=len(loader)) as tracker:
         for x, y in loader:
             x = x.to(torch.get_default_device())
             y = y.to(torch.get_default_device())
+            tracker.tick()
             total_samples += x.size(0)
             pred = normalize(model(x))
             del x
             evaluate_batch(pred, y, permutations, correct_counts)
-            tracker.tick(f"{total_samples = }")
     logger.info("Computing results")
     negated_counts = total_samples - correct_counts
     if negate is None:
