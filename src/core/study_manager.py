@@ -100,6 +100,8 @@ class StudyManager:
             if self.compare_strategy(snapshot, self.best_results[1]):
                 self.best_results = (experiment_name, snapshot)
                 logger.info(f"New best experiment {experiment_name}")
+            else:
+                logger.info(f"Best experiment remains {self.best_results[0]}")
 
     def check_stop_criteria(self) -> bool:
         if self.best_results is None:

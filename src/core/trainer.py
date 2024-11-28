@@ -11,31 +11,26 @@ from logging_setup import NOTIFY, logfile
 import os
 import importlib
 import torch
-
+from torch import nn
+from datetime import timedelta
 from . import util as utils
-import time
+from core.util.progress_trackers import IntervalProgressTracker
 if TYPE_CHECKING:
-    from torch import nn
     from torch.optim.optimizer import Optimizer
 
-# Deprecated TODO: Remove\Replace
-ModelDetails = NamedTuple(
-    "ModelDetails",
-    [
-        ("architecture", Any),
-        ("optimizer", str),
-        ("loss_fn", str),
-        ("dataset", SplitDataset),
-        ("metrics", list['MetricsLogger']),
-        ("batch_size", int),
-    ]
-)
+LOG_STEP_INTERVAL = timedelta(minutes=5)
+def _epoch_step_logger(epoch : int):
+    return IntervalProgressTracker.log_at_interval(
+        logger,
+        f'Epoch {epoch}',
+        LOG_STEP_INTERVAL
+    )
 
 def _dataloader_worker_init_fn(worker_id):
     logger.debug(f"Training Dataloader worker {worker_id} initialized")
     torch.set_default_device('cpu')
 
-def debug_model(error : BaseException, model : 'nn.Module', X, Y):
+def debug_model(error : BaseException, model : nn.Module, X, Y):
     sb = []
     sb.append("\nModel debug info")
     sb.append(f"\tError: {error}")
@@ -75,9 +70,24 @@ def debug_model(error : BaseException, model : 'nn.Module', X, Y):
 
 type MetricsSnapshot = dict[str, dict[str, Any]]
 
-type CheckpointReason = Literal['interrupt', 'force_interrupt', "error", "eval_error", 'triggered', 'periodic', 'end']
+type CheckpointReason = Literal[
+    'interrupt', 
+    'force_interrupt', 
+    "error", 
+    "eval_error", 
+    'triggered', 
+    'periodic', 
+    'end'
+]
 
-ABRUPT_CHECKPOINT_REASONS = ['force_interrupt', "error"]
+# Checkpoint reasons that may indicate a checkpoint in the middle of an epoch
+# 
+# Note: erros during evaluation don't count as abrupt because 
+#   at that point the training epoch should be complete
+ABRUPT_CHECKPOINT_REASONS = [
+    'force_interrupt', 
+    "error"
+]
 
 class TrainerConfig(TypedDict, total=True):
     build_script : str
@@ -85,8 +95,6 @@ class TrainerConfig(TypedDict, total=True):
     build_kwargs : dict[str, Any]
 
 logger = logging.getLogger(__name__)
-
-LOG_STEP_EVERY = 5*60 #seconds
 
 class _EvalExceptionWrapper(BaseException):
     def __init__(self, inner : BaseException):
@@ -310,8 +318,6 @@ class Trainer:
         logger.info(f"Epoch {epoch} - Starting")
         self.model.train()
         batches = 0
-        epoch_start_time = time.time()
-        last_log = epoch_start_time
         update_metrics = lambda _, __ : None
         if self.train_logger is not None:
             self.train_logger._prepare_torch_metrics()
@@ -320,23 +326,20 @@ class Trainer:
         try:
             X = None
             Y = None
-            for X, Y in self.training_loader():
-                X = X.to(torch.get_default_device())
-                Y = Y.to(torch.get_default_device())
-                loss, pred = self.__train_step(X, Y)
-                loss_sum += loss.item()
-                update_metrics(pred, Y)
-                batches += 1
-                now = time.time()
-                if now - last_log > LOG_STEP_EVERY:
-                    logger.info(f"Epoch {epoch} - \t\tRunning longer than {LOG_STEP_EVERY} seconds ({now - epoch_start_time:.0f}), current batch = {batches}")
-                    last_log = now
+            with _epoch_step_logger(epoch) as progress_tracker:
+                for X, Y in self.training_loader():
+                    X = X.to(torch.get_default_device())
+                    Y = Y.to(torch.get_default_device())
+                    loss, pred = self.__train_step(X, Y)
+                    loss_sum += loss.item()
+                    update_metrics(pred, Y)
+                    batches += 1
+                    progress_tracker.tick(f'{batches=}')
             self.first_epoch = False
         except BaseException as e:
             logger.error(f"Exception during training loop {debug_model(e, self.model, X, Y)}")
             raise
-        loss_avg = loss_sum / batches
-        logger.info(f"Epoch {epoch} - Training complete ({time.time() - epoch_start_time:.0f} seconds, {loss_avg:.4f} avg loss)")
+        
         try:
             self.eval_metrics()
         except BaseException as e:
@@ -349,7 +352,7 @@ class Trainer:
             self._checkpoint('triggered')
         elif self.first_epoch:
             logger.info(self._metrics_str())
-
+        logger.info(f"Epoch {epoch} avg loss = {loss_sum / batches:.4f} )\n\n\n")
             
         #for callback in self.callbacks:
         #    callback(self.model, self.optimizer, self.metrics, epoch)

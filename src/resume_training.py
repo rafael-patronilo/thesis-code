@@ -3,8 +3,8 @@ import command_base
 from core import Trainer
 from core.storage_management import ModelFileManager
 import sys
-from core.modules.stop_criteria import StopAtEpoch, EarlyStop
-from core.modules.checkpoint_triggers import BestMetric
+from core.stop_criteria import StopAtEpoch, EarlyStop
+from core.checkpoint_triggers import BestMetric
 
 
 @command_base.main_wrapper
