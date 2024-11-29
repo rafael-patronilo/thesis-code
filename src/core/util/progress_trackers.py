@@ -11,12 +11,12 @@ class ProgressTracker:
     def __init__(
             self, 
             expected_total : float | None = None,
-            callbacks : list[Callable[['ProgressTracker'], None]] = [],
+            callbacks : list[Callable[['ProgressTracker'], None]] | None = None,
             counter_name : str | None = ""
         ):
         self.progress : float = 0
         self.expected_total = expected_total
-        self.callbacks = callbacks
+        self.callbacks = callbacks or []
         self.start_time = datetime.now()
         self.counter_name = counter_name
     
@@ -75,38 +75,6 @@ class ProgressTracker:
         if steps is None:
             return None
         return self.time_per_step() * steps
-    
-    
-
-    def __format__(self, specification : str):
-        TOKENS = ['/','l',' ', '\t']
-        invalid = [c for c in specification if c not in TOKENS]
-        if len(invalid) > 0: raise ValueError(f'Unrecognized format tokens: {invalid}')
-        del invalid, TOKENS
-        
-        result = specification
-
-        if self.counter_name is not None:
-            result = result.replace('l', self.counter_name)
-        else:
-            result = ''.join(part.rstrip() for part in result.split('l'))
-        parts = result.split('/')
-        if len(parts) == 2:
-            if self.expected_total is not None:
-                x = f'{self.expected_total:.0f}'
-                if 'x' in parts[1]: parts[1] = parts[1].replace('x', x)
-                else: parts[1] += x
-            else:
-                del parts[1]
-        elif len(parts) > 2:
-            raise ValueError("Too many occurence of '/' in format specifier")
-        x = f'{self.progress:.0f}'
-        if 'x' in parts[0]: parts[0].replace('x', x)
-        else: parts[0] += x
-        return ''.join(parts)
-    
-    def __str__(self):
-        return f'{self:x l / x}'
 
 class LogProgressTracker(ProgressTracker):
         def __init__(self, task_name : str, cooldown : timedelta, log_callback : Callable[[str], None], **kwargs):
@@ -125,13 +93,15 @@ class LogProgressTracker(ProgressTracker):
                 self.log_callback(self.produce_message())
 
         def produce_message(self):
-            message = (f'\t{self.task_name} taking longer than {self.cooldown} ({self.elapsed_time}).\n' 
-                f'\t\tProgress: {self:x l / x}')
+            message = (f'\t{self.task_name} taking longer than {self.cooldown} ({self.elapsed_time()}).\n' 
+                f'\t\tProgress: {self.progress}')
+            if self.counter_name is not None:
+                message+=f' {self.counter_name}'
             if self.expected_total is not None:
                 estimated : timedelta = self.estimated_time_left() #type:ignore
                 percent_done : float = self.percent_done() #type:ignore
-                message += (f'({percent_done:.2%})\n'
-                        f'Estimated time left: {estimated}'
+                message += (f' / {self.expected_total} ({percent_done:.2%})\n'
+                        f'\t\tEstimated time left: {estimated}'
                 )
             return message
 

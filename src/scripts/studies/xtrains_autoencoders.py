@@ -1,10 +1,10 @@
-from core import StudyManager, ModelDetails, datasets
+from core import StudyManager, datasets
 from core.storage_management import StudyFileManager
 from typing import NamedTuple
 from torch import nn
 import sys
 
-STUDY_NAME = "xtrains_autoencoders_3"
+STUDY_NAME = "xtrains_autoencoders_4"
 
 CONVOLUTIONS = (
     [32, 32, ('pool', 2)] + 
@@ -29,10 +29,11 @@ def make_config(linears):
         dataset_name = DATASET,
         conv_layers = CONVOLUTIONS,
         linear_layers = linears,
-        encoding_size = 9,
+        encoding_size = 16,
         encoding_activation = ('leaky_relu', 0.01),
         hidden_activations = ('leaky_relu', 0.01),
-        kernel_size = 3
+        kernel_size = 3,
+        patience = 5
     )
 
 

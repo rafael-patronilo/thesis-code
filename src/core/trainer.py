@@ -19,11 +19,15 @@ if TYPE_CHECKING:
     from torch.optim.optimizer import Optimizer
 
 LOG_STEP_INTERVAL = timedelta(minutes=5)
-def _epoch_step_logger(epoch : int):
+def _epoch_step_logger(epoch : int, loader : DataLoader | None = None):
+    if loader is not None:
+        try: size = len(loader)
+        except: size = None
     return log_cooldown(
         logger,
         f'Epoch {epoch}',
         LOG_STEP_INTERVAL,
+        expected_total=size,
         counter_name='batches'
     )
 
@@ -316,7 +320,7 @@ class Trainer:
             raise ValueError("Model file manager not initialized")
         self.epoch = epoch
         self.epoch_checkpoint = False
-        logger.info(f"Epoch {epoch} - Starting")
+        #logger.info(f"Epoch {epoch} - Starting")
         self.model.train()
         batches = 0
         update_metrics = lambda _, __ : None
@@ -327,8 +331,9 @@ class Trainer:
         try:
             X = None
             Y = None
-            with _epoch_step_logger(epoch) as progress_tracker:
-                for X, Y in self.training_loader():
+            loader = self.training_loader()
+            with _epoch_step_logger(epoch, loader) as progress_tracker:
+                for X, Y in loader:
                     X = X.to(torch.get_default_device())
                     Y = Y.to(torch.get_default_device())
                     loss, pred = self.__train_step(X, Y)
@@ -353,7 +358,7 @@ class Trainer:
             self._checkpoint('triggered')
         elif self.first_epoch:
             logger.info(self._metrics_str())
-        logger.info(f"Epoch {epoch} avg loss = {loss_sum / batches:.4f} )\n\n\n")
+        logger.info(f"Epoch {epoch} avg loss = {loss_sum / batches:.4f}\n\n\n")
             
         #for callback in self.callbacks:
         #    callback(self.model, self.optimizer, self.metrics, epoch)

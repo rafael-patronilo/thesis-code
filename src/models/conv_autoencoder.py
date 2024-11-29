@@ -132,6 +132,8 @@ def create_trainer(dataset_name : str, **kwargs) -> Trainer:
     loss_metric = torch_metrics.MeanSquaredError
     dataset = datasets.get_dataset(dataset_name)
     dataset = dataset_wrappers.ForAutoencoder(dataset)
+    patience = kwargs.pop('patience', EARLY_STOP.patience)
+    threshold = kwargs.pop('threshold', EARLY_STOP.threshold)
     input_shape = dataset.get_shape()[0]
     logger.debug(f"Input shape: {input_shape}")
     metrics = ['epoch_elapsed']
@@ -160,8 +162,8 @@ def create_trainer(dataset_name : str, **kwargs) -> Trainer:
         training_set=dataset,
         metric_loggers=[train_metrics, val_metrics],
         stop_criteria=[EarlyStop(
-            metric='loss', prefer='min', metrics_logger ='val', threshold=EARLY_STOP.threshold, patience=EARLY_STOP.patience)],
+            metric='loss', prefer='min', metrics_logger ='val', threshold=threshold, patience=patience)],
         checkpoint_triggers=[BestMetric(
-            metric='loss', prefer='min', metrics_logger ='val', threshold=EARLY_STOP.threshold)],
+            metric='loss', prefer='min', metrics_logger ='val', threshold=threshold)],
         batch_size=64
     )
