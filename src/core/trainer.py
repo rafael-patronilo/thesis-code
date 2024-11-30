@@ -6,7 +6,7 @@ from .metrics_logger import MetricsLogger, TrainingLogger
 from .datasets import SplitDataset
 from .storage_management.model_file_manager import ModelFileManager
 from .datasets import get_dataset
-from logging_setup import NOTIFY, logfile
+from logging_setup import NOTIFY, log_file
 
 import os
 import importlib

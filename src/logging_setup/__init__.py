@@ -12,6 +12,9 @@ import subprocess
 
 NOTIFY = logging.INFO + 1
 logging.addLevelName(NOTIFY, "NOTIFY")
+log_file : Path = None #type:ignore (only None if logs are not initialized)
+true_stderr = sys.stderr
+true_stdout = sys.stdout
 
 LOG_LEVEL = logging.getLevelNamesMapping()[(os.getenv("LOG_LEVEL") or 'INFO').upper()]
 LOG_DIR =  os.getenv("LOG_DIR") or "logs"
@@ -111,7 +114,7 @@ def log_version_info(logger, path = Path("version.txt")):
     logger.info("\n".join(sb))
 
 def setup_logging(version_info : bool = True):
-    global logfile, true_stderr, true_stdout
+    global log_file, true_stderr, true_stdout
     formatter=MultiLineFormatter(logging.Formatter(FORMAT))
     logger = logging.getLogger()
     logger.setLevel(os.getenv("LOG_LEVEL") or LOG_LEVEL)
@@ -131,8 +134,8 @@ def setup_logging(version_info : bool = True):
     # Setup file logging
     log_dir = Path(os.getenv("LOG_DIR") or LOG_DIR)
     log_dir.mkdir(parents=True, exist_ok=True)
-    logfile = log_dir.joinpath(datetime.datetime.now().isoformat()).with_suffix(".log")
-    file_handler = logging.FileHandler(logfile)
+    log_file = log_dir.joinpath(datetime.datetime.now().isoformat()).with_suffix(".log")
+    file_handler = logging.FileHandler(log_file)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
@@ -159,7 +162,7 @@ f"""Start of logging
 Time: {datetime.datetime.now().astimezone().isoformat()}
 Level: {LOG_LEVEL if type(LOG_LEVEL) == str else logging.getLevelName(LOG_LEVEL)}
 Active Handlers: {", ".join(type(handler).__name__ for handler in logger.handlers)}
-Log file: {logfile}"""
+Log file: {log_file}"""
 )
     if version_info:
         log_version_info(logger)
