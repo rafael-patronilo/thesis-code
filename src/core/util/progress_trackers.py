@@ -29,7 +29,7 @@ class ProgressTracker:
             expected_total (float | None, optional): The total expected number of steps. 
                 Can be used to defer determining the total or to modify the total later. Defaults to None.
         """
-        self.set_progress(self.progress + steps)
+        self.set_progress(self.progress + steps, expected_total)
 
     
     def set_progress(self, progress : float, expected_total : float | None = None):
@@ -75,6 +75,9 @@ class ProgressTracker:
         if steps is None:
             return None
         return self.time_per_step() * steps
+
+def null_tracker():
+    return ProgressTracker()
 
 class LogProgressTracker(ProgressTracker):
         def __init__(self, task_name : str, cooldown : timedelta, log_callback : Callable[[str], None], **kwargs):

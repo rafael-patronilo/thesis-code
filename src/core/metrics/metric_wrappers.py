@@ -7,6 +7,14 @@ if TYPE_CHECKING:
     from torch.utils.data import Dataset as TorchDataset
     import torch
 
+def chain(*constructors : Callable[[Metric], Metric], inner : Callable[[], Metric]) -> Callable[[], Metric]:
+    def constructor():
+        result = inner()
+        for constructor in reversed(constructors):
+            result = constructor(result)
+        return result
+    return constructor
+
 class MetricWrapper(Metric):
     def __init__(self, inner : Metric) -> None:
         self.inner = inner
@@ -31,6 +39,12 @@ class MetricWrapper(Metric):
         while isinstance(innermost, MetricWrapper):
             innermost = innermost.inner
         return innermost
+
+    @classmethod
+    def partial(cls, *args, **kwargs) -> Callable[[Metric], Metric]:
+        def constructor(inner):
+            return cls(inner, *args, **kwargs)
+        return constructor
 
     def __repr__(self):
         fields = "".join(f", {k}={v}" for k, v in self.__dict__.items() if k != 'inner')
@@ -89,14 +103,19 @@ class SelectCol(MetricWrapper):
         return self.inner.update(y_pred, y_true)
     
     @classmethod
-    def col_wise(cls, dataset : 'TorchDataset | SplitDataset',  metrics:dict[str, Callable[[],Metric]]) -> dict[str, Metric]:
+    def col_wise(
+            cls, 
+            dataset : 'TorchDataset | SplitDataset', 
+            metrics:dict[str, Callable[[],Metric]], 
+            out_dict : dict[str, Metric] | None = None
+        ) -> dict[str, Metric]:
         split_dataset = SplitDataset.of(dataset)
         try:
             label_names = split_dataset.get_collumn_references().labels.collumns_to_names
         except:
             warnings.warn(f"Could not get collumn references from {dataset}. SelectCol will use indices instead of names.")
             label_names = map(str, range(split_dataset.get_shape()[1][0]))
-        result = {}
+        result = out_dict or {}
         for name, metric_factory in metrics.items():
             result[name] = Flatten(metric_factory())
             for label_idx, label_name in enumerate(label_names):
@@ -118,3 +137,13 @@ class SelectCol(MetricWrapper):
         cols = [names_to_cols[name] for name in names]
         return SelectCol(metric, cols, **kwargs)
         
+
+class ToDtype(MetricWrapper):
+    def __init__(self, inner : Metric, dtype : 'torch.dtype') -> None:
+        super().__init__(inner)
+        self.dtype = dtype
+
+    def update(self, y_pred, y_true):
+        y_pred = y_pred.to(self.dtype)
+        y_true = y_true.to(self.dtype)
+        return self.inner.update(y_pred, y_true)

@@ -66,16 +66,10 @@ class MetricCrosserTests(unittest.TestCase):
         result2 = crosser.compute()['accuracy']
         self.assertEqual(expected2, result2)
 
-    def test_multiple(self):
-        rng = torch.Generator().manual_seed(299)
+    def multiple_test(self, rng, crosser, metrics):
         preds = torch.rand(30, 5, generator=rng)
         trues = torch.randint(high=2, size=(30, 9), generator=rng)
-        metrics = {
-            'accuracy' : BinaryAccuracy,
-            'precision' : BinaryPrecision,
-            'recall' : BinaryRecall,
-            'f1' : BinaryF1Score
-        }
+        
         def compute_cell(factory,i,j):
             metric : Metric = factory()
             metric.update(input=preds[:,i], target=trues[:,j])
@@ -89,9 +83,25 @@ class MetricCrosserTests(unittest.TestCase):
             columns = [f't{j}' for j in range(9)])
             for name, factory in metrics.items()
         }
-        crosser = MetricCrosser(('p',5), ('t',9), metrics)
         crosser.update(preds, trues)
         result = crosser.compute()
         for name, table in result.items():
             with self.subTest(metric=name):
                 self.assertEqual(manual[name], table)
+
+    def test_multiple_reset(self):
+        metrics = {
+            'accuracy' : BinaryAccuracy,
+            'precision' : BinaryPrecision,
+            'recall' : BinaryRecall,
+            'f1' : BinaryF1Score
+        }
+        crosser = MetricCrosser(
+            pred_labels = [f'p{i}' for i in range(5)],
+            true_labels = [f't{j}' for j in range(9)],
+            metrics = metrics
+        )
+        rng = torch.Generator().manual_seed(299)
+        self.multiple_test(rng, crosser, metrics)
+        crosser.reset()
+        self.multiple_test(rng, crosser, metrics)

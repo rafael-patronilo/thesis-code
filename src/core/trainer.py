@@ -144,7 +144,6 @@ class Trainer:
         self.batch_size = batch_size
         self.num_loaders = num_loaders
         self.shuffle = shuffle
-        self._training_loader = None
         self.first_epoch = True
         self.epoch_checkpoint = False
 
@@ -156,7 +155,7 @@ class Trainer:
             "path" : self.model_file_manager.path,
             "reason" : reason,
             "device" : torch.get_default_device().type,
-            "logfile" : logfile
+            "logfile" : log_file
         }
     
     def init_file_manager(self, model_file_manager : ModelFileManager) -> 'Trainer':
@@ -264,14 +263,16 @@ class Trainer:
         averages = ""
         averages_last_n = ""
         last_record = ""
+        last_n = None
         for metric_logger in self.metric_loggers:
+            last_n = last_n or metric_logger.last_n
             averages += f"\t{metric_logger.identifier} : {metric_logger.averages()}\n"
             averages_last_n += f"\t{metric_logger.identifier} : {metric_logger.averages_last_n()}\n"
             last_record += f"\t{metric_logger.identifier} : {metric_logger.last_record}\n"
         return (
             f"Metrics:\n{last_record}"
             f"Avg:\n{averages}"
-            f"Avg last {len(self.metric_loggers[0].last_n)}:\n{averages_last_n}"
+            f"Avg last {last_n}:\n{averages_last_n}"
             )
 
     def _checkpoint(self, reason : CheckpointReason):
@@ -288,25 +289,25 @@ class Trainer:
         self.model_file_manager.flush()
         self.epoch_checkpoint = True
         logger.info(f"Checkpoint at Epoch {self.epoch}\n{self._metrics_str()}")
-        
+
+    def make_loader(self, dataset : Dataset) -> DataLoader:
+        generator = torch.Generator(device=torch.get_default_device())
+        return DataLoader(
+            dataset, 
+            batch_size=self.batch_size,
+            num_workers=self.num_loaders,
+            shuffle=self.shuffle,
+            generator=generator,
+            worker_init_fn=_dataloader_worker_init_fn,
+            pin_memory=True
+        )
+
     def training_loader(self):
-        if self._training_loader is None:
-            generator = torch.Generator(device=torch.get_default_device())
-            
-            if isinstance(self.training_set, SplitDataset):
-                training_set = self.training_set.for_training()
-            else:
-                training_set = self.training_set
-            self._training_loader = DataLoader(
-                training_set, 
-                batch_size=self.batch_size,
-                num_workers=self.num_loaders,
-                shuffle=self.shuffle,
-                generator=generator,
-                worker_init_fn=_dataloader_worker_init_fn,
-                pin_memory=True
-            )
-        return self._training_loader
+        if isinstance(self.training_set, SplitDataset):
+            training_set = self.training_set.for_training()
+        else:
+            training_set = self.training_set
+        return self.make_loader(training_set)
 
     def eval_metrics(self):
         if self.model_file_manager is None:

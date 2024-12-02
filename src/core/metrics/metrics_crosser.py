@@ -42,7 +42,7 @@ class MetricCrosser:
         for i in range(self.pred_size):
             for j in range(self.true_size):
                 metric : Metric = table.iat[i,j]
-                metric.update(input=preds[:,i], target=trues[:,j])
+                metric.update(preds[:,i], trues[:,j])
 
     def update(self, preds : torch.Tensor, trues : torch.Tensor):
         for table in self.metrics.values():

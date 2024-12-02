@@ -16,10 +16,10 @@ log_file : Path = None #type:ignore (only None if logs are not initialized)
 true_stderr = sys.stderr
 true_stdout = sys.stdout
 
-LOG_LEVEL = logging.getLevelNamesMapping()[(os.getenv("LOG_LEVEL") or 'INFO').upper()]
-LOG_DIR =  os.getenv("LOG_DIR") or "logs"
-FORMAT = os.getenv("LOG_FORMAT") or '%(asctime)s [%(levelname)s] (%(name)s|%(threadName)s) %(message)s'
-COLOR_FORMAT = os.getenv("LOG_COLOR_FORMAT") or '\033[34m%(asctime)s\033[0m [%(levelcolor)s%(levelname)s\033[0m] (%(name)s|%(threadName)s) %(message)s'
+LOG_LEVEL = logging.getLevelNamesMapping()[os.getenv("LOG_LEVEL", 'INFO').upper()]
+LOG_DIR =  os.getenv("LOG_DIR", "logs")
+FORMAT = os.getenv("LOG_FORMAT", '%(asctime)s [%(levelname)s] (%(name)s|%(threadName)s) %(message)s')
+COLOR_FORMAT = os.getenv("LOG_COLOR_FORMAT", '\033[34m%(asctime)s\033[0m [%(levelcolor)s%(levelname)s\033[0m] (%(name)s|%(threadName)s) %(message)s')
 
 class AnsiColorStreamHandler(logging.StreamHandler):
     DEFAULT_COLORS = {
@@ -117,7 +117,7 @@ def setup_logging(version_info : bool = True):
     global log_file, true_stderr, true_stdout
     formatter=MultiLineFormatter(logging.Formatter(FORMAT))
     logger = logging.getLogger()
-    logger.setLevel(os.getenv("LOG_LEVEL") or LOG_LEVEL)
+    logger.setLevel(os.getenv("LOG_LEVEL", LOG_LEVEL))
     
     # intercept unexpected writes to stdout and stderr
     true_stdout = sys.stdout
@@ -132,7 +132,7 @@ def setup_logging(version_info : bool = True):
     logger.addHandler(console_handler)
     
     # Setup file logging
-    log_dir = Path(os.getenv("LOG_DIR") or LOG_DIR)
+    log_dir = Path(os.getenv("LOG_DIR", LOG_DIR))
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir.joinpath(datetime.datetime.now().isoformat()).with_suffix(".log")
     file_handler = logging.FileHandler(log_file)
