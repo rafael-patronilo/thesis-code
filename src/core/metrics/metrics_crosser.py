@@ -44,6 +44,10 @@ class MetricCrosser:
                 metric : Metric = table.iat[i,j]
                 metric.update(preds[:,i], trues[:,j])
 
+    def to(self, device):
+        for table in self.metrics.values():
+            table.map(lambda x : x.to(device))
+
     def update(self, preds : torch.Tensor, trues : torch.Tensor):
         for table in self.metrics.values():
             self.update_metric(table, preds, trues)

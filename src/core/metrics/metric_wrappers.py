@@ -1,4 +1,4 @@
-from typing import Callable, Iterable, TYPE_CHECKING
+from typing import Callable, Iterable, TYPE_CHECKING, Literal
 from torcheval.metrics import Metric
 from core.datasets import SplitDataset
 import warnings
@@ -139,11 +139,25 @@ class SelectCol(MetricWrapper):
         
 
 class ToDtype(MetricWrapper):
-    def __init__(self, inner : Metric, dtype : 'torch.dtype') -> None:
+    def __init__(self, 
+                 inner : Metric, 
+                 dtype : 'torch.dtype' | Literal['pred', 'true'], 
+                 apply_to_pred : bool = True,
+                 apply_to_true : bool = True) -> None:
         super().__init__(inner)
         self.dtype = dtype
+        self.apply_to_pred = apply_to_pred
+        self.apply_to_true = apply_to_true
 
     def update(self, y_pred, y_true):
-        y_pred = y_pred.to(self.dtype)
-        y_true = y_true.to(self.dtype)
+        if self.dtype == 'pred':
+            dtype = y_pred.dtype
+        elif self.dtype == 'true':
+            dtype = y_true.dtype
+        else:
+            dtype = self.dtype
+        if self.apply_to_pred:
+            y_pred = y_pred.to(dtype)
+        if self.apply_to_true:
+            y_true = y_true.to(dtype)
         return self.inner.update(y_pred, y_true)

@@ -14,22 +14,10 @@ import torch
 from torch import nn
 from datetime import timedelta
 from . import util as utils
-from core.util.progress_trackers import log_cooldown
+from core.util.progress_trackers import LogProgressContextManager
 if TYPE_CHECKING:
     from torch.optim.optimizer import Optimizer
 
-LOG_STEP_INTERVAL = timedelta(minutes=5)
-def _epoch_step_logger(epoch : int, loader : DataLoader | None = None):
-    if loader is not None:
-        try: size = len(loader)
-        except: size = None
-    return log_cooldown(
-        logger,
-        f'Epoch {epoch}',
-        LOG_STEP_INTERVAL,
-        expected_total=size,
-        counter_name='batches'
-    )
 
 def _dataloader_worker_init_fn(worker_id):
     logger.debug(f"Training Dataloader worker {worker_id} initialized")
@@ -100,6 +88,7 @@ class TrainerConfig(TypedDict, total=True):
     build_kwargs : dict[str, Any]
 
 logger = logging.getLogger(__name__)
+progress_cm = LogProgressContextManager(logger, cooldown=timedelta(minutes=5))
 
 class _EvalExceptionWrapper(BaseException):
     def __init__(self, inner : BaseException):
@@ -333,7 +322,7 @@ class Trainer:
             X = None
             Y = None
             loader = self.training_loader()
-            with _epoch_step_logger(epoch, loader) as progress_tracker:
+            with progress_cm.track(f'Epoch {epoch}', 'batches', loader) as progress_tracker:
                 for X, Y in loader:
                     X = X.to(torch.get_default_device())
                     Y = Y.to(torch.get_default_device())

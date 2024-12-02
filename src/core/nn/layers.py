@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from typing import overload
+from core.util.progress_trackers import ProgressContextManager, NULL_PROGRESS_CM
 
 def add_layers(model : nn.Module, *layers : nn.Module) -> nn.Module:
     if isinstance(model, nn.Sequential):
@@ -32,22 +33,29 @@ class MinMaxNormalizer(nn.Module):
         return result
 
     @classmethod
-    def fit(cls, model : nn.Module, loader : torch.utils.data.DataLoader, device = None, **kwargs):
+    def fit(cls, 
+            model : nn.Module, 
+            loader : torch.utils.data.DataLoader, 
+            device = None,
+            progress_cm : ProgressContextManager = NULL_PROGRESS_CM,
+              **kwargs):
         if device is None:
             device = torch.get_default_device()
         min : torch.Tensor = None #type: ignore
         max : torch.Tensor = None #type: ignore
         model.eval()
-        with torch.no_grad():
-            for x, _ in loader:
-                x : torch.Tensor = x.to(device)
-                z : torch.Tensor = model(x)
-                if min is None:
-                    min = z.min(0).values
-                    max = z.max(0).values
-                else:
-                    min = torch.min(min, z.min(0).values)
-                    max = torch.max(max, z.max(0).values)
+        with progress_cm.track('MinMaxNormalizer fit', 'batches', loader) as progress_tracker:
+            with torch.no_grad():
+                for x, _ in loader:
+                    x : torch.Tensor = x.to(device)
+                    z : torch.Tensor = model(x)
+                    if min is None:
+                        min = z.min(0).values
+                        max = z.max(0).values
+                    else:
+                        min = torch.min(min, z.min(0).values)
+                        max = torch.max(max, z.max(0).values)
+                    progress_tracker.tick()
         if min is None or max is None:
             raise ValueError("No data found")
         return cls(min, max, **kwargs)

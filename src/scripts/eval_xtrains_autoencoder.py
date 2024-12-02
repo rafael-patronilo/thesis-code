@@ -6,7 +6,8 @@ import math
 from core.util.debug import debug_tensor
 from core import Trainer, ModelFileManager
 from core.datasets import SplitDataset, dataset_wrappers
-from core.util.progress_trackers import log_cooldown
+from core.util.progress_trackers import LogProgressContextManager
+from datetime import timedelta
 
 from core.metrics import metric_wrappers as metric_wrappers
 
@@ -23,7 +24,9 @@ from logging_setup import NOTIFY
 from torcheval import metrics
 import json
 
+
 logger = logging.getLogger(__name__)
+progress_cm = LogProgressContextManager(logger, cooldown=timedelta(minutes=2))
 SEED = 3892
 NUM_IMAGES = 16
 
@@ -49,13 +52,15 @@ def evaluate_encoding_on_set(
         ):
 
     crosser.reset()
-    for x, y in dataloader:
-        x = x.to(torch.get_default_device())
-        y = y.to(torch.get_default_device())
-        z = encoder(x)
-        if not (z.min() >=0 and z.max() <= 1):
-            logger.error(f"Encoding out of bounds: {z.min()} - {z.max()}")
-        crosser.update(encoder(x), y)
+    with progress_cm.track(f'Encoding evaluation on {dataset_description} set', 'batches', dataloader) as progress_tracker:
+        for x, y in dataloader:
+            x = x.to(torch.get_default_device())
+            y = y.to(torch.get_default_device())
+            z = encoder(x)
+            if not (z.min() >=0 and z.max() <= 1):
+                logger.error(f"Encoding out of bounds: {z.min()} - {z.max()}")
+            crosser.update(encoder(x), y)
+            progress_tracker.tick()
     results = crosser.compute()
     results_path = file_manager.results_dest.joinpath(f"concept_cross_metrics").joinpath(dataset_description)
     results_path.mkdir(parents=True, exist_ok=True)
@@ -89,24 +94,27 @@ def evaluate_encoding(
     label_indices = dataset.get_collumn_references().get_label_indices(CLASSES)
     dataset = dataset_wrappers.SelectCols(dataset, select_y=label_indices)
     model : torch.nn.Module = trainer.model.encoder
-    logger.info("Fitting min max normalizer to training set")
-    normalizer = layers.MinMaxNormalizer.fit(model, trainer.make_loader(dataset.for_training()))
+    normalizer = layers.MinMaxNormalizer.fit(model, trainer.make_loader(dataset.for_training()), progress_cm=progress_cm)
     logger.info(f"Normalizer min: {normalizer.min}")
     logger.info(f"Normalizer max: {normalizer.max}")
     model = layers.add_layers(model, normalizer)
+
     crosser = MetricCrosser(
         ('E', normalizer.min.size(0)),
         CLASSES,
         {
             'accuracy' : metrics.BinaryAccuracy,
             'f1' : metrics.BinaryF1Score,
-            'precision' : metrics.BinaryPrecision,
-            'recall' : metrics.BinaryRecall,
-            'entropy' : lambda: (
-                metric_wrappers.ToDtype(metrics.BinaryNormalizedEntropy(), torch.float32)
-            )
+            'precision' : lambda: metric_wrappers.ToDtype(
+                metrics.BinaryPrecision(), torch.long, apply_to_pred=False),
+            'recall' : lambda: metric_wrappers.ToDtype(
+                metrics.BinaryRecall(), torch.long, apply_to_pred=False),
+            'entropy' : lambda: metric_wrappers.ToDtype(
+                metrics.BinaryNormalizedEntropy(), torch.float32)
+            
         }
     )
+    crosser.to(torch.get_default_device())
 
     logger.info("Computing cross metrics on training set")
     evaluate_encoding_on_set(

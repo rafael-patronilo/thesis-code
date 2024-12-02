@@ -2,26 +2,38 @@
 """
 from abc import ABC, abstractmethod
 from datetime import timedelta, datetime
-from typing import Callable, ContextManager, Concatenate, Generator, TextIO
+from typing import Callable, ContextManager, Concatenate, Generator, TextIO, Any
 from contextlib import contextmanager
 from functools import wraps
 import logging
+import warnings
 
 class ProgressTracker:
     def __init__(
             self, 
-            expected_total : float | None = None,
+            expected_total : float | Any | None = None,
             callbacks : list[Callable[['ProgressTracker'], None]] | None = None,
             counter_name : str | None = ""
         ):
         self.progress : float = 0
-        self.expected_total = expected_total
+        self.expected_total : float | None = self.to_expected_total(expected_total)
         self.callbacks = callbacks or []
         self.start_time = datetime.now()
         self.counter_name = counter_name
     
-    
-    def tick(self, steps : float = 1, expected_total : float | None = None):
+    @staticmethod
+    def to_expected_total(expected_total : float | Any | None) -> float | None:
+        if expected_total is None:
+            return None
+        elif isinstance(expected_total, (int, float)):
+            return float(expected_total)
+        else:
+            try:
+                return len(expected_total)
+            except:
+                return None
+
+    def tick(self, steps : float = 1, expected_total : float | Any | None = None):
         """Ticks the tracker, adding `steps` to progress counter
 
         Args:
@@ -32,7 +44,7 @@ class ProgressTracker:
         self.set_progress(self.progress + steps, expected_total)
 
     
-    def set_progress(self, progress : float, expected_total : float | None = None):
+    def set_progress(self, progress : float, expected_total : float | Any | None = None):
         """Ticks the tracker, overwritin progress with the given argument
 
         Args:
@@ -42,7 +54,7 @@ class ProgressTracker:
         """
         self.progress = progress
         if expected_total is not None:
-            self.expected_total = expected_total
+            self.expected_total = self.to_expected_total(expected_total)
         if self.expected_total is not None and self.expected_total < self.progress:
             self.expected_total = self.progress
         for callback in self.callbacks:
@@ -76,13 +88,51 @@ class ProgressTracker:
             return None
         return self.time_per_step() * steps
 
-def null_tracker():
-    return ProgressTracker()
+class ProgressContextManager:
+    def _enter(self, 
+               task_name : str, 
+               counter_name : str | None = None,
+               expected_total : float | Any | None = None,
+               **kwargs) -> ProgressTracker:
+        return ProgressTracker(counter_name=counter_name, expected_total=expected_total)
+
+    def _exit(self, tracker : ProgressTracker) -> None: 
+        pass
+
+    @contextmanager
+    def track(self, 
+              task_name : str, 
+              counter_name : str | None = None,
+              expected_total : float | Any | None = None,
+              **kwargs) -> Generator[ProgressTracker, None, None]:
+        tracker = self._enter(task_name, counter_name, expected_total, **kwargs)
+        try:
+            yield tracker
+        finally:
+            self._exit(tracker)
+
+def null_progress_context_manager():
+    class NullProgressTracker(ProgressTracker):
+        def __init__(self):
+            super().__init__()
+        def set_progress(self, progress: float, expected_total: float | Any | None = None):
+            pass
+    class NullProgressContextManager(ProgressContextManager):
+        def _enter(self, task_name : str, counter_name : str | None = None, expected_total : float | Any | None = None, **kwargs) -> ProgressTracker:
+            return NullProgressTracker()
+
+        def _exit(self, tracker : ProgressTracker) -> None:
+            pass
+    return NullProgressContextManager()
+
+NULL_PROGRESS_CM = null_progress_context_manager()
 
 class LogProgressTracker(ProgressTracker):
-        def __init__(self, task_name : str, cooldown : timedelta, log_callback : Callable[[str], None], **kwargs):
+        def __init__(self, task_name : str, cooldown : timedelta | float, log_callback : Callable[[str], None], **kwargs):
             super().__init__(**kwargs)
             self.last_log = self.start_time
+            if not isinstance(cooldown, timedelta):
+                cooldown = timedelta(seconds=cooldown)
             self.cooldown = cooldown
             self.task_name = task_name
             self.log_callback = log_callback
@@ -108,35 +158,99 @@ class LogProgressTracker(ProgressTracker):
                 )
             return message
 
-@contextmanager
-def log_cooldown(
-        logger : logging.Logger | TextIO, 
-        task_name : str,
-        cooldown : float | timedelta = timedelta(minutes=2),
-        counter_name : str | None = None,
-        log_level : int = logging.INFO,
-        expected_total : int | None = None
-    ):
-    if not isinstance(cooldown, timedelta):
-        cooldown = timedelta(seconds=cooldown)
-    def log(msg):
-        if isinstance(logger, logging.Logger):
-            logger.log(log_level, msg)
+class LogProgressContextManager(ProgressContextManager):
+    def __init__(self, 
+                 target_out : logging.Logger | TextIO, 
+                 log_level : int = logging.INFO, 
+                 cooldown : timedelta | float = timedelta(minutes=2)):
+        self.log_level = log_level
+        self.cooldown = cooldown
+        self.target_out = target_out
+    
+    def get_callback(self, 
+                     log_callback : Callable[[str], None] | None,
+                     logger : logging.Logger | None,
+                     stream : TextIO | None,
+                     log_level : int | None) -> Callable[[str], None]:
+        if log_level is None:
+            log_level = self.log_level
+        if sum(1 if x is not None else 0 for x in (log_callback, logger, stream)) > 1:
+            warnings.warn("Only one of log_callback, logger or stream should be provided")
+        if log_callback is not None:
+            return log_callback
         else:
-            logger.write(msg + '\n')
-    log(f'{task_name} starting')
+            if logger is None and stream is None:
+                if isinstance(self.target_out, logging.Logger):
+                    logger = self.target_out
+                else:
+                    stream = self.target_out
+            if logger is not None:
+                return lambda message: logger.log(log_level, message)
+            else:
+                return lambda message: print(message, file=stream)
 
-    tracker = LogProgressTracker(
-        cooldown=cooldown,
-        task_name= task_name,
-        expected_total=expected_total,
-        log_callback=log,
-        counter_name=counter_name
-    )
-    try:
-        yield tracker
-    finally:
-        log(f'{task_name} complete ({tracker.elapsed_time()})')
+    def _enter(self, 
+               task_name : str, 
+               counter_name : str | None = None,
+               expected_total : float | Any | None = None,
+               cooldown : timedelta | float | None = None,
+               log_callback : Callable[[str], None] | None = None,
+               logger : logging.Logger | None = None,
+               log_level : int | None = None,
+               stream : TextIO | None = None,
+               **kwargs) -> ProgressTracker:
+        cooldown = cooldown if cooldown is not None else self.cooldown
+        log_callback = self.get_callback(log_callback, logger, stream, log_level)
+        tracker = LogProgressTracker(
+            task_name=task_name,
+            log_callback=log_callback,
+            cooldown=cooldown,
+            counter_name=counter_name,
+            expected_total=expected_total,
+            **kwargs
+        )
+        tracker.log_callback(f'{task_name} starting')
+        return tracker
+
+
+    def _exit(self, tracker : LogProgressTracker) -> None:
+        tracker.log_callback(f'{tracker.task_name} complete ({tracker.elapsed_time()})')
+
+    def but(self, log_level : int | None = None, cooldown : timedelta | float | None = None) -> 'LogProgressContextManager':
+        """Return a clone of this context manager with a new level/cooldown
+
+        Args:
+            log_level (int | None): the new level or `None` to not change
+
+        Returns:
+            LogProgressContextManager: a clone of this context manager with the new log level/ cooldonw
+        """
+        log_level = log_level if log_level is not None else self.log_level
+        cooldown = cooldown if cooldown is not None else self.cooldown
+        return LogProgressContextManager(self.target_out, log_level, cooldown)
 
 
 
+# def trackable[**P, R](task_name : str | None = None, counter_name : str | None = None, **dec_kwargs) -> Callable[
+#     [Callable[P, Generator[float, None, R]]],
+#     Callable[Concatenate[ProgressContextManager, P], R]
+# ]:
+#     def decorator(func : Callable[P, Generator[float, None, R]]):
+#         if task_name is None:
+#             tname = func.__qualname__
+#         else:
+#             tname = task_name
+#         @wraps(func)
+#         def wrapper(*args, progress_cm=NULL_PROGRESS_CM, **kwargs):
+#             with progress_cm.track(tname, counter_name=counter_name, **dec_kwargs) as tracker:
+#                 it = iter(func(*args, **kwargs))
+#                 try:
+#                     while True:
+#                         steps = next(it)
+#                         if steps is None:
+#                             steps = 1
+#                         tracker.tick(steps)
+#                 except StopIteration as e:
+#                     return e.value
+#         return wrapper
+#     return decorator
