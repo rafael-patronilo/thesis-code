@@ -8,6 +8,7 @@ logger = logging.getLogger()
 import functools
 import sys
 import os
+from datetime import datetime
 
 graceful_exit = False
 def exit_gracefully(code : int = 0, impatient = False):
@@ -61,17 +62,22 @@ def main_wrapper(main_function):
     @functools.wraps(main_function)
     def wrapper(*args, **kwargs):
         logger.info("Loading complete, initializing main thread")
+        start = datetime.now()
+        code = None
         try:
             main_function(*args, **kwargs)
         except (KeyboardInterrupt, SystemExit):
             logger.info("Interrupted main thread, exiting gracefully")
-            exit_gracefully(0)
+            code = 0
         except BaseException as e:
             logger.exception("Uncaught exception in main thread: %s", e)
-            exit_gracefully(-1)
+            code = -1
         if not graceful_exit:
             logger.info("Main thread finished, exiting gracefully")
-            exit_gracefully(0)
+            code = 0
+        logger.info(f"Main thread took {datetime.now() - start}")
+        if code is not None:
+            exit_gracefully(code)
     return wrapper
 
 if __name__ == "__main__":

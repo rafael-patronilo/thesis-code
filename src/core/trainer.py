@@ -429,3 +429,38 @@ class Trainer:
             logger.info("No checkpoint found.")
 
         return trainer
+    
+
+def find_illegal_children(state_dict) -> None | dict[str, str]:
+    def walk(obj, tree_trace : list[str], invalid_objects : dict[str, str]):
+        obj_type = type(obj)
+        if obj_type is dict:
+            for i, (k, v) in enumerate(obj.items()):
+                tree_trace.append(f'.{k}')
+                walk(v, tree_trace, invalid_objects)
+                tree_trace.pop()
+                tree_trace.append(f'keys()[{i}]')
+                walk(k, tree_trace, invalid_objects)
+                tree_trace.pop()
+        elif obj_type is list or obj_type is tuple:
+            for i, v in enumerate(obj):
+                tree_trace.append(f'[{i}]')
+                walk(v, tree_trace, invalid_objects)
+                tree_trace.pop()
+        elif not (
+            isinstance(obj, torch.Tensor) or
+            obj_type is int or
+            obj_type is float or
+            obj_type is str or
+            obj_type is bool or
+            obj is None
+        ):
+            invalid_objects[''.join(tree_trace)] = str(obj)
+    tree_trace = ['state_dict']
+    invalid_objects = {}
+    walk(state_dict, tree_trace, invalid_objects)
+    if len(invalid_objects) == 0:
+        return None
+    else:
+        return invalid_objects
+

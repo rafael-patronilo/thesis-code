@@ -207,6 +207,7 @@ class DiscordWebhookHandler(logging.Handler):
                     payload = msg_queue.get(block=False)
                     self._try_send_message(payload)
             raise e
+
     def flush(self) -> None:
         self.message_buffer.break_msg()
     

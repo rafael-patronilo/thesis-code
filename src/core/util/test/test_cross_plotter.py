@@ -1,8 +1,7 @@
 import unittest
 import torch
-from pathlib import Path
-import filecmp
 import os
+from .plotting_test_util import create_paths, assert_same
 
 def get_memory_usage():
     import resource
@@ -27,13 +26,7 @@ class TestCrossPlotter(unittest.TestCase):
 
     
     def cross_plotter_param_test(self, num : int):
-        path = Path(__file__).parent
-        result_path = path.joinpath(f'cross_plotter_result{num}.png')
-        expected_path = path.joinpath(f'cross_plotter_expected{num}.png')
-        
-        if result_path.exists():
-            self.fail(f"Dangling {result_path}, delete manually to run test")
-            return
+        expected_path, result_path = create_paths(__file__, 'cross_plotter')
 
         from ..plotting import CrossPlotter
         rng = torch.Generator().manual_seed(256)
@@ -61,15 +54,7 @@ class TestCrossPlotter(unittest.TestCase):
             if i % 1_000 == 0:
                 print(f"Memory usage at iteration {i}: {memory}")
         cross_plotter.save(result_path)
-        if not expected_path.exists():
-            self.fail(f'{expected_path} not found')
-            return
-        if filecmp.cmp(result_path, expected_path):
-            os.remove(result_path)
-            return
-        else:
-            self.fail(f'{result_path} does not match {expected_path}')
-            return
+        assert_same(expected_path, result_path)
 
 
     def test_small(self):

@@ -22,6 +22,7 @@ from core.datasets import get_dataset
 import logging
 from logging_setup import NOTIFY
 from torcheval import metrics
+from core.util.plotting import CrossBinaryHistogram
 import json
 
 
@@ -42,33 +43,17 @@ CLASSES = [
     'AtLeast3Wagons'
 ]
 
-
-def evaluate_encoding_on_set(
-        encoder : torch.nn.Module,
-        file_manager : ModelFileManager,
-        dataloader : torch_data.DataLoader,
-        dataset_description : str,
-        crosser : MetricCrosser
-        ):
-
-    crosser.reset()
-    with progress_cm.track(f'Encoding evaluation on {dataset_description} set', 'batches', dataloader) as progress_tracker:
-        for x, y in dataloader:
-            x = x.to(torch.get_default_device())
-            y = y.to(torch.get_default_device())
-            z = encoder(x)
-            if not (z.min() >=0 and z.max() <= 1):
-                logger.error(f"Encoding out of bounds: {z.min()} - {z.max()}")
-            crosser.update(encoder(x), y)
-            progress_tracker.tick()
-    results = crosser.compute()
-    results_path = file_manager.results_dest.joinpath(f"concept_cross_metrics").joinpath(dataset_description)
-    results_path.mkdir(parents=True, exist_ok=True)
-    for metric, result in results.items():
-        logger.info(f"{dataset_description} {metric} results:\n{result}")
-        dest_file = results_path.joinpath(f"{metric}.json")
-        logger.info(f"Saving {metric} results to {dest_file}")
-        result.to_csv(results_path.joinpath(f"{metric}.csv"))
+SHORT_CLASSES = [
+    'Passenger',
+    'Freight',
+    'Empty',
+    'Long',
+    'Reinforced',
+    'LongPassenger',
+    '2Passenger',
+    '2Freight',
+    '3Wagons'
+]
 
 
 def sample_images(
@@ -86,22 +71,52 @@ def sample_images(
     torchvision.utils.save_image(batch, file_manager.results_dest.joinpath("original.png"))
     torchvision.utils.save_image(results, file_manager.results_dest.joinpath("reconstructed.png"))
 
+def evaluate_encoding_on_set(
+        encoder : torch.nn.Module,
+        file_manager : ModelFileManager,
+        dataloader : torch_data.DataLoader,
+        dataset_description : str,
+        crosser : MetricCrosser,
+        encoding_labels : list[str]
+        ):
+    histogram = CrossBinaryHistogram(encoding_labels, SHORT_CLASSES)
+
+    crosser.reset()
+    with progress_cm.track(f'Encoding evaluation on {dataset_description} set', 'batches', dataloader) as progress_tracker:
+        for x, y in dataloader:
+            x = x.to(torch.get_default_device())
+            y = y.to(torch.get_default_device())
+            z = encoder(x)
+            crosser.update(z, y)
+            histogram.update(z, y)
+            progress_tracker.tick()
+    results = crosser.compute()
+    results_path = file_manager.results_dest.joinpath(f"concept_cross_metrics").joinpath(dataset_description)
+    results_path.mkdir(parents=True, exist_ok=True)
+    for metric, result in results.items():
+        logger.info(f"{dataset_description} {metric} results:\n{result}")
+        dest_file = results_path.joinpath(f"{metric}.json")
+        logger.info(f"Saving {metric} results to {dest_file}")
+        result.to_csv(results_path.joinpath(f"{metric}.csv"))
+    torch.save(histogram.histogram, results_path.joinpath("histogram.pt"))
+    histogram.create_figure(mode='overlayed').savefig(results_path.joinpath("densities_overlayed.png"))
+    histogram.create_figure(mode='stacked').savefig(results_path.joinpath("densities_stacked.png"))
+
 def evaluate_encoding(
         trainer : Trainer,
         file_manager : ModelFileManager,
         dataset : SplitDataset
     ):
-    label_indices = dataset.get_collumn_references().get_label_indices(CLASSES)
-    dataset = dataset_wrappers.SelectCols(dataset, select_y=label_indices)
     model : torch.nn.Module = trainer.model.encoder
     normalizer = layers.MinMaxNormalizer.fit(model, trainer.make_loader(dataset.for_training()), progress_cm=progress_cm)
     logger.info(f"Normalizer min: {normalizer.min}")
     logger.info(f"Normalizer max: {normalizer.max}")
     model = layers.add_layers(model, normalizer)
+    encoding_labels = [f"E{i}" for i in range(normalizer.min.size(0))]
 
     crosser = MetricCrosser(
-        ('E', normalizer.min.size(0)),
-        CLASSES,
+        encoding_labels,
+        SHORT_CLASSES,
         {
             'accuracy' : metrics.BinaryAccuracy,
             'f1' : metrics.BinaryF1Score,
@@ -110,7 +125,8 @@ def evaluate_encoding(
             'recall' : lambda: metric_wrappers.ToDtype(
                 metrics.BinaryRecall(), torch.long, apply_to_pred=False),
             'entropy' : lambda: metric_wrappers.ToDtype(
-                metrics.BinaryNormalizedEntropy(), torch.float32)
+                metrics.BinaryNormalizedEntropy(), torch.float32),
+            'auc' : metrics.BinaryAUROC,
             
         }
     )
@@ -122,7 +138,8 @@ def evaluate_encoding(
         file_manager, 
         trainer.make_loader(dataset.for_training()), 
         'train', 
-        crosser
+        crosser,
+        encoding_labels
     )
 
     logger.info("Computing cross metrics on validation set")
@@ -131,8 +148,42 @@ def evaluate_encoding(
         file_manager, 
         trainer.make_loader(dataset.for_validation()), 
         'val', 
-        crosser
+        crosser,
+        encoding_labels
     )
+
+def analyze_dataset(trainer : Trainer, file_manager : ModelFileManager, dataset : torch_data.Dataset, dataset_description : str):
+    loader = trainer.make_loader(dataset)
+    hist = torch.zeros(len(CLASSES), 2)
+    with progress_cm.track(f'Analyzing dataset {dataset_description}', 'batches', loader) as progress_tracker:
+        for _, y in loader:
+            for j in range(len(CLASSES)):
+                col : torch.Tensor= y[:, j]
+                pos = y[:, j].sum(0)
+                hist[j][1] += pos
+                hist[j][0] += col.size(0) - pos
+            progress_tracker.tick()
+    logger.info(f"Dataset {dataset_description} histogram:\n{hist}")
+    densities = hist / hist.sum(-1, keepdim=True)
+    logger.info(f"Dataset {dataset_description} densities:\n{densities}")
+    import matplotlib.pyplot as plt
+    import numpy as np
+    fig, ax = plt.subplots(layout='constrained')
+    hist = hist.numpy(force=True)
+    densities = densities.numpy(force=True)
+    p = ax.bar(SHORT_CLASSES, hist[:, 1], label='Positive', color='g')
+    ax.bar_label(p, labels=[f'{d:.2%}' for d in densities[:,1]], label_type='center')
+    p = ax.bar(SHORT_CLASSES, hist[:, 0], bottom=hist[:, 1], label='Negative', color='r')
+    ax.bar_label(p, labels=[f'{d:.2%}' for d in densities[:,0]], label_type='center')
+    ax.set_title(f"{dataset_description} concept histogram")
+    plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+    ax.legend()
+    fig.savefig(file_manager.results_dest.joinpath(f"{dataset_description}_concept_histogram.png"))
+    
+
+def analyze_selected_dataset(trainer : Trainer, file_manager : ModelFileManager, selected_dataset : SplitDataset):
+    analyze_dataset(trainer, file_manager, selected_dataset.for_training(), 'train')
+    analyze_dataset(trainer, file_manager, selected_dataset.for_validation(), 'val')
 
 def main():
     model_name = sys.argv[1]
@@ -147,6 +198,12 @@ def main():
             val_set = dataset.for_validation()
             sample_images(trainer, file_manager, val_set)
             logger.info("Sampling images done")
-            evaluate_encoding(trainer, file_manager, dataset)
+            
+            label_indices = dataset.get_collumn_references().get_label_indices(CLASSES)
+            selected_dataset = dataset_wrappers.SelectCols(dataset, select_y=label_indices)
+            evaluate_encoding(trainer, file_manager, selected_dataset)
+            logger.info("Encoding evaluation done")
+            analyze_selected_dataset(trainer, file_manager, selected_dataset)
+            
             logger.log(NOTIFY, 'Done')
 
