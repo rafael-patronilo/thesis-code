@@ -8,8 +8,6 @@ import logging
 import json
 import queue
 import threading
-import sys
-import time
 from typing import NamedTuple
 from urllib.parse import urlparse
 
@@ -144,7 +142,7 @@ class DiscordWebhookHandler(logging.Handler):
                 webhook_url: str,
                 mention_everyone_min_level = logging.ERROR,
                 mention_everyone_levels = None,
-                buffer_flush_interval = 300
+                buffer_flush_interval = 20
                 ):
         self.webhook_url = webhook_url
         parsed_url = urlparse(webhook_url)
@@ -155,12 +153,13 @@ class DiscordWebhookHandler(logging.Handler):
         self.buffer_flush_interval = buffer_flush_interval
         self.mention_everyone_min_level = mention_everyone_min_level
         self.mention_everyone_levels = mention_everyone_levels or []
+        self.__kill_switch = threading.Event()
         self.__buffer_consumer_thread = threading.Thread(
             target=self._buffer_consumer, 
             name='discord_webhook_log_handler')
         super().__init__()
         if self._try_send_message({"content": "# LOG BREAK"}):
-            time.sleep(self.CONSUMER_COOLDOWN)
+            self.__kill_switch.wait(self.CONSUMER_COOLDOWN)
             self.__buffer_consumer_thread.start()
         else:
             logger.error("Failed to send initial message to discord webhook. Discord logging will be disabled.")
@@ -189,26 +188,25 @@ class DiscordWebhookHandler(logging.Handler):
     def _buffer_consumer(self):
         msg_queue = self.message_buffer.get_queue()
         try:
-            while True:
+            while not self.__kill_switch.is_set():
                 try:
                     payload = msg_queue.get(timeout=self.buffer_flush_interval)
                     if payload is None:
                         return
                     if self._try_send_message(payload):
-                        time.sleep(self.CONSUMER_COOLDOWN)
+                        self.__kill_switch.wait(self.CONSUMER_COOLDOWN)
                     else:
                         logger.warning(f"Disabling discord logging for {self.ERROR_COOLDOWN} seconds")
-                        time.sleep(self.ERROR_COOLDOWN)
+                        self.__kill_switch.wait(self.ERROR_COOLDOWN)
                 except queue.Empty:
                     self.message_buffer.break_msg()
         except SystemExit | KeyboardInterrupt as e:
             with self.message_buffer.lock:
                 self.message_buffer.break_msg()
-                while msg_queue.not_empty:
+                while msg_queue.not_empty and not self.__kill_switch.is_set():
                     payload = msg_queue.get(block=False)
                     self._try_send_message(payload)
             raise e
-
     def flush(self) -> None:
         self.message_buffer.break_msg()
     
@@ -231,6 +229,7 @@ class DiscordWebhookHandler(logging.Handler):
     
     def close(self):
         self.message_buffer.close()
+        self.__kill_switch.set()
         if self.__buffer_consumer_thread.is_alive():
             self.__buffer_consumer_thread.join()
         self.client.close()
