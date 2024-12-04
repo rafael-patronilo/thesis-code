@@ -3,7 +3,7 @@ from typing import Any, Optional, Sequence
 import torch
 import inspect
 from torcheval.metrics import functional as torch_metrics
-from torcheval.metrics import Metric
+from torcheval.metrics import Metric, BinaryConfusionMatrix
 from core.datasets import SplitDataset
 from .elapsed import Elapsed
 from typing import Callable
@@ -63,3 +63,18 @@ def select_metrics(metrics : Sequence[NamedMetricFunction], dataset : Optional[S
             name, metric_function = metric
             metric_functions[name] = metric_function
     return metric_functions
+
+class BinaryBalancedAccuracy(BinaryConfusionMatrix):
+    def __init__(self):
+        super().__init__()
+
+    def compute(self):
+        cm = super().compute()
+        # docs are wrong: https://github.com/pytorch/torcheval/issues/183
+        tn = cm[0, 0]
+        fp = cm[0, 1]
+        fn = cm[1, 0]
+        tp = cm[0, 1]
+        specificity = tn / (tn + fp)
+        recall = tp / (tp + fn)
+        return (specificity + recall) / 2

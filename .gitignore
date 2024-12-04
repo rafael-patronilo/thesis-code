@@ -5,4 +5,5 @@ logs/
 checkpoints/
 data/
 temp.py
+temp.sh
 debug/

@@ -2,6 +2,7 @@
 This module handles discord notifications.
 It uses discord webhooks (http api is handled directly, no extra libraries required). 
 """
+from contextlib import suppress
 import os
 import http.client
 import logging
@@ -31,6 +32,7 @@ class DiscordMessageBufferer:
         self.extras = {}
         self.block = self.EMPTY_BLOCK
         self.prefix = ""
+        self.closed = False
     
     def __append_buffering(self, text: str):
         with self.lock:
@@ -49,9 +51,14 @@ class DiscordMessageBufferer:
             self.message += text
             if msg_split:
                 self.break_msg()
+
+    def _assert_not_closed(self):
+        if self.closed:
+            raise ValueError("Buffer is closed.")
     
     def append(self, text: str):
         with self.lock:
+            self._assert_not_closed()
             if text.endswith("\n"):
                 text = text[:-1].replace("\n", "\n" +  self.prefix) + "\n"
             else:
@@ -86,6 +93,7 @@ class DiscordMessageBufferer:
     
     def begin_block(self, block):
         with self.lock:
+            self._assert_not_closed()
             if self.block != self.EMPTY_BLOCK and block != self.EMPTY_BLOCK:
                 raise ValueError("Block already opened.")
             self.block = block
@@ -93,6 +101,7 @@ class DiscordMessageBufferer:
     
     def end_block(self):
         with self.lock:
+            self._assert_not_closed()
             self.append(self.block.footer)
             block = self.block
             self.block = self.EMPTY_BLOCK
@@ -100,6 +109,7 @@ class DiscordMessageBufferer:
         
     def break_msg(self):
         with self.lock:
+            self._assert_not_closed()
             if self.message != "" and self.message != self.block.header:
                 self.message += self.block.footer
                 payload = {'content':self.message}
@@ -129,7 +139,8 @@ class DiscordMessageBufferer:
         self.begin_prefix(prefix)
 
     def close(self):
-        self.buffer.put(None)
+        with self.lock:
+            self.buffer.put(None)
 
 
 class DiscordWebhookHandler(logging.Handler):
@@ -200,21 +211,26 @@ class DiscordWebhookHandler(logging.Handler):
                         self.__kill_switch.wait(self.ERROR_COOLDOWN)
                 except queue.Empty:
                     self.message_buffer.break_msg()
-        except SystemExit | KeyboardInterrupt as e:
-            with self.message_buffer.lock:
-                self.message_buffer.break_msg()
-                while msg_queue.not_empty and not self.__kill_switch.is_set():
-                    payload = msg_queue.get(block=False)
-                    self._try_send_message(payload)
-            raise e
+        finally:
+            # Try to flush remaining messages with no cooldown
+            with suppress(queue.Empty):
+                with self.message_buffer.lock:
+                    self.message_buffer.break_msg()
+                    self.__kill_switch.set()
+                    while msg_queue.not_empty:
+                        payload = msg_queue.get(block=False)
+                        if payload is None or not self._try_send_message(payload):
+                            break
 
     def flush(self) -> None:
         self.message_buffer.break_msg()
     
     def emit(self, record):
-        if record.threadName == self.__buffer_consumer_thread.getName():
+        if self.__kill_switch.is_set() or record.threadName == self.__buffer_consumer_thread.getName():
             return
         with self.message_buffer.lock:
+            if self.__kill_switch.is_set():
+                return
             log_entry = self.format(record)
             if record.levelno >= logging.WARNING:
                 self.message_buffer.begin_prefix("- ")
@@ -229,9 +245,10 @@ class DiscordWebhookHandler(logging.Handler):
                 self.message_buffer.mention_everyone()
     
     def close(self):
-        self.message_buffer.close()
-        self.__kill_switch.set()
+        with self.message_buffer.lock:
+            self.__kill_switch.set()
+            self.message_buffer.close()
         if self.__buffer_consumer_thread.is_alive():
-            self.__buffer_consumer_thread.join()
+            self.__buffer_consumer_thread.join(timeout=10)
         self.client.close()
         super().close()

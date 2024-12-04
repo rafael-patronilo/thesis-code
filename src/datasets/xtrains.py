@@ -1,5 +1,7 @@
 from core.datasets import CSVImageDataset, register_datasets
 from pathlib import Path
+from collections import defaultdict
+import numpy as np
 
 PATH=Path("data/xtrains_dataset")
 
@@ -27,6 +29,10 @@ CONCEPTS = [
 
 CLASSES = ['TypeA', 'TypeB', 'TypeC']
 
+DTYPES = defaultdict(lambda : np.int32, {
+    'name' : str,
+    'Angle' : np.float32,
+})
 # def xtrains_dataset(
 #     unfiltered=False,
 #     with_targets=True,
@@ -53,6 +59,8 @@ CLASSES = ['TypeA', 'TypeB', 'TypeC']
 #         filter = filter,
 #         random_state=seed
 #     )
+
+
 
 register_datasets(
     xtrains_unfiltered = CSVImageDataset(

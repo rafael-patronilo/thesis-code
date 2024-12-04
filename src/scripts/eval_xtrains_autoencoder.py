@@ -12,6 +12,7 @@ from datetime import timedelta
 from core.metrics import metric_wrappers as metric_wrappers
 
 from core.metrics.metrics_crosser import MetricCrosser
+from core.metrics import BinaryBalancedAccuracy
 from core.nn import layers
 import torch
 import torchvision
@@ -119,6 +120,8 @@ def evaluate_encoding(
         SHORT_CLASSES,
         {
             'accuracy' : metrics.BinaryAccuracy,
+            'balanced_accuracy' : lambda : metric_wrappers.ToDtype(BinaryBalancedAccuracy(),
+                torch.int32, apply_to_pred=False),
             'f1' : metrics.BinaryF1Score,
             'precision' : lambda: metric_wrappers.ToDtype(
                 metrics.BinaryPrecision(), torch.long, apply_to_pred=False),

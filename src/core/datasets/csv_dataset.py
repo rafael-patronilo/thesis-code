@@ -16,7 +16,8 @@ class CSVDataset(SplitDataset):
                  splits: float | tuple[float, float] = (0.7, 0.15),
                  shuffle: bool = True,
                  random_state = None,
-                 filter : Optional[Callable[[pd.Series], bool]] = None):
+                 filter : Optional[Callable[[pd.Series], bool]] = None,
+                 read_csv_kw : dict = {}):
         super().__init__()
         self.path = path
         self.target : list[str] = target if isinstance(target, list) else [target]
@@ -27,6 +28,7 @@ class CSVDataset(SplitDataset):
         self.shuffle = shuffle
         self.random_state = random_state
         self.filter = filter
+        self.read_csv_kw = read_csv_kw
 
     def _set_collumn_references(self, features: list[str], target: list[str]):
         self.collumn_references = CollumnReferences(
@@ -92,7 +94,7 @@ class CSVDataset(SplitDataset):
         if self.loaded:
             return
         logger.info(f"Loading CSV dataset from {self.path}")
-        self.data = pd.read_csv(self.path)
+        self.data = pd.read_csv(self.path, **self.read_csv_kw)
         if self.filter:
             self.data = self.data[self.data.apply(self.filter, axis=1)]
         if self.features is None:
