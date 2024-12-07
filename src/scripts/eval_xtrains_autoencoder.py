@@ -2,6 +2,7 @@ from collections import OrderedDict
 import sys
 from typing import Callable, Iterable, Sequence
 import math
+import pandas as pd
 
 from core.util.debug import debug_tensor
 from core import Trainer, ModelFileManager
@@ -12,7 +13,7 @@ from datetime import timedelta
 from core.metrics import metric_wrappers as metric_wrappers
 
 from core.metrics.metrics_crosser import MetricCrosser
-from core.metrics import BinaryBalancedAccuracy
+from core.metrics import BinaryBalancedAccuracy, BinarySpecificity
 from core.nn import layers
 import torch
 import torchvision
@@ -99,6 +100,12 @@ def evaluate_encoding_on_set(
         dest_file = results_path.joinpath(f"{metric}.json")
         logger.info(f"Saving {metric} results to {dest_file}")
         result.to_csv(results_path.joinpath(f"{metric}.csv"))
+        summarized = pd.DataFrame(columns=result.columns, index=['max', 'max_encoding', 'min', 'min_encoding'])
+        summarized.loc['max'] = result.max()
+        summarized.loc['max_encoding'] = result.idxmax()
+        summarized.loc['min'] = result.min()
+        summarized.loc['min_encoding'] = result.idxmin()
+        summarized.to_csv(results_path.joinpath(f"{metric}_summarized.csv"))
     torch.save(histogram.histogram, results_path.joinpath("histogram.pt"))
     histogram.create_figure(mode='overlayed').savefig(results_path.joinpath("densities_overlayed.png"))
     histogram.create_figure(mode='stacked').savefig(results_path.joinpath("densities_stacked.png"))
@@ -120,13 +127,15 @@ def evaluate_encoding(
         SHORT_CLASSES,
         {
             'accuracy' : metrics.BinaryAccuracy,
-            'balanced_accuracy' : lambda : metric_wrappers.ToDtype(BinaryBalancedAccuracy(),
-                torch.int32, apply_to_pred=False),
             'f1' : metrics.BinaryF1Score,
+            'balanced_accuracy' : lambda : metric_wrappers.ToDtype(
+                BinaryBalancedAccuracy(),torch.int32, apply_to_pred=False),
             'precision' : lambda: metric_wrappers.ToDtype(
-                metrics.BinaryPrecision(), torch.long, apply_to_pred=False),
+                metrics.BinaryPrecision(), torch.int32, apply_to_pred=False),
             'recall' : lambda: metric_wrappers.ToDtype(
-                metrics.BinaryRecall(), torch.long, apply_to_pred=False),
+                metrics.BinaryRecall(), torch.int32, apply_to_pred=False),
+            'specificity' : lambda: metric_wrappers.ToDtype(
+                BinarySpecificity(), torch.int32, apply_to_pred=False),
             'entropy' : lambda: metric_wrappers.ToDtype(
                 metrics.BinaryNormalizedEntropy(), torch.float32),
             'auc' : metrics.BinaryAUROC,

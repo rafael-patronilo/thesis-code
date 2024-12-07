@@ -1,5 +1,6 @@
 import torcheval.metrics
 from core import Trainer, MetricsLogger, util, datasets
+import core.metrics
 from core.metrics import Elapsed, metric_wrappers
 from torch import nn
 import torcheval
@@ -18,11 +19,16 @@ def create_trainer(layer_sizes : list[int], num_outputs : int, dataset_name : st
     dataset = datasets.get_dataset(dataset_name)
     metrics_per_clas = {
         'accuracy':torcheval.metrics.BinaryAccuracy,
-        'f1_score':torcheval.metrics.BinaryF1Score
+        'f1_score':torcheval.metrics.BinaryF1Score,
+        'precision':torcheval.metrics.BinaryPrecision,
+        'recall':torcheval.metrics.BinaryRecall,
+        'auc':torcheval.metrics.BinaryAUROC,
+        'balanced_accuracy':core.metrics.BinaryBalancedAccuracy,
+        'specificity':core.metrics.BinarySpecificity,
     }
 
     def metrics_factory() -> dict[str, torcheval.metrics.Metric]:
-        return metric_wrappers.SelectCol.col_wise(dataset, metrics_per_clas) | {'epoch_elapsed':Elapsed()}
+        return metric_wrappers.SelectCol.col_wise(dataset, metrics_per_clas) | {'epoch_elapsed' : Elapsed()}
     
     train_metrics = MetricsLogger(
         identifier='train',
