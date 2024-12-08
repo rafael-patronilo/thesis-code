@@ -6,7 +6,7 @@ from pathlib import Path
 import datetime
 import json
 import logging
-logger = logging.getLogger(__name__)
+module_logger = logging.getLogger(__name__)
 
 STUDIES_PATH = os.getenv("STUDIES_PATH", "storage/studies")
 
@@ -18,6 +18,7 @@ class StudyFileManager:
             studies_path : Optional[str] = None,
             best_experiment_link_name : Optional[str] = 'best'
         ) -> None:
+        self.logger = module_logger
         self.studies_path = studies_path or STUDIES_PATH
         self.study_name = study_name
         self.path = Path(self.studies_path).joinpath(self.study_name)
@@ -25,6 +26,8 @@ class StudyFileManager:
         self.best_experiment_link_path = None
         if best_experiment_link_name is not None:
             self.best_experiment_link_path = self.path.joinpath(best_experiment_link_name)
+        self.logger = self.logger.getChild(str(self.path))
+        self.logger.debug(f"Logger context switch")
 
     def new_experiment(self, experiment_name : str) -> ModelFileManager:
         return ModelFileManager(experiment_name, models_path=self.path)
@@ -38,7 +41,7 @@ class StudyFileManager:
 
     def set_best_link(self, best : str):
         if self.best_experiment_link_path is None:
-            logger.warning("Best experiment link path is None, not setting link")
+            self.logger.warning("Best experiment link path is None, not setting link")
             return
         if self.best_experiment_link_path.exists():
             if self.best_experiment_link_path.is_symlink():

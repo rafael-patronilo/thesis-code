@@ -13,7 +13,7 @@ import threading
 import json
 import importlib
 
-logger = logging.getLogger(__name__)
+module_logger = logging.getLogger(__name__)
 
 MODELS_PATH = os.getenv("MODEL_PATH", "storage/models")
 METRICS_BUFFER_LIMIT = 10
@@ -50,15 +50,28 @@ class ModelFileManager:
             path : 'PathLike',
             models_path : Optional['PathLike'] = None
         ) -> None:
+        self.logger = module_logger
         self.models_path = Path(models_path or MODELS_PATH)
         if not self.models_path.exists() or not self.models_path.is_dir():
             raise NotADirectoryError(f"Models path not found at {self.models_path}")
         self.__metrics_bufferers : dict[str, _MetricsBufferer]= {}
         self.path = self.models_path.joinpath(path)
+        self.__resolve_link()
         self.model_name = self.path.name
+        self.logger = self.logger.getChild(str(self.path))
+        self.logger.debug(f"Logger context switched")
         self.__is_context = False
         self.__format_paths()
     
+    def __resolve_link(self):
+        if self.path.is_symlink():
+            linked_path = self.path.readlink()
+            if linked_path.is_relative_to(self.models_path):
+                self.logger.info(f"{self.path} is a symlink, resolved to {linked_path}")
+                self.path = linked_path
+            else:
+                self.logger.warning(f"{self.path} is a symlink but points outside of {self.models_path} ({linked_path})")
+
     def __format_paths(self):
         self.checkpoint_path = self.path.joinpath(self.CHECKPOINTS_DIR)
         self.model_file = self.path.joinpath(self.MODEL_FILE_NAME)
@@ -70,7 +83,7 @@ class ModelFileManager:
         self.cache_dir = self.path.joinpath(self.CACHE_DIR)
 
     def __create_paths(self, exists_ok = False):
-        logger.debug(f"Creating paths for model {self.model_name} at {self.path}")
+        self.logger.debug(f"Creating paths for model {self.model_name} at {self.path}")
         self.path.mkdir(parents=True, exist_ok=exists_ok)
         self.checkpoint_path.mkdir(parents=True, exist_ok=True)
         self.metrics_dest.mkdir(parents=True, exist_ok=True)
@@ -83,17 +96,17 @@ class ModelFileManager:
 
     def init_metrics_file(self, identifier : str, metrics : list[str]):
         self.__assert_context()
-        logger.debug(f"Initializing metrics file for {metrics}")
+        self.logger.debug(f"Initializing metrics file for {metrics}")
         metrics_file = self.metrics_dest.joinpath(self.METRICS_FORMAT.format(identifier=identifier))
         file_stream : Any
         def init_file():
-            logger.info(f"Creating new metrics file at {metrics_file}")
+            self.logger.info(f"Creating new metrics file at {metrics_file}")
             file_stream = metrics_file.open('w')
             file_stream.write(",".join(metrics) + "\n")
             file_stream.flush()
             return file_stream
         if metrics_file.exists():
-            logger.debug(f"Metrics file already exists at {metrics_file}")
+            self.logger.debug(f"Metrics file already exists at {metrics_file}")
             conflict = False
             with metrics_file.open('r') as f:
                 header = f.readline().strip().split(',')
@@ -102,7 +115,7 @@ class ModelFileManager:
                     conflict = True
                     backup_name = self.METRICS_FORMAT.format(identifier=identifier + datetime.datetime.now().isoformat())
                     backup_path = self.metrics_dest.joinpath('old').joinpath(backup_name)
-                    logger.error(
+                    self.logger.error(
                         f"Existing metrics file has different header: Expected {metrics}, got {header}\n"
                         f"Backing it up to {backup_path} and creating a new one."
                     )
@@ -125,7 +138,7 @@ class ModelFileManager:
         try:
             bufferer = self.__metrics_bufferers[identifier]
         except KeyError:
-            logger.error(f"Metrics file for {identifier} not initialized")
+            self.logger.error(f"Metrics file for {identifier} not initialized")
         bufferer.add(records)
         #TODO tensorboard logging?
 
@@ -136,7 +149,7 @@ class ModelFileManager:
             value = factory()
             torch.save(value, path)
         else:
-            logger.info(f"Loading cached value for {key}")
+            self.logger.info(f"Loading cached value for {key}")
             value = torch.load(path, weights_only=False)
         return value
 
@@ -150,7 +163,7 @@ class ModelFileManager:
         if self.config_file.exists():
             match conflict_strategy:
                 case 'ignore':
-                    logger.warning("Ignoring existing config file")
+                    self.logger.warning("Ignoring existing config file")
                     return
                 case 'error':
                     raise FileExistsError(f"Config file already exists at {self.config_file}")
@@ -162,7 +175,7 @@ class ModelFileManager:
                             f"Config file already exists and is different from provided config. "
                             f"Existing: {existing_config}, Provided: {config}")
                     else:
-                        logger.warning("Config file already exists and is the same, not writing")
+                        self.logger.warning("Config file already exists and is the same, not writing")
                         return
                 case never:
                     assert_never(never)
@@ -181,13 +194,13 @@ class ModelFileManager:
         self.__assert_context()
         path = self.checkpoint_path.joinpath(self.CHECKPOINT_FORMAT.format(epoch=epoch))
         if path.exists():
-            logger.warning(f"Overwriting existing checkpoint at {path}")
+            self.logger.warning(f"Overwriting existing checkpoint at {path}")
         if not abrupt:
-            logger.info(f"Overwriting last checkpoint at {self.last_checkpoint}")
+            self.logger.info(f"Overwriting last checkpoint at {self.last_checkpoint}")
             torch.save(state_dict, self.last_checkpoint)
         else:
-            logger.warning("Abrupt checkpoint, not overwriting last checkpoint")
-        logger.info(f"Saving checkpoint at {path}")
+            self.logger.warning("Abrupt checkpoint, not overwriting last checkpoint")
+        self.logger.info(f"Saving checkpoint at {path}")
         torch.save(state_dict, path)
         
 
@@ -201,7 +214,7 @@ class ModelFileManager:
         checkpoint_files.sort(key=lambda x: x[0])
         if len(checkpoint_files) > 0:
             checkpoint_file = checkpoint_files[-1][1]
-            logger.warning(f"No checkpoint found at {self.last_checkpoint} but found checkpoint {checkpoint_file}")
+            self.logger.warning(f"No checkpoint found at {self.last_checkpoint} but found checkpoint {checkpoint_file}")
             return torch.load(checkpoint_file, weights_only=False)
         else:
             return None

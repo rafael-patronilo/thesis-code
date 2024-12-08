@@ -18,9 +18,11 @@ from core.util.progress_trackers import LogProgressContextManager
 if TYPE_CHECKING:
     from torch.optim.optimizer import Optimizer
 
+module_logger = logging.getLogger(__name__)
+
 
 def _dataloader_worker_init_fn(worker_id):
-    logger.debug(f"Training Dataloader worker {worker_id} initialized")
+    module_logger.debug(f"Training Dataloader worker {worker_id} initialized")
     torch.set_default_device('cpu')
 
 def debug_model(error : BaseException, model : nn.Module, X, Y):
@@ -87,9 +89,6 @@ class TrainerConfig(TypedDict, total=True):
     build_args : list[Any]
     build_kwargs : dict[str, Any]
 
-logger = logging.getLogger(__name__)
-progress_cm = LogProgressContextManager(logger, cooldown=timedelta(minutes=5))
-
 class _EvalExceptionWrapper(BaseException):
     def __init__(self, inner : BaseException):
         self.inner = inner
@@ -112,6 +111,7 @@ class Trainer:
             checkpoint_triggers : Optional[list[Callable[[Any], bool]]] = None,
             stop_criteria : Optional[list[Callable[['Trainer'], bool]]] = None
         ):
+        self._set_logger(module_logger)
         self.model = model
         self.loss_fn = loss_fn
         self.optimizer = optimizer(model.parameters())
@@ -136,15 +136,21 @@ class Trainer:
         self.first_epoch = True
         self.epoch_checkpoint = False
 
+    def _set_logger(self, logger : logging.Logger):
+        self.logger = logger
+        self.progress_cm = LogProgressContextManager(self.logger, cooldown=timedelta(minutes=5))
+        if self.logger is not module_logger:
+            self.logger.debug(f"Logger context switch")
+
     def checkpoint_metadata(self, reason : CheckpointReason):
         assert self.model_file_manager is not None
         return {
             "epoch" : self.epoch,
             "start_epoch" : self.start_epoch,
-            "path" : self.model_file_manager.path,
+            "path" : str(self.model_file_manager.path),
             "reason" : reason,
             "device" : torch.get_default_device().type,
-            "logfile" : log_file
+            "logfile" : str(log_file)
         }
     
     def init_file_manager(self, model_file_manager : ModelFileManager) -> 'Trainer':
@@ -152,12 +158,13 @@ class Trainer:
         model_file_manager.init_directory()
         for metric_logger in self.metric_loggers:
             self.model_file_manager.init_metrics_file(metric_logger.identifier, metric_logger.metrics_header)
+        self._set_logger(module_logger.getChild(model_file_manager.model_name))
         return self
 
     
     def state_dict(self, reason : CheckpointReason):
         metadata = self.checkpoint_metadata(reason)
-        logger.debug(f"Checkpoint metadata: {metadata}")
+        self.logger.debug(f"Checkpoint metadata: {metadata}")
         stop_criteria = {
             criterion.__class__.__name__ : criterion.state_dict() 
             for criterion in self.stop_criteria
@@ -183,15 +190,15 @@ class Trainer:
             if hasattr(criterion, 'load_state_dict'):
                 criterion.load_state_dict(state_dict['stop_criteria'][criterion.__class__.__name__])
         metadata = state_dict['metadata']
-        logger.info(f"Loaded checkpoint: {utils.multiline_str(metadata)}")
+        self.logger.info(f"Loaded checkpoint: {utils.multiline_str(metadata)}")
         if metadata['reason'] in ABRUPT_CHECKPOINT_REASONS:
-            logger.warning(f"Abrupt checkpoint: Checkpoint was saved due to {metadata['reason']}")
+            self.logger.warning(f"Abrupt checkpoint: Checkpoint was saved due to {metadata['reason']}")
         elif metadata['reason'] == 'eval_error':
-            logger.warning(f"Checkpoint was saved due to evaluation error. Attempting to evaluate again...")
+            self.logger.warning(f"Checkpoint was saved due to evaluation error. Attempting to evaluate again...")
             self.eval_metrics()
             if self.model_file_manager is not None:
                 self.model_file_manager.flush()
-            logger.info(self._metrics_str())
+            self.logger.info(self._metrics_str())
         self.epoch += 1
 
     def train_indefinitely(self):
@@ -213,38 +220,38 @@ class Trainer:
         if self.model_file_manager is None:
             raise ValueError("Model file manager not initialized")
         criteria = criteria + self.stop_criteria
-        logger.info("Initiating training loop...\n"
+        self.logger.info("Initiating training loop...\n"
                     f"Model: {self.model_file_manager.model_name}\n"
                     f"Epoch: {self.epoch}\n"
                     f"Checkpoint each: {self.checkpoint_each}\n"
                     f"Keyboard interrupt to save checkpoint and exit.")
         
         try:
-            no_interrupt = utils.NoInterrupt("mid epoch", logger)
+            no_interrupt = utils.NoInterrupt("mid epoch", self.logger)
             while not any(criterion(self) for criterion in criteria):
                 with no_interrupt:
                     if not self.first_epoch:
                         self.epoch += 1
                     self._train_epoch(self.epoch)
             self._checkpoint('end')
-            logger.log(NOTIFY, "Training complete.")
+            self.logger.log(NOTIFY, "Training complete.")
         except (KeyboardInterrupt, utils.NoInterrupt.InterruptException):
-            logger.log(NOTIFY, "Training safely interrupted. Saving checkpoint...")
+            self.logger.log(NOTIFY, "Training safely interrupted. Saving checkpoint...")
             self._checkpoint('interrupt')
             raise
         except (SystemExit, utils.NoInterrupt.ForcedInterruptException):
-            logger.error("Forced interrupt. Saving checkpoint...")
+            self.logger.error("Forced interrupt. Saving checkpoint...")
             self._checkpoint('force_interrupt')
             raise
         except _EvalExceptionWrapper as e:
-            logger.error(f"Exception caught during evaluation. Saving checkpoint...")
+            self.logger.error(f"Exception caught during evaluation. Saving checkpoint...")
             self._checkpoint('eval_error')
             raise e.inner
         except:
             if self.epoch == 0:
-                logger.error("Exception caught at epoch 0. Skipping checkpoint...")
+                self.logger.error("Exception caught at epoch 0. Skipping checkpoint...")
             else:
-                logger.error("Exception caught while training. Saving checkpoint...")
+                self.logger.error("Exception caught while training. Saving checkpoint...")
                 self._checkpoint('error')
             raise
     
@@ -266,18 +273,20 @@ class Trainer:
 
     def _checkpoint(self, reason : CheckpointReason):
         if self.first_epoch:
-            logger.warning("No training done yet, skipping checkpoint")
+            self.logger.warning("No training done yet, skipping checkpoint")
             return
         if self.epoch_checkpoint:
-            logger.warning("Checkpoint already saved for this epoch, skipping")
+            self.logger.warning("Checkpoint already saved for this epoch, skipping")
             return
         if self.model_file_manager is None:
             raise ValueError("Model file manager not initialized")
         is_abrupt = reason in ABRUPT_CHECKPOINT_REASONS
-        self.model_file_manager.save_checkpoint(self.epoch, self.state_dict(reason), is_abrupt)
+        state_dict = self.state_dict(reason)
+        self.model_file_manager.save_checkpoint(self.epoch, state_dict, is_abrupt)
         self.model_file_manager.flush()
         self.epoch_checkpoint = True
-        logger.info(f"Checkpoint at Epoch {self.epoch}\n{self._metrics_str()}")
+        self.logger.info(f"Checkpoint at Epoch {self.epoch}\n{self._metrics_str()}")
+        find_illegal_children(state_dict['model'], self.logger)
 
     def make_loader(self, dataset : Dataset) -> DataLoader:
         generator = torch.Generator(device=torch.get_default_device())
@@ -322,7 +331,7 @@ class Trainer:
             X = None
             Y = None
             loader = self.training_loader()
-            with progress_cm.track(f'Epoch {epoch}', 'batches', loader) as progress_tracker:
+            with self.progress_cm.track(f'Epoch {epoch}', 'batches', loader) as progress_tracker:
                 for X, Y in loader:
                     X = X.to(torch.get_default_device())
                     Y = Y.to(torch.get_default_device())
@@ -333,7 +342,7 @@ class Trainer:
                     progress_tracker.tick()
             self.first_epoch = False
         except BaseException as e:
-            logger.error(f"Exception during training loop {debug_model(e, self.model, X, Y)}")
+            self.logger.error(f"Exception during training loop {debug_model(e, self.model, X, Y)}")
             raise
         
         try:
@@ -341,14 +350,14 @@ class Trainer:
         except BaseException as e:
             raise _EvalExceptionWrapper(e)
         if epoch > 0 and self.checkpoint_each is not None and epoch % self.checkpoint_each == 0:
-            logger.info(f"Periodic checkpoint")
+            self.logger.info(f"Periodic checkpoint")
             self._checkpoint('periodic')
         elif any(trigger(self) for trigger in self.checkpoint_triggers):
-            logger.info(f"Triggered checkpoint")
+            self.logger.info(f"Triggered checkpoint")
             self._checkpoint('triggered')
         elif self.first_epoch:
-            logger.info(self._metrics_str())
-        logger.info(f"Epoch {epoch} avg loss = {loss_sum / batches:.4f}\n\n\n")
+            self.logger.info(self._metrics_str())
+        self.logger.info(f"Epoch {epoch} avg loss = {loss_sum / batches:.4f}\n\n\n")
             
         #for callback in self.callbacks:
         #    callback(self.model, self.optimizer, self.metrics, epoch)
@@ -399,12 +408,12 @@ class Trainer:
         build_kwargs = config.get('build_kwargs', {})
         for key in config.keys():
             if key not in ['build_script', 'build_args', 'build_kwargs']:
-                logger.warning(f"Unused key in config: {key}")
-        logger.info(f"Creating trainer from script {build_script}")
+                module_logger.warning(f"Unused key in config: {key}")
+        module_logger.info(f"Creating trainer from script {build_script}")
         # Sanitazion checks before loading the script
         assert utils.is_import_safe(build_script), f"Invalid build script name: {build_script}"
         trainer = importlib.import_module('.' + build_script, 'models').create_trainer(*build_args, **build_kwargs)
-        logger.info(trainer)
+        module_logger.info(trainer)
         return trainer
 
     @classmethod
@@ -412,27 +421,27 @@ class Trainer:
             cls, 
             file_manager : ModelFileManager
             ) -> 'Trainer':
-        logger.info(f"Loading Model {file_manager.model_name}")
+        module_logger.info(f"Loading Model {file_manager.model_name}")
         config = file_manager.load_config()
         trainer = cls.from_config(config)
         trainer.init_file_manager(file_manager)
-        logger.info(f"{trainer}")
+        module_logger.info(f"{trainer}")
 
-        logger.info(f"Looking for checkpoints")
+        module_logger.info(f"Looking for checkpoints")
         checkpoint = file_manager.load_last_checkpoint()
         if checkpoint is not None:
-            logger.info(f"Loading checkpoint")
+            module_logger.info(f"Loading checkpoint")
             metadata = checkpoint['metadata']
-            logger.info(f"Checkpoint info: {metadata}")
+            module_logger.info(f"Checkpoint info: {metadata}")
             trainer.load_state_dict(checkpoint)
         else:
-            logger.info("No checkpoint found.")
+            module_logger.info("No checkpoint found.")
 
         return trainer
     
 
-def find_illegal_children(state_dict) -> None | dict[str, str]:
-    def walk(obj, tree_trace : list[str], invalid_objects : dict[str, str]):
+def find_illegal_children(state_dict, logger : logging.Logger | None = None) -> None | list[tuple[str, Any]]:
+    def walk(obj, tree_trace : list[str], invalid_objects : list[tuple[str, Any]]):
         obj_type = type(obj)
         if obj_type is dict:
             for i, (k, v) in enumerate(obj.items()):
@@ -455,12 +464,18 @@ def find_illegal_children(state_dict) -> None | dict[str, str]:
             obj_type is bool or
             obj is None
         ):
-            invalid_objects[''.join(tree_trace)] = str(obj)
+            invalid_objects.append((''.join(tree_trace), obj))
     tree_trace = ['state_dict']
-    invalid_objects = {}
+    invalid_objects : list[tuple[str, Any]] = []
     walk(state_dict, tree_trace, invalid_objects)
     if len(invalid_objects) == 0:
         return None
     else:
+        if logger is not None:
+            logger.error(
+                "Found illegal objects in state_dict:\n" + 
+                '\n'.join(f"\t{path} : {repr(obj)} of type {type(obj)}" for path, obj in invalid_objects) +
+                "\norch.load() will required weights_only=False"
+            )
         return invalid_objects
 

@@ -4,7 +4,7 @@ from typing import Iterable, Callable, Literal, Optional, Any, assert_never
 from .storage_management.study_file_manager import StudyFileManager
 from .trainer import Trainer, TrainerConfig, MetricsSnapshot
 
-logger = logging.getLogger(__name__)
+module_logger = logging.getLogger(__name__)
 
 class StudyManager:
     def __init__(
@@ -18,7 +18,10 @@ class StudyManager:
                 ] = None,
             num_epochs : int = 10,
             ):
+        self.logger = module_logger.getChild(file_manager.study_name)
         self.name = file_manager.study_name
+        self.logger = self.logger.getChild(self.name)
+        self.logger.debug(f"Logger context switch")
         self.file_manager = file_manager
         self.compare_strategy : Callable[[dict, dict], bool]
         self.num_epochs = num_epochs
@@ -62,29 +65,29 @@ class StudyManager:
         trainer.init_file_manager(model_file_manager)
         checkpoint = model_file_manager.load_last_checkpoint()
         if checkpoint is not None:
-            logger.info(f"Checkpoint found, loading...")
+            self.logger.info(f"Checkpoint found, loading...")
             trainer.load_state_dict(checkpoint)
         else:
-            logger.info("No checkpoint")
+            self.logger.info("No checkpoint")
         return trainer
     
     def run_experiment(self, experiment_name : str, config: TrainerConfig):
         with self.file_manager.new_experiment(experiment_name) as model_file_manager:
-            logger.info(f"Running experiment {experiment_name} for {self.num_epochs} epochs")
+            self.logger.info(f"Running experiment {experiment_name} for {self.num_epochs} epochs")
             trainer = self._create_trainer(model_file_manager, config)
             model_file_manager.save_config(config)
             if trainer.epoch >= self.num_epochs:
-                logger.info(f"Experiment {experiment_name} was already complete.")
+                self.logger.info(f"Experiment {experiment_name} was already complete.")
             else:
                 trainer.train_until_epoch(self.num_epochs)
-                logger.log(NOTIFY, f"Experiment {experiment_name} complete")
+                self.logger.log(NOTIFY, f"Experiment {experiment_name} complete")
             if self.skip_comparison:
-                logger.warning("Skipping automatic results comparison")
+                self.logger.warning("Skipping automatic results comparison")
             else:
                 try:
                     self._evaluate_experiment(experiment_name, trainer)
                 except BaseException as e:
-                    logger.error(f"Error comparing experiment {experiment_name}: {e}\n" +
+                    self.logger.error(f"Error comparing experiment {experiment_name}: {e}\n" +
                                  "Training will continue skipping comparison")
                     self.skip_comparison = True
 
@@ -94,21 +97,21 @@ class StudyManager:
         self.results[experiment_name] = snapshot
         if self.best_results is None:
                 self.best_results = (experiment_name, snapshot)
-                logger.debug(f"Saved first experiment {experiment_name} as best")
+                self.logger.debug(f"Saved first experiment {experiment_name} as best")
         else:
             
             if self.compare_strategy(snapshot, self.best_results[1]):
                 self.best_results = (experiment_name, snapshot)
-                logger.info(f"New best experiment {experiment_name}")
+                self.logger.info(f"New best experiment {experiment_name}")
             else:
-                logger.info(f"Best experiment remains {self.best_results[0]}")
+                self.logger.info(f"Best experiment remains {self.best_results[0]}")
 
     def check_stop_criteria(self) -> bool:
         if self.best_results is None:
             return False
         experiment_name, snapshot = self.best_results
         if self.stop_criteria is not None and self.stop_criteria(snapshot):
-            logger.info(f"Stopping criteria met for {experiment_name}")
+            self.logger.info(f"Stopping criteria met for {experiment_name}")
             return True
         else:
             return False
@@ -125,13 +128,13 @@ class StudyManager:
             self.run_experiment(experiment_name, details)
             if self.check_stop_criteria():
                 break
-        logger.log(NOTIFY, f"Study complete")
+        self.logger.log(NOTIFY, f"Study complete")
         self.store_results()
 
     def store_results(self):
         if self.best_results is not None:
-            logger.info(f"Best experiment: {self.best_results[0]}")
-            logger.info(f"Metrics: {self.best_results[1]}")
+            self.logger.info(f"Best experiment: {self.best_results[0]}")
+            self.logger.info(f"Metrics: {self.best_results[1]}")
             self.file_manager.save_results(self.results, self.best_results[0])
         else:
-            logger.warning("No results to store")
+            self.logger.warning("No results to store")
