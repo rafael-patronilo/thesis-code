@@ -3,7 +3,6 @@ from core.storage_management import StudyFileManager
 from typing import NamedTuple
 from torch import nn
 import sys
-
 STUDY_NAME = "xtrains_autoencoders_4"
 
 CONVOLUTIONS = (
