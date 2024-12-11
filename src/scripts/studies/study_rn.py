@@ -7,10 +7,17 @@ DATASET = "xtrains_ontology_simplified_comp_some_all"
 CONFIGS=[
     ('L16', [16]),
     ('L32', [32]),
+    ('L64', [64]),
     ('L16x2', [16, 16]),
+    ('L16L32', [16, 32]),
     ('L32x2', [32, 32]),
+    ('L32L64', [32, 64]),
+    ('L64x2', [64, 64]),
     ('L16x3', [16, 16, 16]),
+    ('L16L32x2', [16, 32, 32]),
     ('L32x3', [32, 32, 32]),
+    ('L16L32L64', [16, 32, 64]),
+    ('L64x3', [64, 64, 64]),
 ]
 
 def main():
@@ -21,8 +28,8 @@ def main():
     study_manager = StudyManager(
         file_manager,
         compare_strategy="max",
-        metric_key=("val", "accuracy"),
-        num_epochs=50
+        metric_key=("val", "balanced_accuracy"),
+        num_epochs=100
     )
     def config_of(layer_sizes):
         return dict(

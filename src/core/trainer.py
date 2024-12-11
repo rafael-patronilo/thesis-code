@@ -1,7 +1,7 @@
 from collections import OrderedDict
 import logging
 from torch.utils.data import DataLoader, IterableDataset, Dataset, RandomSampler
-from typing import Optional, Any, Callable, Literal, NamedTuple, TypedDict, TYPE_CHECKING
+from typing import Optional, Any, Callable, Literal, NamedTuple, TypedDict, Iterable, TYPE_CHECKING
 from .metrics_logger import MetricsLogger, TrainingLogger
 from .datasets import SplitDataset
 from .storage_management.model_file_manager import ModelFileManager
@@ -109,7 +109,8 @@ class Trainer:
             shuffle : bool = True,
             checkpoint_each : Optional[int] = 10,
             checkpoint_triggers : Optional[list[Callable[[Any], bool]]] = None,
-            stop_criteria : Optional[list[Callable[['Trainer'], bool]]] = None
+            stop_criteria : Optional[list[Callable[['Trainer'], bool]]] = None,
+            display_metrics : Optional[Iterable[str]] = None
         ):
         self._set_logger(module_logger)
         self.model = model
@@ -135,6 +136,7 @@ class Trainer:
         self.shuffle = shuffle
         self.first_epoch = True
         self.epoch_checkpoint = False
+        self.display_metrics : Optional[Iterable[str]] = display_metrics
 
     def _set_logger(self, logger : logging.Logger):
         self.logger = logger
@@ -198,7 +200,9 @@ class Trainer:
             self.eval_metrics()
             if self.model_file_manager is not None:
                 self.model_file_manager.flush()
-            self.logger.info(self._metrics_str())
+            self.logger.info(self._metrics_str(self.display_metrics))
+            if self.display_metrics is not None:
+                self.logger.debug(self._metrics_str(None))
         self.epoch += 1
 
     def train_indefinitely(self):
@@ -255,20 +259,31 @@ class Trainer:
                 self._checkpoint('error')
             raise
     
-    def _metrics_str(self):
+    def _metrics_str(self, to_display : Iterable[str] | None):
         averages = ""
         averages_last_n = ""
         last_record = ""
-        last_n = None
+        n = None
+        to_display = to_display or {name for logger in self.metric_loggers for name,_ in logger.ordered_metrics}
+        def format_dict(values : dict | None):
+            if values is None:
+                return 'N/A'
+            def get_value(metric):
+                value = values.get(metric, None)
+                if value is None:
+                    return 'N/A'
+                else:
+                    return f"{value:.2f}"
+            return '\n'.join(f"\t\t{metric} : {get_value(metric)}" for metric in to_display)
         for metric_logger in self.metric_loggers:
-            last_n = last_n or metric_logger.last_n
-            averages += f"\t{metric_logger.identifier} : {metric_logger.averages()}\n"
-            averages_last_n += f"\t{metric_logger.identifier} : {metric_logger.averages_last_n()}\n"
-            last_record += f"\t{metric_logger.identifier} : {metric_logger.last_record}\n"
+            n = n or len(metric_logger.last_n)
+            averages += f"\t{metric_logger.identifier} : {format_dict(metric_logger.averages())}\n"
+            averages_last_n += f"\t{metric_logger.identifier} : {format_dict(metric_logger.averages_last_n())}\n"
+            last_record += f"\t{metric_logger.identifier} : {format_dict(metric_logger.last_record)}\n"
         return (
             f"Metrics:\n{last_record}"
             f"Avg:\n{averages}"
-            f"Avg last {last_n}:\n{averages_last_n}"
+            f"Avg last {n}:\n{averages_last_n}"
             )
 
     def _checkpoint(self, reason : CheckpointReason):
@@ -285,8 +300,10 @@ class Trainer:
         self.model_file_manager.save_checkpoint(self.epoch, state_dict, is_abrupt)
         self.model_file_manager.flush()
         self.epoch_checkpoint = True
-        self.logger.info(f"Checkpoint at Epoch {self.epoch}\n{self._metrics_str()}")
-        find_illegal_children(state_dict['model'], self.logger)
+        self.logger.info(f"Checkpoint at Epoch {self.epoch}\n{self._metrics_str(self.display_metrics)}")
+        if self.display_metrics is not None:
+            self.logger.debug(self._metrics_str(None))
+        find_illegal_children(state_dict, self.logger)
 
     def make_loader(self, dataset : Dataset) -> DataLoader:
         generator = torch.Generator(device=torch.get_default_device())
@@ -356,7 +373,9 @@ class Trainer:
             self.logger.info(f"Triggered checkpoint")
             self._checkpoint('triggered')
         elif self.first_epoch:
-            self.logger.info(self._metrics_str())
+            self.logger.info(self._metrics_str(self.display_metrics))
+            if self.display_metrics is not None:
+                self.logger.debug(self._metrics_str(None))
         self.logger.info(f"Epoch {epoch} avg loss = {loss_sum / batches:.4f}\n\n\n")
             
         #for callback in self.callbacks:
@@ -443,12 +462,12 @@ class Trainer:
 def find_illegal_children(state_dict, logger : logging.Logger | None = None) -> None | list[tuple[str, Any]]:
     def walk(obj, tree_trace : list[str], invalid_objects : list[tuple[str, Any]]):
         obj_type = type(obj)
-        if obj_type is dict:
+        if obj_type is dict or obj_type is OrderedDict:
             for i, (k, v) in enumerate(obj.items()):
                 tree_trace.append(f'.{k}')
                 walk(v, tree_trace, invalid_objects)
                 tree_trace.pop()
-                tree_trace.append(f'keys()[{i}]')
+                tree_trace.append(f'.keys()[{i}]')
                 walk(k, tree_trace, invalid_objects)
                 tree_trace.pop()
         elif obj_type is list or obj_type is tuple:
@@ -474,7 +493,7 @@ def find_illegal_children(state_dict, logger : logging.Logger | None = None) -> 
         if logger is not None:
             logger.error(
                 "Found illegal objects in state_dict:\n" + 
-                '\n'.join(f"\t{path} : {repr(obj)} of type {type(obj)}" for path, obj in invalid_objects) +
+                '\n'.join(f"\t{path} : {repr(obj)[:30]} of type {type(obj)}" for path, obj in invalid_objects) +
                 "\norch.load() will required weights_only=False"
             )
         return invalid_objects

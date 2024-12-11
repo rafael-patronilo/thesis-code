@@ -88,6 +88,7 @@ SIZE = len(_ontology.build())
 del _ontology # remove temporary variable, to avoid reusing the same object
 
 RANDOM_SIZES = (50_000, 10_000, 10_000)
+COMPLETE_SPLIT = (1.0, 0.0)
 
 if SIZE <= sum(RANDOM_SIZES):
     RANDOM_SIZES = (int(0.8*SIZE), int(0.1*SIZE), int(0.1*SIZE))
@@ -108,20 +109,22 @@ def generators(**kwargs):
         "all"   : _build_ontology(**kwargs).build()
     }
 
+
+
 random_datasets : dict[str, RandomDataset] = {
-    f"{PREFIX}_rand_{k}" : _random_dataset(v.generate_random) 
+    f"{PREFIX}_rand_{k}" : _random_dataset(v.generate_random)
     for k, v in generators().items()}
 
 complete_datasets : dict[str, SplitDataset] = {
-    f"{PREFIX}_comp_{k}" : v.as_complete_dataset() 
+    f"{PREFIX}_comp_{k}" : v.as_complete_dataset(split=COMPLETE_SPLIT) 
     for k, v in generators().items()}
 
 complete_inv_datasets : dict[str, SplitDataset] = {
-    f"{PREFIX}_comp_inv_{k}" : v.as_complete_dataset(force_valid=False) 
+    f"{PREFIX}_comp_inv_{k}" : v.as_complete_dataset(split=COMPLETE_SPLIT,force_valid=False) 
     for k, v in generators().items()}
 
 complete_some_class : dict[str, SplitDataset] = {
-    f"{PREFIX}_comp_some_{k}" : v.as_complete_dataset(force_valid=False) 
+    f"{PREFIX}_comp_some_{k}" : v.as_complete_dataset(split=COMPLETE_SPLIT,force_valid=False) 
     for k, v in generators(require_some_class=True).items()}
 
 

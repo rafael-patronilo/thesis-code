@@ -11,6 +11,7 @@ import queue
 import threading
 from typing import NamedTuple
 from urllib.parse import urlparse
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -212,7 +213,7 @@ class DiscordWebhookHandler(logging.Handler):
                 except queue.Empty:
                     self.message_buffer.break_msg()
         finally:
-            # Try to flush remaining messages with no cooldown
+            # Try to flush remaining messages
             with suppress(queue.Empty):
                 with self.message_buffer.lock:
                     self.message_buffer.break_msg()
@@ -221,6 +222,7 @@ class DiscordWebhookHandler(logging.Handler):
                         payload = msg_queue.get(block=False)
                         if payload is None or not self._try_send_message(payload):
                             break
+                        time.sleep(self.CONSUMER_COOLDOWN)
 
     def flush(self) -> None:
         self.message_buffer.break_msg()

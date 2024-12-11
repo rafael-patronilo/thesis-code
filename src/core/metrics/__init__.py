@@ -92,4 +92,21 @@ class BinarySpecificity(BinaryConfusionMatrix):
         tn = cm[0, 0]
         fp = cm[0, 1]
         return tn / (tn + fp)
+    
+class BinaryPositiveRate(BinaryConfusionMatrix):
+    def __init__(self):
+        assert torcheval.version.__version__ == '0.0.7', "confusion matrix order may have been changed: https://github.com/pytorch/torcheval/issues/183"
+        super().__init__()
+
+    def compute(self):
+        cm = super().compute()
+        # docs are wrong: https://github.com/pytorch/torcheval/issues/183
+        tn = cm[0, 0]
+        fp = cm[0, 1]
+        fn = cm[1, 0]
+        tp = cm[1, 1]
+        positives = tp + fp
+        negatives = tn + fn
+        total = positives + negatives
+        return positives / total
 

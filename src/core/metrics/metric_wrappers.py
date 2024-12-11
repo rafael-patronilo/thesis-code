@@ -50,6 +50,43 @@ class MetricWrapper(Metric):
         fields = "".join(f", {k}={v}" for k, v in self.__dict__.items() if k != 'inner')
         return f"{self.__class__.__name__}({self.inner}{fields})"
 
+class MultiMetricWrapper(Metric):
+    def __init__(self, *metrics : Metric) -> None:
+        self.metrics = metrics
+
+    def reset(self):
+        for metric in self.metrics:
+            metric.reset()
+
+    def to(self, device):
+        for metric in self.metrics:
+            metric.to(device)
+
+    def merge_state(self, metrics: Iterable[Metric]) -> Metric:
+        merged_metrics = []
+        for metric, others in zip(self.metrics, zip(metrics)):
+            merged_metrics.append(metric.merge_state(others))
+        return self.__class__(*merged_metrics)
+    
+    def update(self, y_pred, y_true):
+        for metric in self.metrics:
+            metric.update(y_pred, y_true)
+
+    def compute(self):
+        raise NotImplementedError("Derive this class with some agreggation strategy")
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({', '.join(map(str, self.metrics))})"
+    
+    @classmethod
+    def foreach_class(
+            cls,
+            dataset : 'TorchDataset | SplitDataset', 
+            metric : Callable[[], Metric],
+        ) -> 'MultiMetricWrapper':
+        return cls(*SelectCol.col_wise(dataset, {'metric' : metric}, include_flatten=False).values())
+
+
 def unwrap(metric : Metric) -> Metric:
     if isinstance(metric, MetricWrapper):
         return metric.unwrap()
@@ -107,6 +144,7 @@ class SelectCol(MetricWrapper):
             cls, 
             dataset : 'TorchDataset | SplitDataset', 
             metrics:dict[str, Callable[[],Metric]], 
+            include_flatten : bool = True,
             out_dict : dict[str, Metric] | None = None
         ) -> dict[str, Metric]:
         split_dataset = SplitDataset.of(dataset)
@@ -117,7 +155,8 @@ class SelectCol(MetricWrapper):
             label_names = map(str, range(split_dataset.get_shape()[1][0]))
         result = out_dict or {}
         for name, metric_factory in metrics.items():
-            result[name] = Flatten(metric_factory())
+            if include_flatten:
+                result[name] = Flatten(metric_factory())
             for label_idx, label_name in enumerate(label_names):
                 result[f"{name}_{label_name}"] = cls(metric_factory(), label_idx)
         return result
@@ -136,7 +175,15 @@ class SelectCol(MetricWrapper):
             names = [names]
         cols = [names_to_cols[name] for name in names]
         return SelectCol(metric, cols, **kwargs)
-        
+
+
+class MinOf(MultiMetricWrapper):
+    def __init__(self, *metrics : Metric) -> None:
+        super().__init__(*metrics)
+
+    def compute(self):
+        return min(metric.compute() for metric in self.metrics)
+
 
 class ToDtype(MetricWrapper):
     def __init__(self, 
@@ -161,3 +208,7 @@ class ToDtype(MetricWrapper):
         if self.apply_to_true:
             y_true = y_true.to(dtype)
         return self.inner.update(y_pred, y_true)
+
+def to_int(factory : Callable[[], Metric]) -> Callable[[], Metric]:
+    import torch
+    return lambda: ToDtype(factory(), torch.int32, apply_to_pred=False)
