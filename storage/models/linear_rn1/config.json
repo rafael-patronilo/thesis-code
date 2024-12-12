@@ -1,8 +1,0 @@
-{
-    "build_script" : "linear_rn",
-    "build_kwargs" : {
-        "layer_sizes" : [32],
-        "num_outputs" : 4,
-        "dataset_name" : "xtrains_ontology_simplified_comp_inv_all"
-    }
-}

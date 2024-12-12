@@ -1,0 +1,52 @@
+{
+    "best_permutation": [
+        7,
+        5,
+        2,
+        4,
+        3,
+        6,
+        0,
+        8,
+        1
+    ],
+    "best_negate": [
+        1,
+        -1,
+        1,
+        -1,
+        1,
+        1,
+        1,
+        -1,
+        -1
+    ],
+    "train": {
+        "accuracy": 0.7122138142585754,
+        "concept_accuracies": {
+            "PassengerCar": 0.5802146792411804,
+            "FreightWagon": 0.8922841548919678,
+            "EmptyWagon": 0.5725544095039368,
+            "LongWagon": 0.6647688746452332,
+            "ReinforcedCar": 0.5070384740829468,
+            "LongPassengerCar": 0.830737292766571,
+            "AtLeast2PassengerCars": 0.9355337023735046,
+            "AtLeast2FreightWagons": 0.6731524467468262,
+            "AtLeast3Wagons": 0.7536405324935913
+        }
+    },
+    "val": {
+        "accuracy": 0.7112597227096558,
+        "concept_accuracies": {
+            "PassengerCar": 0.5819921493530273,
+            "FreightWagon": 0.8891953229904175,
+            "EmptyWagon": 0.5735130906105042,
+            "LongWagon": 0.6629347801208496,
+            "ReinforcedCar": 0.50483638048172,
+            "LongPassengerCar": 0.8329697251319885,
+            "AtLeast2PassengerCars": 0.93451327085495,
+            "AtLeast2FreightWagons": 0.6713109612464905,
+            "AtLeast3Wagons": 0.7500720024108887
+        }
+    }
+}

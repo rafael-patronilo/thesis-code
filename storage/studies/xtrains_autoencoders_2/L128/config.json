@@ -1,0 +1,41 @@
+{
+    "build_script": "conv_autoencoder",
+    "build_args": [],
+    "build_kwargs": {
+        "dataset_name": "xtrains",
+        "conv_layers": [
+            32,
+            32,
+            [
+                "pool",
+                2
+            ],
+            64,
+            [
+                "pool",
+                2
+            ],
+            64,
+            [
+                "pool",
+                2
+            ],
+            128,
+            [
+                "pool",
+                2
+            ],
+            128,
+            [
+                "pool",
+                2
+            ]
+        ],
+        "linear_layers": [
+            128
+        ],
+        "encoding_size": 9,
+        "encoding_activation": "relu",
+        "kernel_size": 3
+    }
+}
