@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 import command_base
-from core import Trainer
+from core.training import Trainer
 from core.storage_management import ModelFileManager
 import sys
-from core.stop_criteria import StopAtEpoch, EarlyStop
-from core.checkpoint_triggers import BestMetric
+from core.training.stop_criteria import EarlyStop
+from core.training.checkpoint_triggers import BestMetric
 
 
 @command_base.main_wrapper

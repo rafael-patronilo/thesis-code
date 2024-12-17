@@ -1,32 +1,24 @@
-from collections import OrderedDict
 import sys
-from typing import Callable, Iterable, Sequence
-import math
 import pandas as pd
 
-from core.util.debug import debug_tensor
 from core import Trainer, ModelFileManager
 from core.datasets import SplitDataset, dataset_wrappers
 from core.util.progress_trackers import LogProgressContextManager
 from datetime import timedelta
 
-from core.metrics import metric_wrappers as metric_wrappers
+from core.eval.metrics import metric_wrappers as metric_wrappers
 
-from core.metrics.metrics_crosser import MetricCrosser
-from core.metrics import BinaryBalancedAccuracy, BinarySpecificity
+from core.eval.metrics.metrics_crosser import MetricCrosser
+from core.eval.metrics import BinaryBalancedAccuracy, BinarySpecificity
 from core.nn import layers
 import torch
 import torchvision
 import torch.utils.data as torch_data
-import os
-from core.metrics_logger import dataloader_worker_init_fn
 from core.datasets import get_dataset
 import logging
-from logging_setup import NOTIFY
+from core.logging import NOTIFY
 from torcheval import metrics
 from core.util.plotting import CrossBinaryHistogram
-import json
-
 
 logger = logging.getLogger(__name__)
 progress_cm = LogProgressContextManager(logger, cooldown=timedelta(minutes=2))
@@ -179,7 +171,6 @@ def analyze_dataset(trainer : Trainer, file_manager : ModelFileManager, dataset 
     densities = hist / hist.sum(-1, keepdim=True)
     logger.info(f"Dataset {dataset_description} densities:\n{densities}")
     import matplotlib.pyplot as plt
-    import numpy as np
     fig, ax = plt.subplots(layout='constrained')
     hist = hist.numpy(force=True)
     densities = densities.numpy(force=True)

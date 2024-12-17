@@ -1,17 +1,15 @@
 
 from collections import OrderedDict
 from pathlib import Path
-from typing import Callable, Literal, NamedTuple, Any, Optional, Self, assert_never, TYPE_CHECKING
+from typing import Callable, Literal, Any, Optional, Self, assert_never, TYPE_CHECKING
 import datetime
 import logging
 import torch
 import os
 if TYPE_CHECKING:
-    from ..trainer import TrainerConfig
+    from core.training.trainer import TrainerConfig
     from core.util.typing import PathLike
-import threading
 import json
-import importlib
 
 module_logger = logging.getLogger(__name__)
 
@@ -52,8 +50,12 @@ class ModelFileManager:
         ) -> None:
         self.logger = module_logger
         self.models_path = Path(models_path or MODELS_PATH)
-        if not self.models_path.exists() or not self.models_path.is_dir():
-            raise NotADirectoryError(f"Models path not found at {self.models_path}")
+        if not self.models_path.exists():
+            self.logger.warning(f'Models path {self.models_path} does not exist, creating...')
+            self.models_path.mkdir(parents=True)
+        if not self.models_path.is_dir():
+            raise NotADirectoryError(f"Models path {self.models_path} is not a dir")
+
         self.__metrics_bufferers : dict[str, _MetricsBufferer]= {}
         self.path = self.models_path.joinpath(path)
         self.__resolve_link()

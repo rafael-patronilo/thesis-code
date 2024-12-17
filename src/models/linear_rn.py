@@ -1,13 +1,14 @@
 import torcheval.metrics
-from core import Trainer, MetricsLogger, util, datasets
-from core.checkpoint_triggers.best_metric import BestMetric
-import core.metrics
-from core.metrics import Elapsed, metric_wrappers
+from core import Trainer, MetricsRecorder, datasets
+from core.training.checkpoint_triggers.best_metric import BestMetric
+import core.eval.metrics
+from core.eval.metrics import Elapsed
+from core.eval.metrics import metric_wrappers
 from torch import nn
 import torcheval
 import torch
 
-from core.stop_criteria.early_stop import EarlyStop
+from core.training.stop_criteria import EarlyStop
 
 
 def create_model(layer_sizes : list[int], num_outputs : int) -> nn.Module:
@@ -34,19 +35,19 @@ def create_trainer(layer_sizes : list[int], num_outputs : int, dataset_name : st
 
     def metrics_factory() -> dict[str, torcheval.metrics.Metric]:
         return (
-            metric_wrappers.SelectCol.col_wise(dataset, metrics_per_class) | 
-            {   
+                metric_wrappers.SelectCol.col_wise(dataset, metrics_per_class) |
+                {
                 f'min_{name}' : metric_wrappers.MinOf.foreach_class(dataset, metric) 
                 for name, metric in metrics_per_class.items()
             } |
-            {'epoch_elapsed' : Elapsed()})
+                {'epoch_elapsed' : Elapsed()})
     
-    train_metrics = MetricsLogger(
+    train_metrics = MetricsRecorder(
         identifier='train',
         metric_functions=metrics_factory(),
         dataset=dataset.for_training_eval
     )
-    val_metrics = MetricsLogger(
+    val_metrics = MetricsRecorder(
         identifier='val',
         metric_functions=metrics_factory(),
         dataset=dataset.for_validation

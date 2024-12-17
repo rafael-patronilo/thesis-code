@@ -2,6 +2,7 @@ from pathlib import Path
 
 from typing import Self, Literal, TYPE_CHECKING
 from dataclasses import dataclass, field
+import warnings
 
 if TYPE_CHECKING:
     from matplotlib.figure import Figure
@@ -13,6 +14,7 @@ import torch
 import numpy as np
 
 
+@warnings.deprecated('Unused class and inefficient implementation. To be removed')
 class CrossPlotter:
     """Utility class to efficiently plot large amounts of data points.
 

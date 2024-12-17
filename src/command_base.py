@@ -2,8 +2,9 @@
 
 # set up logging
 import logging
-import logging_setup
-logging_setup.setup_logging()
+from core import logging
+
+logging.setup()
 logger = logging.getLogger()
 import functools
 import sys
@@ -23,7 +24,7 @@ def exit_gracefully(code : int = 0, impatient = False):
     graceful_exit = True
     logger.info("Exitting gracefully")
     logging.shutdown()
-    logging_setup.log_break(msg="END LOG")
+    logging.log_break(msg="END LOG")
     sys.exit(code)
 
 # preferred torch device

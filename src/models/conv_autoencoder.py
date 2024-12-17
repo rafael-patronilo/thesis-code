@@ -1,13 +1,13 @@
 from core.util import conv_out_shape, transposed_conv_out_shape
-from core import util, datasets
-from core.metrics import get_metric
-from core.stop_criteria import EarlyStop
-from core.checkpoint_triggers import BestMetric
-from typing import Literal, Sequence, Any, assert_never
+from core import datasets
+from core.eval.metrics import get_metric
+from core.training.stop_criteria import EarlyStop
+from core.training.checkpoint_triggers import BestMetric
+from typing import Literal, Sequence, assert_never
 from torch import nn
 import torch
 from core.nn.autoencoder import AutoEncoder
-from core import Trainer, MetricsLogger, TrainingLogger
+from core import Trainer, MetricsRecorder, TrainingLogger
 import torcheval.metrics as torch_metrics
 import logging
 from types import SimpleNamespace
@@ -147,7 +147,7 @@ def create_trainer(dataset_name : str, **kwargs) -> Trainer:
     #    metric_functions={'loss':train_loss_metric}, #type:ignore
     #    dataset=dataset.for_training
     #)
-    val_metrics = MetricsLogger(
+    val_metrics = MetricsRecorder(
         identifier='val',
         metric_functions=metric_functions | {'loss': loss_metric()}, #type:ignore
         dataset=dataset.for_validation
