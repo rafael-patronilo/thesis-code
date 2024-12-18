@@ -23,7 +23,7 @@ def exit_gracefully(code : int = 0, impatient = False):
             return
     graceful_exit = True
     logger.info("Exitting gracefully")
-    logging.shutdown()
+    #logging.shutdown()
     logging.log_break(msg="END LOG")
     sys.exit(code)
 

@@ -31,13 +31,22 @@ def multiline_repr(obj, recursive : bool = False, **override_fields : str | None
     """
     Create a multiline repr for an object.
     """
-    body = []
-    value_repr = multiline_repr if recursive else repr
     def prepend_lines(string):
         lines = string.splitlines()
         prepended = [f"\t{line}" for line in lines[1:]]
         return lines[0] + ''.join(prepended)
-    for key, value in obj.__dict__.items():
+    body = []
+    value_repr = multiline_repr if recursive else repr
+    fields : dict
+    if hasattr(obj, '__dict__'):
+        fields = obj.__dict__
+    elif hasattr(obj, '__slots__'):
+        fields = {key: getattr(obj, key) for key in obj.__slots__}
+    elif hasattr(obj, '_fields'):
+        fields = {key: getattr(obj, key) for key in obj._fields} # noqa
+    else:
+        raise ValueError(f"Object {obj} does not have a __dict__, __slots__, or _fields attribute")
+    for key, value in fields.items():
         if key in override_fields:
             value = override_fields[key]
             if value is None:

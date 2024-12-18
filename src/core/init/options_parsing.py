@@ -4,7 +4,7 @@ command line arguments and environment variables.
 """
 import dataclasses
 import warnings
-from typing import Callable, Iterable, Mapping, Any, TypedDict, overload
+from typing import Callable, Iterable, Mapping, Any, TypedDict, overload, Type
 from argparse import ArgumentParser, Namespace
 import os
 
@@ -75,20 +75,18 @@ class Option[T]:
         """
         if len(self.flags_or_name) == 0:
             return
-        flags_or_name : list[str] = [
-            flag if isinstance(flag, str) else to_arg_casing(field.name, self.is_positional)
-            for flag in self.flags_or_name
-        ]
-        if self.is_positional and len(flags_or_name) != 1:
-            raise ValueError('Positional arguments must have only one name')
-        assert not any(flag is INFER for flag in flags_or_name)
         if self.is_positional:
+            if len(self.flags_or_name) != 1 or not isinstance(self.flags_or_name[0], INFER):
+                raise ValueError('No custom argument name allowed for positional argument')
             parser.add_argument(
-                flags_or_name[0],
-                help=self.help_,
-                dest=field.name
+                field.name,
+                help=self.help_
             )
         else:
+            flags_or_name: list[str] = [
+                flag if isinstance(flag, str) else to_arg_casing(field.name, self.is_positional)
+                for flag in self.flags_or_name
+            ]
             parser.add_argument(
                 *flags_or_name,
                 required=self.required,
@@ -131,16 +129,36 @@ class Option[T]:
         else:
             return self.from_string(value)
 
+    def resolve_from_dict(self, config_dict : dict, field : dataclasses.Field) -> T | NO_VALUE:
+        """
+        Resolves the value of the option from a configuration dictionary
+
+        :param config_dict: The configuration dictionary
+        :param field: The field for this option
+
+        :return: The resolved value or NO_VALUE if not found
+        """
+        value = config_dict.get(field.name, NO_VALUE())
+        if isinstance(value, NO_VALUE):
+            return NO_VALUE()
+        elif isinstance(value, str):
+            return self.from_string(value)
+        else:
+            return value
+
     def resolve(
             self,
             parsed_args : Namespace,
             default_factory : Callable[[], T] | None,
             field : dataclasses.Field,
-            environ : Mapping[str, Any] = os.environ) -> T:
+            config_dict: dict,
+            environ : Mapping[str, Any] = os.environ
+            ) -> T:
         """
         Resolves the value of the option, first checking parsed arguments, then
         environment variables, and finally the default factory.
 
+        :param config_dict: A dictionary with configuration values extracted from config files
         :param parsed_args: The parsed arguments, first to be checked
         :param default_factory: The default factory for the field, last to be checked
         :param field: The option's field
@@ -152,7 +170,8 @@ class Option[T]:
         """
         resolvers : list[Callable[[], T | NO_VALUE]] = [
             lambda: self.resolve_arg(parsed_args, field),
-            lambda: self.resolve_env(environ, field)
+            lambda: self.resolve_env(environ, field),
+            lambda: self.resolve_from_dict(config_dict, field)
         ]
         if default_factory is not None:
             resolvers.append(default_factory)
@@ -178,10 +197,16 @@ def register_all_options(cls : type, parser : ArgumentParser):
             continue
         option_object.argparse_register(parser, field)
 
-def resolve[T](cls : type[T], parsed_args : Namespace, environ : Mapping[str, Any] = os.environ) -> T:
+def resolve[T](
+        cls : Type[T],
+        parsed_args : Namespace,
+        config_dict : dict,
+        environ : Mapping[str, Any] = os.environ
+        ) -> T:
     """
     Resolves all options in a dataclass from parsed arguments
 
+    :param config_dict: dict with configuration extracted from config files
     :param environ: mapping that serves and environment. Defaults to ``os.environ``
     :param cls: The dataclass with the options
     :param parsed_args: The parsed arguments
@@ -201,7 +226,8 @@ def resolve[T](cls : type[T], parsed_args : Namespace, environ : Mapping[str, An
             default_factory = lambda : field.default
         elif field.default_factory is not dataclasses.MISSING:
             default_factory = field.default_factory
-        resolved_args[field.name] = option_object.resolve(parsed_args, default_factory, field, environ)
+        resolved_args[field.name] = option_object.resolve(
+            parsed_args, default_factory, field, config_dict, environ)
     return cls(**resolved_args)
 
 
@@ -266,9 +292,8 @@ def option[T](
 
 def positional[T](
         from_string : Callable[[str], T],
-        arg_name : str | INFER = INFER(),
         help_ : str = ""
-) -> T:
+) -> Mapping:
     """
     Defines a required positional command line argument
 
@@ -280,11 +305,11 @@ def positional[T](
 
     :return: A dataclass field with the option metadata
     """
-    metadata = { 'option': Option[T]([arg_name], env_key = None,
+    metadata = { 'option': Option[T]([INFER()], env_key = None,
                                      required = True, help_ = help_,
                                      is_positional=True,
                                      from_string = from_string)}
-    return dataclasses.field(metadata=metadata)
+    return metadata
 
 def comma_key_values[T](arg : str, from_string : Callable[[str], T] = lambda x:x ) -> dict[str, T]:
     """

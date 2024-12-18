@@ -3,7 +3,8 @@ Utilities for managing scripts.
 """
 from dataclasses import dataclass
 from argparse import ArgumentParser
-from typing import NamedTuple, Callable, Any, Self
+from typing import NamedTuple, Callable, Any, Self, Type
+from dataclasses import dataclass
 from .options_parsing import register_all_options
 from collections import OrderedDict
 import pkgutil
@@ -22,9 +23,10 @@ class ScriptLoadOptions(NamedTuple):
     import_torch : bool = True
     import_datasets : bool = True
 
-class Script(NamedTuple):
+@dataclass
+class Script:
     """
-    Named tuple representing a script.
+    Dataclass representing a script.
 
     :param options_cls: The options class for the script.
     :param pre_load: A function to run before main function but after
@@ -39,11 +41,12 @@ class Script(NamedTuple):
     :param script_path: The path to the script file.
     :param load_options: Options for loading the script.
     """
-    options_cls: type | None
+    options_cls: Type | None
     load_options : ScriptLoadOptions | None
     pre_load: Callable[[], None] | None
     main: Callable[[Any], None] | Callable[[], None]
     name: str
+    fullname : str
     help_str: str
     script_path: str
 
@@ -104,11 +107,12 @@ class ScriptGroup(NamedTuple):
             elif options_cls is None and len(main_signature.parameters) != 0:
                 raise ValueError(f"{module}.main should has an argument but Options was not defined")
 
-            name = module.__name__.split('.')[-1]
+            fullname = module.__name__
+            name = fullname.split('.')[-1]
             help_str = main.__doc__ if main.__doc__ is not None else ""
             script_path = module.__file__
             script = Script(options_cls, load_options, pre_load, main,
-                            name, help_str, script_path)
+                            name, fullname, help_str, script_path)
             self.children[name] = script
         else:
             raise ValueError(f"Module {module} does not define a main function")
@@ -157,7 +161,7 @@ def argparse_register_scripts(parser : ArgumentParser, script_group : ScriptGrou
     """
     subparsers = parser.add_subparsers(title='Available scripts', metavar='SCRIPT')
     for name, script in script_group.children.items():
-        subparser = subparsers.add_parser(name, help=script.help_str)
+        subparser = subparsers.add_parser(name, help=script.help_str, description=script.help_str)
         if isinstance(script, Script):
             if script.options_cls is not None:
                 register_all_options(script.options_cls, subparser)

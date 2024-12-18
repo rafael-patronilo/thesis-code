@@ -1,4 +1,4 @@
-from core.init.run_script import main
+from core.init import main
 
 if __name__ == "__main__":
     main()

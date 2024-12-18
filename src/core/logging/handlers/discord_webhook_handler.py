@@ -1,24 +1,29 @@
 import http.client
 import queue
 import threading
+from collections import deque
 from copy import copy
 from urllib.parse import urlparse
 import logging
 from logging import LogRecord
 from typing import Callable, NamedTuple, override
+from core.util.concurrency import RateLimiter
 import json
 from queue import Queue
 from datetime import datetime, timedelta
-from core.init import options
+import core.init
 
 
-DISCORD_FORMAT = '-# %(asctime)s [%(levelname)s] (%(name)s|%(threadName)s)\n```%(message)s```' # noqa
+DISCORD_FORMAT = '`%(asctime)s` [%(levelname)s]\n-# (%(name)s|%(threadName)s)\n```%(message)s```' # noqa
 
 MESSAGE_MAX_LENGTH = 2000
 LOG_RECORD_MAX_LENGTH = 1500
-RECORD_EXPIRY = timedelta(minutes=1)
-ERROR_TIMEOUT = timedelta(minutes=5)
-MESSAGE_COOLDOWN = timedelta(seconds=5)
+RECORD_EXPIRY = timedelta(seconds=10)
+ERROR_COOLDOWN = timedelta(minutes=5)
+
+# discord rate limit seems to be 5 messages per 2 seconds
+DISCORD_RATE_LIMIT : dict = dict(rate=5, period=2, logarithmic_reset = True)
+CLOSE_TIMEOUT = timedelta(minutes=1)
 
 class DiscordWebhookClient:
     def __init__(self, webhook_url: str) -> None:
@@ -29,13 +34,19 @@ class DiscordWebhookClient:
 
     def _make_request(self, path : str, method: str, payload: str | None):
         self.connection.connect()
-        self.connection.request(method, path, payload)
+        headers = {}
+        response_str = None
+        if payload is not None:
+            headers["Content-Type"] = "application/json"
+        self.connection.request(method, path, payload, headers)
         response = self.connection.getresponse()
         try:
-            if not response.status >= 200 and response.status < 300:
-                raise Exception(f"Unexpected response code: {response.status}\n{response.msg}\n")
+            response_str = str(response.read())
+            if not (200 <= response.status < 300):
+                raise Exception(f"Unexpected response code: {response.status}\n{response.msg}\n{response_str}")
         finally:
-            response.read()
+            if response_str is None:
+                response.read()
             response.close()
 
     def send(self, content : str):
@@ -59,85 +70,130 @@ class PendingRecord(NamedTuple):
     level : int
     timestamp : datetime
 
-class DiscordConsumerThread(threading.Thread):
+class DiscordLogConsumer:
     def __init__(self,
                  webhook_url : str,
-                 discard_filter : Callable[[PendingRecord], bool],
+                 should_discard : Callable[[PendingRecord], bool],
                  logger : logging.Logger):
+        # Called by other threads
         self.pending : Queue[PendingRecord | None] = Queue()
-        self.buffered_record : PendingRecord | None = None
+        self._local_pending : deque[PendingRecord] = deque()
+        self.rate_limiter = RateLimiter(**DISCORD_RATE_LIMIT)
         self.client = DiscordWebhookClient(webhook_url)
-        self.discard_filter = discard_filter
+        self.should_discard = should_discard
         self.kill_switch = threading.Event()
         self.soft_kill_switch = threading.Event()
+        self.complete = threading.Event()
         self.logger = logger
-        super().__init__(name = self.__class__.__name__)
+        self.thread = threading.Thread(
+            name=self.__class__.__name__, target=self.run, daemon=True)
 
     def soft_kill(self):
+        """
+        Signal end of program so consumer thread tries to go over tasks faster.
+        """
+        # Called by other threads
         self.soft_kill_switch.set()
         self.pending.put(None)
 
     def kill(self):
-        self.kill_switch.set()
-        self.pending.put(None)
+        """
+        Kill the consumer thread immediately and close the client
+        """
+        # Called by other threads
+        if self.thread.is_alive():
+            self.kill_switch.set()
+            self.soft_kill_switch.set()
+            self.rate_limiter.kill_switch.set()
+            self.pending.put(None)
+        self.client.close()
 
     def _get_discarding(self, block : bool) -> PendingRecord:
-        ignored = 0
+        # called by self.thread
+        discarded = 0
+        def suppressed_record():
+            return PendingRecord(
+                f"***(suppressed {discarded} log records)***",
+                logging.CRITICAL,
+                datetime.now()
+            )
         while not self.kill_switch.is_set():
-            if self.buffered_record is not None:
-                record = self.buffered_record
-                self.buffered_record = None
+            if len(self._local_pending) > 0:
+                record = self._local_pending.pop()
             else:
-                record = self.pending.get(block)
+                record = self.pending.get(block=block)
             if record is None:
                 raise StopIteration()
-            if self.discard_filter(record):
-                ignored += 1
-                self.pending.task_done()
+            if self.should_discard(record):
+                discarded += 1
             else:
-                if ignored > 0:
-                    self.buffered_record = record
-                    return PendingRecord(f"***(suppressed {ignored} log records)***", logging.CRITICAL, datetime.now())
-                return record
+                if discarded > 0:
+                    self._local_pending.append(record)
+                    return suppressed_record()
+        if discarded > 0:
+            return suppressed_record()
         raise StopIteration()
 
 
     def _get_records(self) -> list[PendingRecord]:
+        # Called by self.thread
         records = []
         size_sum = 0
-        record = self._get_discarding(block=self.soft_kill_switch.is_set())
+        record = self._get_discarding(block=not self.soft_kill_switch.is_set())
+        records.append(record)
         size_sum += len(record.msg)
         try:
             while not self.kill_switch.is_set():
                 record = self._get_discarding(block=False)
                 if size_sum + len(record.msg) > MESSAGE_MAX_LENGTH:
-                    self.buffered_record = record
+                    self._local_pending.append(record)
                     break
                 records.append(record)
                 size_sum += len(record.msg)
-        except queue.Empty:
+        except (queue.Empty, StopIteration):
             pass
         return records
 
-    @override
+    def _rate_limit(self):
+        # Called by self.thread
+        if not (
+                self.soft_kill_switch.is_set() and
+                self.pending.qsize() == 0 and
+                len(self._local_pending) == 0
+        ):
+            self.rate_limiter.limit()
+
     def run(self):
+        # Called by self.thread
         while not self.kill_switch.is_set():
             try:
                 records = self._get_records()
                 content = "\n".join(rec.msg for rec in records)
-                self.kill_switch.wait(MESSAGE_COOLDOWN.total_seconds())
-                if self.kill_switch.is_set():
-                    break
+                self._rate_limit()
                 self.client.send(content)
-                for _ in records:
-                    self.pending.task_done()
             except (queue.Empty, StopIteration):
                 break # Soft kill
             except Exception as e:
                 self.logger.error(f"Error sending log message to discord,"
-                                  f" disabling discord logging for {ERROR_TIMEOUT}\n{e}")
-                self.soft_kill_switch.wait(ERROR_TIMEOUT.total_seconds())
-                pass
+                                  f" disabling discord logging for {ERROR_COOLDOWN}\n{e}",
+                                  exc_info=True)
+                if self.soft_kill_switch.is_set():
+                    break
+                self.soft_kill_switch.wait(ERROR_COOLDOWN.total_seconds())
+        if not (self.pending.qsize() == 0 and len(self._local_pending) == 0):
+            try:
+                self.client.send("# _(LOGGING KILLED PREMATURELY)_")
+            except: pass # noqa # ignore any errors
+        self.complete.set()
+
+    def join(self, timeout : float | None = None):
+        # Called by other threads
+        self.complete.wait(timeout)
+
+    def start(self):
+        # Called by other threads
+        self.thread.start()
+
 
 class DiscordFormatter(logging.Formatter):
     def __init__(self, fmt: str, level_map : dict[str, str]):
@@ -164,7 +220,9 @@ class DiscordFormatter(logging.Formatter):
         Copied from logging.Formatter.format with modifications
         to include the exception text in the message.
         Stack is purposefully ignored.
+
         :param record:
+
         :return:
         """
         record.message = record.getMessage()
@@ -185,14 +243,13 @@ class DiscordFormatter(logging.Formatter):
 
 class DiscordWebhookLogHandler(logging.Handler):
     def __init__(self, webhook_url: str, never_suppress : int = logging.INFO + 1):
-        self.client = DiscordWebhookClient(webhook_url)
-        self.thread = DiscordConsumerThread(
+        self.consumer = DiscordLogConsumer(
             webhook_url,
             self.discard_filter,
             logging.getLogger("discord_webhook_log_handler")
         )
         self.never_suppress = never_suppress
-        self.thread.start()
+        self.consumer.start()
         super().__init__()
 
     def discard_filter(self, pending_record : PendingRecord) -> bool:
@@ -203,31 +260,31 @@ class DiscordWebhookLogHandler(logging.Handler):
 
     @override
     def emit(self, record : LogRecord):
-        if record.thread == self.thread.ident:
+        if self.consumer.soft_kill_switch.is_set() or record.thread == self.consumer.thread.ident:
             return
         msg = self.format(record)
-        self.thread.pending.put(PendingRecord(msg, record.levelno, datetime.now()))
+        self.consumer.pending.put(PendingRecord(msg, record.levelno, datetime.now()), block=False)
 
     @override
     def close(self):
-        if self.thread.soft_kill_switch.is_set():
-            self.thread.kill()
+        if self.consumer.soft_kill_switch.is_set():
+            self.consumer.kill()
         else:
-            self.thread.soft_kill()
-        self.thread.join()
-        self.client.close()
+            self.consumer.soft_kill()
+        self.consumer.join(CLOSE_TIMEOUT.total_seconds())
+        self.consumer.kill()
         super().close()
 
 def add_handler(logger : logging.Logger):
-    if len(options.discord_webhook_url):
+    if len(core.init.options.discord_webhook_url.strip()) == 0:
         logger.warning("Discord webhook logging is disabled: "
                        "No webhook url specified. "
                        "Run with --help for how to enable discord logging.")
         return
-    formatter = DiscordFormatter(DISCORD_FORMAT, options.discord_level_map)
+    formatter = DiscordFormatter(DISCORD_FORMAT, core.init.options.discord_level_map)
 
-    handler = DiscordWebhookLogHandler(options.discord_webhook_url)
+    handler = DiscordWebhookLogHandler(core.init.options.discord_webhook_url)
     handler.setFormatter(formatter)
-    handler.thread.pending.put(PendingRecord("# LOG BREAK", logging.CRITICAL, datetime.now()))
-    #handler.setLevel(max(logging.INFO, logger.getEffectiveLevel()))
+    handler.consumer.pending.put(PendingRecord("# LOG BREAK", logging.CRITICAL, datetime.now()), block=False)
+    handler.setLevel(max(logging.INFO, logger.getEffectiveLevel()))
     logger.addHandler(handler)

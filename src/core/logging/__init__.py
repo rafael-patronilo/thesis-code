@@ -8,41 +8,38 @@ from pathlib import Path
 import sys
 from datetime import datetime
 import subprocess
-from core.init import options
+import core.init
 
 from .formatting_utils import MultiLineFormatter
 from .stream_interceptor import StreamInterceptor
 from .handlers import discord_webhook_handler, stdout_log_handler
+from typing import Literal
 
-NOTIFY = logging.INFO + 1
+NOTIFY = logging.INFO + 5
 logging.addLevelName(NOTIFY, "NOTIFY")
 
-log_file : Path = None #type: ignore # only None if logs are not initialized
+log_file : Path | None = None
 
 true_stderr = sys.stderr
 true_stdout = sys.stdout
 
+__all__=[
+    "log_file",
+    "NOTIFY",
+    "log_break",
+    "log_version_info",
+    "setup"
+]
+
 
 FORMAT = '%(asctime)s [%(levelname)s] (%(name)s|%(threadName)s) %(message)s' # noqa
-COLOR_FORMAT = '\033[34m%(asctime)s\033[0m [%(levelname)s] (%(name)s|%(threadName)s) %(message)s' # noqa
-DISCORD_FORMAT = '-# %(asctime)s [%(levelname)s] (%(name)s|%(threadName)s)\n```%(message)s```' # noqa
-
-
-COLOR_LEVEL_MAP = {
-    'CRITICAL': "\033[1;31mCRITICAL\033[0m",
-    'ERROR': "\033[1;31mERROR\033[0m",
-    'WARNING': "\033[1;33mWARNING\033[0m",
-    'INFO': "\033[1;32mINFO\033[0m",
-    'DEBUG': "\033[1;30mDEBUG\033[0m",
-    'NOTIFY': "\033[1;34mNOTIFY\033[0m"
-}
-
-
-
-def format_log_file_name() -> str:
-    return datetime.now().isoformat().replace(':', '_')
 
 def log_break(msg = "LOG BREAK"):
+    """
+    Logs a break in stdout
+    :param msg:
+    :return:
+    """
     try:
         cols, lines = os.get_terminal_size()
         half_width = (cols - len(msg)) // 2
@@ -51,6 +48,12 @@ def log_break(msg = "LOG BREAK"):
         pass # ignore if terminal size cannot be determined
 
 def log_version_info(logger, path = Path("version.txt")):
+    """
+    Log version info
+    :param logger: the logger to use
+    :param path: file that contains version info
+    :return:
+    """
     sb = ["Version Info"]
     if path.exists():
         sb.append(path.read_text())
@@ -83,11 +86,25 @@ def trap_stderr():
     sys.stderr = StreamInterceptor(true_stderr, "stderr",
                                    logging.getLogger("stderr"), logging.ERROR)
 
-def setup(version_info : bool = True):
+
+def format_log_file_name(timespec : Literal['seconds', 'microseconds'] = 'seconds') -> str:
+    file_name = core.init.start_time.isoformat(timespec=timespec).replace(':', '_')
+    if timespec == 'microseconds':
+        file_name = file_name.replace('.', '_')
+    return file_name
+
+
+def setup(version_info : bool = True, stdout_only : bool = False):
+    """
+    Setup logging for the application
+    :param version_info: Whether to print version info (default True)
+    :param stdout_only: Whether to log only to stdout (default False)
+    :return:
+    """
     global log_file
     formatter = MultiLineFormatter(logging.Formatter(FORMAT))
     logger = logging.getLogger()
-    logger.setLevel(options.log_level)
+    logger.setLevel(core.init.options.log_level)
     
     # intercept unexpected writes to stdout and stderr
     trap_stdout()
@@ -95,17 +112,20 @@ def setup(version_info : bool = True):
 
     # Setup console logging
     stdout_log_handler.add_handler(logger, true_stdout)
-    
-    # Setup file logging
-    log_dir = options.log_dir
-    log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = log_dir.joinpath(format_log_file_name()).with_suffix(".log")
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
 
-    # Setup discord logging
-    discord_webhook_handler.add_handler(logger)
+    if stdout_only:
+        logger.warning("Only logging to stdout; File and external logging disabled")
+    else:
+        # Setup file logging
+        log_dir = core.init.options.log_dir
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir.joinpath(format_log_file_name()).with_suffix(".log")
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
+        # Setup discord logging
+        discord_webhook_handler.add_handler(logger)
 
     # setup warnings logging
     logging.captureWarnings(True)
@@ -114,7 +134,7 @@ def setup(version_info : bool = True):
     logger.info(
 f"""Start of logging
 Time: {datetime.now().astimezone().isoformat()}
-Level: {options.log_level}
+Level: {core.init.options.log_level}
 Active Handlers: {", ".join(type(handler).__name__ for handler in logger.handlers)}
 Log file: {log_file}"""
 )

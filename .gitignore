@@ -7,3 +7,4 @@ data/
 temp.py
 temp.sh
 debug/
+*config.json
