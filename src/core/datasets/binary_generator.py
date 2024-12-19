@@ -4,7 +4,7 @@ import torch
 import abc
 import numpy as np
 from . import random_dataset
-from . import SplitDataset, CollumnReferences, CollumnSubReferences
+from . import SplitDataset, ColumnReferences, ColumnSubReferences
 from torch.utils.data import Dataset, Subset
 import warnings
 
@@ -153,24 +153,24 @@ class BinaryGenerator:
         self.label_names = label_names
         self.validation_node = validation_node
 
-    def _attach_collumn_references[T:SplitDataset](self, dataset : T) -> T:
+    def _attach_column_references[T:SplitDataset](self, dataset : T) -> T:
         include_valid = dataset.get_shape()[1][0] == len(self.labels) + 1
-        dataset.collumn_references = self.get_collumn_references(include_valid)
+        dataset.column_references = self.get_column_references(include_valid)
         return dataset
 
-    def get_collumn_references(self, include_valid = False) -> CollumnReferences:
+    def get_column_references(self, include_valid = False) -> ColumnReferences:
         if self.feature_names is None or self.label_names is None:
             raise ValueError("Feature and label names must be defined")
         if include_valid:
             label_names = self.label_names + [self.valid_label]
         else:
             label_names = self.label_names
-        return CollumnReferences(
-            CollumnSubReferences(
+        return ColumnReferences(
+            ColumnSubReferences(
                 {name: idx for idx, name in enumerate(self.feature_names)},
                 self.feature_names
             ),
-            CollumnSubReferences(
+            ColumnSubReferences(
                 {name: idx for idx, name in enumerate(label_names)},
                 label_names
             )
@@ -228,7 +228,7 @@ class BinaryGenerator:
         train_indices = indices[:train_bound]
         val_indices = indices[train_bound:val_bound]
         test_indices = indices[val_bound:]
-        return self._attach_collumn_references(
+        return self._attach_column_references(
             SplitDataset(
                 Subset(complete_dataset, train_indices),
                 Subset(complete_dataset, val_indices),
@@ -243,7 +243,7 @@ class BinaryGenerator:
             val_seed : int,
             train_seed : Optional[int] = None,
             on_the_fly : bool = True) -> random_dataset.RandomDataset:
-        return self._attach_collumn_references(
+        return self._attach_column_references(
             random_dataset.RandomDataset(
                 self.generate_random,
                 sizes,

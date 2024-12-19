@@ -1,6 +1,6 @@
 
 from .early_stop import EarlyStop
-from core import Trainer
+from core.training import Trainer
 
 class StopAtEpoch:
     def __init__(self, max_epochs : int) -> None:

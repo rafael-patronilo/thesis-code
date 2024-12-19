@@ -1,5 +1,6 @@
 import torcheval.metrics
-from core import Trainer, MetricsRecorder, datasets
+from core import datasets
+from core.training import Trainer, MetricsRecorder
 from core.training.checkpoint_triggers.best_metric import BestMetric
 import core.eval.metrics
 from core.eval.metrics import Elapsed
@@ -28,9 +29,9 @@ def create_trainer(layer_sizes : list[int], num_outputs : int, dataset_name : st
         'precision': metric_wrappers.to_int(torcheval.metrics.BinaryPrecision),
         'recall': metric_wrappers.to_int(torcheval.metrics.BinaryRecall),
         'auc': metric_wrappers.to_int(torcheval.metrics.BinaryAUROC),
-        'balanced_accuracy': metric_wrappers.to_int(core.metrics.BinaryBalancedAccuracy),
-        'specificity': metric_wrappers.to_int(core.metrics.BinarySpecificity),
-        'pos_rate': metric_wrappers.to_int(core.metrics.BinaryPositiveRate),
+        'balanced_accuracy': metric_wrappers.to_int(core.eval.metrics.BinaryBalancedAccuracy),
+        'specificity': metric_wrappers.to_int(core.eval.metrics.BinarySpecificity),
+        'pos_rate': metric_wrappers.to_int(core.eval.metrics.BinaryPositiveRate),
     }
 
     def metrics_factory() -> dict[str, torcheval.metrics.Metric]:

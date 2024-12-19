@@ -1,5 +1,5 @@
 from typing import Callable
-from core.datasets import CollumnReferences, SplitDataset
+from core.datasets import ColumnReferences, SplitDataset
 from torch.utils.data import Dataset, IterableDataset
 
 class SplitDatasetWrapper(SplitDataset):
@@ -13,8 +13,8 @@ class SplitDatasetWrapper(SplitDataset):
     def get_metric(self, metric : str):
         return self.inner.get_metric(metric)
 
-    def get_collumn_references(self) -> CollumnReferences:
-        return self.inner.get_collumn_references()
+    def get_column_references(self) -> ColumnReferences:
+        return self.inner.get_column_references()
 
     def for_training(self) -> Dataset:
         return self.inner.for_training()
@@ -79,10 +79,10 @@ class ItemMapper(SplitDatasetWrapper):
         super().__init__(inner)
         self.mapper = mapper
     
-    def get_collumn_references(self) -> CollumnReferences:
-        sample = self.inner.get_collumn_references().as_sample()
+    def get_column_references(self) -> ColumnReferences:
+        sample = self.inner.get_column_references().as_sample()
         mapped_sample = self.mapper(sample)
-        return CollumnReferences.from_sample(mapped_sample)
+        return ColumnReferences.from_sample(mapped_sample)
     
     def _wrap_torch_dataset(self, dataset : Dataset) -> Dataset:
         if isinstance(dataset, IterableDataset):

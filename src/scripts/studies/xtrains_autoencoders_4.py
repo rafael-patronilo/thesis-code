@@ -1,10 +1,12 @@
-from core import StudyManager, datasets
+from core import datasets
+from core.studies import StudyManager
 from core.storage_management import StudyFileManager
 from typing import NamedTuple
 from torch import nn
 import sys
 STUDY_NAME = "xtrains_autoencoders_4"
 
+# noinspection DuplicatedCode
 CONVOLUTIONS = (
     [32, 32, ('pool', 2)] + 
     [64, ('pool', 2)] * 2 + 

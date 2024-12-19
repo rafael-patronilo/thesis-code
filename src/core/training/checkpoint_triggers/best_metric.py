@@ -1,5 +1,5 @@
 from typing import Literal, Optional, Callable, Any
-from core import Trainer, MetricsRecorder
+from core.training import Trainer, MetricsRecorder
 import logging
 
 logger = logging.getLogger(__name__)

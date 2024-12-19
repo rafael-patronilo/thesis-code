@@ -7,7 +7,7 @@ from typing import Literal, Sequence, assert_never
 from torch import nn
 import torch
 from core.nn.autoencoder import AutoEncoder
-from core import Trainer, MetricsRecorder, TrainingLogger
+from core.training import Trainer, MetricsRecorder, TrainingLogger
 import torcheval.metrics as torch_metrics
 import logging
 from types import SimpleNamespace

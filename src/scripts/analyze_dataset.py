@@ -1,6 +1,7 @@
 import sys
 from core.datasets import SplitDataset, get_dataset
-from core import ModelFileManager, Trainer
+from core.training import Trainer
+from core.storage_management import ModelFileManager
 
 TRAINER_PREFIX = 'from_trainer:'
 

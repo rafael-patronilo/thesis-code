@@ -1,4 +1,4 @@
-from . import SplitDataset, CollumnReferences, CollumnSubReferences
+from . import SplitDataset, ColumnReferences, ColumnSubReferences
 import logging
 from typing import Optional, Any, Callable
 import pandas as pd
@@ -30,40 +30,40 @@ class CSVDataset(SplitDataset):
         self.filter = filter
         self.read_csv_kw = read_csv_kw
 
-    def _set_collumn_references(self, features: list[str], target: list[str]):
-        self.collumn_references = CollumnReferences(
-            CollumnSubReferences(
+    def _set_column_references(self, features: list[str], target: list[str]):
+        self.column_references = ColumnReferences(
+            ColumnSubReferences(
                 {name: idx for idx, name in enumerate(features)},
                 features
             ),
-            CollumnSubReferences(
+            ColumnSubReferences(
                 {name: idx for idx, name in enumerate(target)},
                 target
             )
         )
     
-    def add_collumn_preprocessor(
+    def add_column_preprocessor(
             self, 
-            collumn : str, 
+            column : str, 
             preprocessor : Callable,
             is_scalar : bool = False
         ):
-        """Adds a preprocessor for a collumn in the dataset
+        """Adds a preprocessor for a column in the dataset
 
         Args:
-            collumn (str): 
-                The collumn name
+            column (str): 
+                The column name
             preprocessor (Callable[[Any], torch.Tensor]): 
-                A function that returns a tensor/scalar given the value of the collumn
+                A function that returns a tensor/scalar given the value of the column
             is_scalar (bool, optional): 
                 Whether the preprocessor returns scalars.
-                Scalars will be included as a collumn in the first tensor. 
+                Scalars will be included as a column in the first tensor. 
                 Defaults to False.
         """
         if is_scalar:
-            self.scalar_preprocessors[collumn] = preprocessor
+            self.scalar_preprocessors[column] = preprocessor
         else:
-            self.tensor_preprocessors[collumn] = preprocessor
+            self.tensor_preprocessors[column] = preprocessor
 
     def _get_preprocessors(
             self,
@@ -77,9 +77,9 @@ class CSVDataset(SplitDataset):
             scalar_preprocessor = self.scalar_preprocessors.get(col)
             tensor_preprocessor = self.tensor_preprocessors.get(col)
             if scalar_preprocessor is not None and tensor_preprocessor is not None:
-                logger.error(f"Collumn {col} has both scalar and tensor preprocessors. Scalar will be used")
+                logger.error(f"Column {col} has both scalar and tensor preprocessors. Scalar will be used")
             if col not in data.columns:
-                logger.error(f"Collumn {col} not found in dataset. It will be ignored")
+                logger.error(f"Column {col} not found in dataset. It will be ignored")
             elif scalar_preprocessor is not None:
                 scalar_preprocessors.append((col, scalar_preprocessor))
             elif tensor_preprocessor is not None:
@@ -87,7 +87,7 @@ class CSVDataset(SplitDataset):
             elif col in scalars.columns:
                 scalar_preprocessors.append((col, lambda x: x))
             else:
-                logger.error(f"Collumn {col} is not scalar and not preprocessor was provided. It will be ignored")
+                logger.error(f"Column {col} is not scalar and not preprocessor was provided. It will be ignored")
         return scalar_preprocessors, tensor_preprocessors
 
     def _load(self):
@@ -99,7 +99,7 @@ class CSVDataset(SplitDataset):
             self.data = self.data[self.data.apply(self.filter, axis=1)]
         if self.features is None:
             self.features = [col for col in self.data.columns if col not in self.target]
-        self._set_collumn_references(self.features, self.target)
+        self._set_column_references(self.features, self.target)
 
         scalar_features, tensor_features = self._get_preprocessors(self.data, self.features)
         scalar_target, tensor_targets = self._get_preprocessors(self.data, self.target)

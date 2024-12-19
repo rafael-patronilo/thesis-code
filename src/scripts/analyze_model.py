@@ -1,5 +1,6 @@
 import sys
-from core import Trainer, ModelFileManager
+from core.training import Trainer
+from core.storage_management import ModelFileManager
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import NamedTuple

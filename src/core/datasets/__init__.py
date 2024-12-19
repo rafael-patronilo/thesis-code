@@ -5,44 +5,44 @@ from torch.utils.data import Dataset, IterableDataset
 
 logger = logging.getLogger(__name__)
 
-CollumnSubReferences = NamedTuple("CollumnSubReferences", [("names_to_collumn", dict[str, int]), ("collumns_to_names", list[str])])
-class CollumnReferences(NamedTuple):
-    features: CollumnSubReferences 
-    labels : CollumnSubReferences
+ColumnSubReferences = NamedTuple("ColumnSubReferences", [("names_to_column", dict[str, int]), ("columns_to_names", list[str])])
+class ColumnReferences(NamedTuple):
+    features: ColumnSubReferences 
+    labels : ColumnSubReferences
 
     def as_sample(self) -> tuple[list[str], list[str]]:
-        return (self.features.collumns_to_names, self.labels.collumns_to_names)
+        return (self.features.columns_to_names, self.labels.columns_to_names)
     
-    def get_feature_indices(self, collumns : list[str]) -> list[int]:
-        """Get indices for a list of feature collumn names. Respects argument order
+    def get_feature_indices(self, columns : list[str]) -> list[int]:
+        """Get indices for a list of feature column names. Respects argument order
 
         Args:
-            collumns (list[str]): Names of collumns
+            columns (list[str]): Names of columns
 
         Returns:
-            list[int]: Indices of collumns, in the same order as the respective name in `collumns`
+            list[int]: Indices of columns, in the same order as the respective name in `columns`
         """
-        return [self.features.names_to_collumn[collumn] for collumn in collumns]
+        return [self.features.names_to_column[column] for column in columns]
     
-    def get_label_indices(self, collumns : list[str]) -> list[int]:
-        """Get indices for a list of label collumn names. Respects argument order
+    def get_label_indices(self, columns : list[str]) -> list[int]:
+        """Get indices for a list of label column names. Respects argument order
         
         Args:
-            collumns (list[str]): Names of collumns
+            columns (list[str]): Names of columns
 
         Returns:
-            list[int]: Indices of collumns, in the same order as the respective name in `collumns`
+            list[int]: Indices of columns, in the same order as the respective name in `columns`
         """
-        return [self.labels.names_to_collumn[collumn] for collumn in collumns]
+        return [self.labels.names_to_column[column] for column in columns]
     
     @classmethod
     def from_sample(cls, sample : tuple[list[str], list[str]]):
         return cls(
-            CollumnSubReferences(
+            ColumnSubReferences(
                 {name: idx for idx, name in enumerate(sample[0])},
                 sample[0]
             ),
-            CollumnSubReferences(
+            ColumnSubReferences(
                 {name: idx for idx, name in enumerate(sample[1])},
                 sample[1]
             )
@@ -55,16 +55,16 @@ class SplitDataset:
             train_data = None, 
             val_data = None, 
             test_data = None,
-            collumn_references : Optional[CollumnReferences] = None):
+            column_references : Optional[ColumnReferences] = None):
         self.train_data = train_data
         self.val_data = val_data
         self.test_data = test_data
         self.loaded = False
-        self.collumn_references = collumn_references
+        self.column_references = column_references
 
     def __reduce__(self) -> str | tuple[Any, ...]:
         if not hasattr(self, 'name'):
-            return (self.__class__, (self.train_data, self.val_data, self.test_data, self.collumn_references))
+            return (self.__class__, (self.train_data, self.val_data, self.test_data, self.column_references))
         else:
             return (get_dataset, (getattr(self, 'name'),))
 
@@ -99,10 +99,10 @@ class SplitDataset:
         else:
             return (splits, 1.0 - splits) # type: ignore
     
-    def get_collumn_references(self) -> CollumnReferences:
-        if self.collumn_references is None:
-            raise ValueError("Collumn references not available")
-        return self.collumn_references
+    def get_column_references(self) -> ColumnReferences:
+        if self.column_references is None:
+            raise ValueError("Column references not available")
+        return self.column_references
 
     @classmethod
     def _split(cls, size : int, splits : tuple[float, float]) -> tuple[int, int]:
@@ -123,7 +123,7 @@ class SplitDataset:
     
     def for_training_eval(self) -> TorchDataset:
         """Training set prepared for calculating metrics.
-        Useful if some collumns are hidden during training.
+        Useful if some columns are hidden during training.
         Default implementation is the same as for_training()
 
         Returns:

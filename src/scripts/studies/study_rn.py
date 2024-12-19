@@ -1,4 +1,5 @@
-from core import StudyManager, datasets
+from core import datasets
+from core.studies import StudyManager
 from core.storage_management import StudyFileManager
 from torch import nn
 

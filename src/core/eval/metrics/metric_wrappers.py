@@ -149,9 +149,9 @@ class SelectCol(MetricWrapper):
         ) -> dict[str, Metric]:
         split_dataset = SplitDataset.of(dataset)
         try:
-            label_names = split_dataset.get_collumn_references().labels.collumns_to_names
+            label_names = split_dataset.get_column_references().labels.columns_to_names
         except:
-            warnings.warn(f"Could not get collumn references from {dataset}. SelectCol will use indices instead of names.")
+            warnings.warn(f"Could not get column references from {dataset}. SelectCol will use indices instead of names.")
             label_names = map(str, range(split_dataset.get_shape()[1][0]))
         result = out_dict or {}
         for name, metric_factory in metrics.items():
@@ -170,7 +170,7 @@ class SelectCol(MetricWrapper):
             **kwargs
         ) -> 'SelectCol':
         split_dataset = SplitDataset.of(dataset)
-        names_to_cols = split_dataset.get_collumn_references().labels.names_to_collumn
+        names_to_cols = split_dataset.get_column_references().labels.names_to_column
         if not isinstance(names, list):
             names = [names]
         cols = [names_to_cols[name] for name in names]

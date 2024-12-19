@@ -1,7 +1,8 @@
 import sys
 import pandas as pd
 
-from core import Trainer, ModelFileManager
+from core.training import Trainer
+from core.storage_management import ModelFileManager
 from core.datasets import SplitDataset, dataset_wrappers
 from core.util.progress_trackers import LogProgressContextManager
 from datetime import timedelta
@@ -92,7 +93,10 @@ def evaluate_encoding_on_set(
         dest_file = results_path.joinpath(f"{metric}.json")
         logger.info(f"Saving {metric} results to {dest_file}")
         result.to_csv(results_path.joinpath(f"{metric}.csv"))
-        summarized = pd.DataFrame(columns=result.columns, index=['max', 'max_encoding', 'min', 'min_encoding'])
+        summarized = pd.DataFrame(
+            columns=result.columns,
+            index=['max', 'max_encoding', 'min', 'min_encoding'] # type: ignore # Although not annotated, index can be list[str]
+        )
         summarized.loc['max'] = result.max()
         summarized.loc['max_encoding'] = result.idxmax()
         summarized.loc['min'] = result.min()
@@ -202,7 +206,7 @@ def main():
             sample_images(trainer, file_manager, val_set)
             logger.info("Sampling images done")
             
-            label_indices = dataset.get_collumn_references().get_label_indices(CLASSES)
+            label_indices = dataset.get_column_references().get_label_indices(CLASSES)
             selected_dataset = dataset_wrappers.SelectCols(dataset, select_y=label_indices)
             evaluate_encoding(trainer, file_manager, selected_dataset)
             logger.info("Encoding evaluation done")

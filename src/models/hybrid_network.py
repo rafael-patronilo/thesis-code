@@ -1,5 +1,6 @@
 from typing import Literal
-from core import ModelFileManager, Trainer
+from core.training import Trainer
+from core.storage_management import ModelFileManager
 
 
 def load_reasoning_network(model_name : str, model_path : str | None = None):

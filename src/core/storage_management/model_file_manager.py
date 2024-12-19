@@ -139,9 +139,10 @@ class ModelFileManager:
         self.__assert_context()
         try:
             bufferer = self.__metrics_bufferers[identifier]
+            bufferer.add(records)
         except KeyError:
             self.logger.error(f"Metrics file for {identifier} not initialized")
-        bufferer.add(records)
+
         #TODO tensorboard logging?
 
     def cache(self, key : str, factory : Callable[[], Any]) -> Any:
@@ -171,7 +172,8 @@ class ModelFileManager:
                     raise FileExistsError(f"Config file already exists at {self.config_file}")
                 case 'compare':
                     existing_config = self.load_config()
-                    post_json_config = json.loads(json.dumps(config)) # Remove any non json objects (eg. tuples)
+                    # Convert any non json objects (e.g. tuples) to their post json equivalent
+                    post_json_config = json.loads(json.dumps(config))
                     if existing_config != post_json_config:
                         raise FileExistsError(
                             f"Config file already exists and is different from provided config. "
