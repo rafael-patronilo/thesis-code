@@ -26,7 +26,8 @@ class StdoutFormatter(logging.Formatter):
         result = super().formatMessage(record)
         return result.replace("\n", "\n\t")
 
-def add_handler(logger: logging.Logger, stream) -> None:
+def add_handler(logger: logging.Logger, stream) -> logging.Handler:
     handler = StreamHandler(stream = stream)
     handler.setFormatter(StdoutFormatter())
     logger.addHandler(handler)
+    return handler

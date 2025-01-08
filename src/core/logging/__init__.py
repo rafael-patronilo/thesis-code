@@ -104,14 +104,17 @@ def setup(version_info : bool = True, stdout_only : bool = False):
     global log_file
     formatter = MultiLineFormatter(logging.Formatter(FORMAT))
     logger = logging.getLogger()
+    default_level = core.init.options.log_level
     logger.setLevel(core.init.options.log_level)
+    handler_levels = core.init.options.log_handler_level
     
     # intercept unexpected writes to stdout and stderr
     trap_stdout()
     trap_stderr()
 
     # Setup console logging
-    stdout_log_handler.add_handler(logger, true_stdout)
+    console_handler = stdout_log_handler.add_handler(logger, true_stdout)
+    console_handler.setLevel(handler_levels.get('console', default_level))
 
     if stdout_only:
         logger.warning("Only logging to stdout; File and external logging disabled")
@@ -123,19 +126,26 @@ def setup(version_info : bool = True, stdout_only : bool = False):
         file_handler = logging.FileHandler(log_file)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
+        file_handler.setLevel(handler_levels.get('file', default_level))
 
         # Setup discord logging
-        discord_webhook_handler.add_handler(logger)
+        discord_handler = discord_webhook_handler.add_handler(logger)
+        if discord_handler is not None:
+            discord_handler.setLevel(handler_levels.get('discord', default_level))
 
     # setup warnings logging
     logging.captureWarnings(True)
 
     log_break()
+    active_handlers_str = ",\n".join(
+        f"\t{type(handler).__name__} with level {logging.getLevelName(handler.level)}"
+        for handler in logger.handlers
+    )
     logger.info(
 f"""Start of logging
 Time: {datetime.now().astimezone().isoformat()}
-Level: {core.init.options.log_level}
-Active Handlers: {", ".join(type(handler).__name__ for handler in logger.handlers)}
+Level: {default_level}
+Active Handlers: \n{active_handlers_str}
 Log file: {log_file}"""
 )
     if version_info:
