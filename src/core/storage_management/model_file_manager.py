@@ -1,11 +1,13 @@
 
 from collections import OrderedDict
 from pathlib import Path
+from pickle import PickleError
+from threading import Timer
 from typing import Callable, Literal, Any, Optional, Self, assert_never, TYPE_CHECKING
 import datetime
 import logging
 import torch
-import os
+from core.init import options
 if TYPE_CHECKING:
     from core.training.trainer import TrainerConfig
     from core.util.typing import PathLike
@@ -13,7 +15,6 @@ import json
 
 module_logger = logging.getLogger(__name__)
 
-MODELS_PATH = os.getenv("MODEL_PATH", "storage/models")
 METRICS_BUFFER_LIMIT = 10
 
 class _MetricsBufferer:
@@ -37,6 +38,7 @@ class ModelFileManager:
     CHECKPOINTS_DIR = "checkpoints"
     RESULTS_DIR = "results"
     LAST_CHECKPOINT = "last_checkpoint.pth"
+    BEST_CHECKPOINT = "best_checkpoint.pth"
     METRICS_FORMAT = "metrics_{identifier}.csv"
     METRICS_DIR = ""
     CHECKPOINT_FORMAT = "epoch_{epoch:0>9}.pth"
@@ -49,7 +51,7 @@ class ModelFileManager:
             models_path : Optional['PathLike'] = None
         ) -> None:
         self.logger = module_logger
-        self.models_path = Path(models_path or MODELS_PATH)
+        self.models_path = Path(models_path or options.models_path)
         if not self.models_path.exists():
             self.logger.warning(f'Models path {self.models_path} does not exist, creating...')
             self.models_path.mkdir(parents=True)
@@ -82,6 +84,7 @@ class ModelFileManager:
         self.results_dest = self.path.joinpath(self.RESULTS_DIR)
         self.debug_dir = self.path.joinpath(self.DEBUG_DIR)
         self.last_checkpoint = self.path.joinpath(self.LAST_CHECKPOINT)
+        self.best_checkpoint = self.path.joinpath(self.BEST_CHECKPOINT)
         self.cache_dir = self.path.joinpath(self.CACHE_DIR)
 
     def __create_paths(self, exists_ok = False):
@@ -194,11 +197,17 @@ class ModelFileManager:
         else:
             raise FileNotFoundError(f"Config file not found at {self.config_file}")
     
-    def save_checkpoint(self, epoch, state_dict, abrupt):
+    def save_checkpoint(self, epoch : int, state_dict, abrupt : bool, is_best : bool):
         self.__assert_context()
         path = self.checkpoint_path.joinpath(self.CHECKPOINT_FORMAT.format(epoch=epoch))
         if path.exists():
             self.logger.warning(f"Overwriting existing checkpoint at {path}")
+        if is_best:
+            if not abrupt:
+                self.logger.info(f"Overwriting best checkpoint at {self.best_checkpoint}")
+                torch.save(state_dict, self.best_checkpoint)
+            else:
+                self.logger.critical("Abrupt checkpoint was marked as best, ignoring")
         if not abrupt:
             self.logger.info(f"Overwriting last checkpoint at {self.last_checkpoint}")
             torch.save(state_dict, self.last_checkpoint)
@@ -208,18 +217,56 @@ class ModelFileManager:
         torch.save(state_dict, path)
         
 
-    def load_last_checkpoint(self):
+    def load_torch_pickle(self, file : Path):
         self.__assert_context()
-        # TODO load weights only (currently not working)
-        if self.last_checkpoint.exists():
-            return torch.load(self.last_checkpoint, weights_only=False)
+        if not file.exists():
+            raise FileNotFoundError(f"File {file} does not exist")
+        self.logger.info(f"Loading torch.load({file}, weights_only=True)")
+        try:
+            return torch.load(file, weights_only=True)
+        except PickleError as e:
+            file = file.absolute()
+            safety_prompt = f"TRUST {file}"
+            self.logger.critical(f"Loading torch.load({file}, weights_only=True) failed.\n"
+                                 "Loading with weights_only=False may work but exposes "
+                                 "the system to potential code injection vulnerabilities "
+                                 "if the file has been tampered with."
+                                 "\n\n"
+                                 f"To load the file with torch.load({file}, weights_only=True), type:\n"
+                                 f"{safety_prompt}\n")
+            def kill():
+                self.logger.critical("User took too long to respond, raising exception")
+                raise e
+            timer = Timer(5*60, kill)
+            timer.start()
+            response = input()
+            timer.cancel()
+            if response == safety_prompt:
+                return torch.load(file, weights_only=False)
+            else:
+                self.logger.critical("User response did not match, raising exception")
+                raise e
+
+    def load_checkpoint(self, file : Path | None = None, prefer : Literal['last', 'best'] = 'last'): #TODO prefer best?
+        self.__assert_context()
+        if file is not None:
+            return self.load_torch_pickle(file)
+        fallback_list = [
+            self.last_checkpoint,
+            self.best_checkpoint
+        ]
+        if prefer == 'best':
+            fallback_list.reverse()
+        for file in fallback_list:
+            if file.exists():
+                return self.load_torch_pickle(file)
         checkpoint_files = self.checkpoint_path.glob("*")
         checkpoint_files = [(int(file.with_suffix("").name.split('_')[-1]), file) for file in checkpoint_files]
         checkpoint_files.sort(key=lambda x: x[0])
         if len(checkpoint_files) > 0:
             checkpoint_file = checkpoint_files[-1][1]
             self.logger.warning(f"No checkpoint found at {self.last_checkpoint} but found checkpoint {checkpoint_file}")
-            return torch.load(checkpoint_file, weights_only=False)
+            return self.load_torch_pickle(checkpoint_file)
         else:
             return None
     

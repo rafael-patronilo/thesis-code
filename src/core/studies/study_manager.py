@@ -2,7 +2,7 @@ import logging
 from core.logging import NOTIFY
 from typing import Iterable, Callable, Literal, Optional, Any, assert_never
 from core.storage_management.study_file_manager import StudyFileManager
-from core.training.trainer import Trainer, TrainerConfig, MetricsSnapshot
+from core.training.trainer import Trainer, TrainerConfig, ResultsDict
 
 module_logger = logging.getLogger(__name__)
 
@@ -10,10 +10,10 @@ class StudyManager:
     def __init__(
             self, 
             file_manager : StudyFileManager,
-            compare_strategy : Callable[[MetricsSnapshot, MetricsSnapshot], bool] | Literal["max", "min"],
+            compare_strategy : Callable[[ResultsDict, ResultsDict], bool] | Literal["max", "min"],
             metric_key : Optional[tuple[str, str]] = ('train', 'loss'),
             stop_criteria : Optional[
-                Callable[[MetricsSnapshot], bool] | 
+                Callable[[ResultsDict], bool] |
                 tuple[Any, Literal['ge', 'le', 'eq']]
                 ] = None,
             num_epochs : int = 10,
@@ -25,7 +25,7 @@ class StudyManager:
         self.file_manager = file_manager
         self.compare_strategy : Callable[[dict, dict], bool]
         self.num_epochs = num_epochs
-        self.best_results : Optional[tuple[str, MetricsSnapshot]] = None
+        self.best_results : Optional[tuple[str, ResultsDict]] = None
         self.results = {}
         self.skip_comparison = False
         if metric_key is not None:
@@ -93,7 +93,7 @@ class StudyManager:
 
 
     def _evaluate_experiment(self, experiment_name : str, trainer : Trainer):
-        snapshot = trainer.metrics_snapshot()
+        snapshot = trainer.get_results_dict()
         self.results[experiment_name] = snapshot
         if self.best_results is None:
                 self.best_results = (experiment_name, snapshot)

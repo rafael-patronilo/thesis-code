@@ -1,4 +1,4 @@
-from typing import Optional, Any, Sequence, Callable
+from typing import NamedTuple, Optional, Any, Protocol, Sequence, Callable
 import logging
 from collections import OrderedDict, deque
 import torch
@@ -18,17 +18,38 @@ def dataloader_worker_init_fn(worker_id):
 
 LOG_STEP_EVERY = 5*60 # 5 minutes
 
+class EvaluationResult(NamedTuple):
+    y_pred : torch.Tensor
+    y_true : torch.Tensor
+
+class Evaluator[M : torch.nn.Module](Protocol):
+    """
+    Callable that takes a model, input and target tensors and
+    returns the two y_pred and y_true tensors that should be compared.
+    """
+    def __call__(self, model : M, x : torch.Tensor, y : torch.Tensor) -> EvaluationResult:
+        ...
+
+def default_evaluator(model : torch.nn.Module, x : torch.Tensor, y : torch.Tensor) -> EvaluationResult:
+    """
+    Default Evaluator implementation that just returns the model output and the target tensor
+    :param model:
+    :param x:
+    :param y:
+    :return:
+    """
+    return EvaluationResult(model(x), y)
 
 class MetricsRecorder:
-    def __init__(self, 
-                identifier : str,
-                metric_functions : dict[str, TorchMetric],
-                dataset : Callable[[],TorchDataset],
-                target_module : Optional[str] = None,
-                last_n_size = 10,
-                batch_size = 64,
-                num_loaders : int = int(os.getenv('NUM_THREADS', 4)),
-                ):
+    def __init__(self,
+                 identifier : str,
+                 metric_functions : dict[str, TorchMetric],
+                 dataset : Callable[[],TorchDataset],
+                 evaluator : Evaluator = default_evaluator,
+                 last_n_size = 10,
+                 batch_size = 64,
+                 num_loaders : int = int(os.getenv('NUM_THREADS', 4)),
+                 ):
         #TODO deprecated checks in this constructor
         self.identifier = identifier
         self.__metric_functions : dict[str, Any]
@@ -40,7 +61,7 @@ class MetricsRecorder:
         self.last_record = None
         def sort_key(metric):
             metric_name = metric[0]
-            return (0 if metric_name.lower() == 'loss' else 1, metric_name)
+            return (0 if metric_name.lower() == 'loss' else 1), metric_name
         self.ordered_metrics : list[tuple[str, Any]] = sorted(
             [(k, v) for k, v in self.__metric_functions.items()] , key=sort_key
         )
@@ -48,7 +69,7 @@ class MetricsRecorder:
         self.sums : dict = {k: 0.0 for k, _ in self.ordered_metrics}
         self.last_n : deque[OrderedDict] = deque(OrderedDict((k, 0.0) for k in self.metrics_header) for _ in range(last_n_size))
         self.sums_last_n : dict = {k: 0.0 for k, _ in self.ordered_metrics}
-        self.total_measures = {k: 0.0 for k, _ in self.ordered_metrics}
+        self.total_measures = {k: 0 for k, _ in self.ordered_metrics}
         self.dataset_ref = dataset
         if dataset is not None:
             self.dataloader = DataLoader(
@@ -58,7 +79,7 @@ class MetricsRecorder:
                 worker_init_fn=dataloader_worker_init_fn,
                 pin_memory=True
             )
-        self.target_module = target_module
+        self.evaluator = evaluator
 
 
     def __getstate__(self) -> object:
@@ -97,7 +118,7 @@ class MetricsRecorder:
                         new_sums_last_n[key] += record[key]
             for key, value in record.items():
                 if key not in new_record:
-                    sb.append(f"Ivalid {key} in record {i} with value {value}, ignoring")
+                    sb.append(f"Invalid {key} in record {i} with value {value}, ignoring")
             new_last_n.append(new_record)
         if len(new_last_n) < len(self.last_n):
             sb.append(f"Invalid last_n length ({len(new_last_n)}), appending 0s")
@@ -145,19 +166,6 @@ class MetricsRecorder:
             for k,v in self.sums_last_n.items()
         }
 
-
-    def get_target_module(self, model):
-        if self.target_module is None:
-            return model
-        else:
-            path = self.target_module.split(".")
-            submodule = model
-            for p in path:
-                if len(p) == 0:
-                    continue
-                submodule = getattr(submodule, p)
-            return submodule
-
     def _prepare_torch_metrics(self):
         for metric_fn in self.torch_metrics.values():
             metric_fn.to(device=torch.get_default_device())
@@ -173,7 +181,6 @@ class MetricsRecorder:
         if hasattr(self, '_evaluated_externally') and self._evaluated_externally: # type: ignore
             return
         model.eval()
-        module = self.get_target_module(model)
         self._prepare_torch_metrics()
         y_pred = None
         y_true = None
@@ -182,13 +189,13 @@ class MetricsRecorder:
         last_log = start_time
         batches = 0
         with torch.no_grad():
-            for x, y_true in self.dataloader:
+            for x, y in self.dataloader:
                 x = x.to(torch.get_default_device())
-                y_true = y_true.to(torch.get_default_device())
-                y_pred = module(x)
+                y = y.to(torch.get_default_device())
+                y_pred, y_true = self.evaluator(model, x, y)
                 self._update_torch_metrics(y_pred, y_true)
                 now = time.time()
-                if now - last_log > LOG_STEP_EVERY:
+                if now - last_log > LOG_STEP_EVERY: #TODO deprecated, should use the context manager
                     logger.info(f"\t\tEvaluating longer than {LOG_STEP_EVERY} seconds ({now - start_time:.0f}), current batch = {batches}")
                     last_log = now
                 batches += 1

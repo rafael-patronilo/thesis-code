@@ -1,4 +1,4 @@
-from typing import Callable, Iterable, TYPE_CHECKING, Literal
+from typing import Callable, Iterable, TYPE_CHECKING, Literal, Self
 from torcheval.metrics import Metric
 from core.datasets import SplitDataset
 import warnings
@@ -7,29 +7,25 @@ if TYPE_CHECKING:
     from torch.utils.data import Dataset as TorchDataset
     import torch
 
-def chain(*constructors : Callable[[Metric], Metric], inner : Callable[[], Metric]) -> Callable[[], Metric]:
-    def constructor():
-        result = inner()
-        for constructor in reversed(constructors):
-            result = constructor(result)
-        return result
-    return constructor
-
 class MetricWrapper(Metric):
     def __init__(self, inner : Metric) -> None:
         self.inner = inner
+        super().__init__()
 
-    def reset(self):
+    def reset(self) -> Self:
         self.inner.reset()
+        return self
 
-    def to(self, device):
+    def to(self, device, *_, **__):
         self.inner.to(device)
+        return self
 
     def merge_state(self, metrics: Iterable[Metric]) -> Metric:
         return self.inner.merge_state(unwrap(metric) for metric in metrics)
 
     def update(self, y_pred, y_true):
         self.inner.update(y_pred, y_true)
+        return self
 
     def compute(self):
         return self.inner.compute()
@@ -40,12 +36,6 @@ class MetricWrapper(Metric):
             innermost = innermost.inner
         return innermost
 
-    @classmethod
-    def partial(cls, *args, **kwargs) -> Callable[[Metric], Metric]:
-        def constructor(inner):
-            return cls(inner, *args, **kwargs)
-        return constructor
-
     def __repr__(self):
         fields = "".join(f", {k}={v}" for k, v in self.__dict__.items() if k != 'inner')
         return f"{self.__class__.__name__}({self.inner}{fields})"
@@ -53,14 +43,17 @@ class MetricWrapper(Metric):
 class MultiMetricWrapper(Metric):
     def __init__(self, *metrics : Metric) -> None:
         self.metrics = metrics
+        super().__init__()
 
     def reset(self):
         for metric in self.metrics:
             metric.reset()
+        return self
 
-    def to(self, device):
+    def to(self, device, *_, **__):
         for metric in self.metrics:
             metric.to(device)
+        return self
 
     def merge_state(self, metrics: Iterable[Metric]) -> Metric:
         merged_metrics = []
@@ -71,6 +64,7 @@ class MultiMetricWrapper(Metric):
     def update(self, y_pred, y_true):
         for metric in self.metrics:
             metric.update(y_pred, y_true)
+        return self
 
     def compute(self):
         raise NotImplementedError("Derive this class with some agreggation strategy")
@@ -102,7 +96,8 @@ class Flatten(MetricWrapper):
     def update(self, y_pred, y_true):
         y_pred = y_pred.flatten(self.start_dim, self.end_dim)
         y_true = y_true.flatten(self.start_dim, self.end_dim)
-        return self.inner.update(y_pred, y_true)
+        self.inner.update(y_pred, y_true)
+        return self
 
 class SelectCol(MetricWrapper):
     def __init__(
@@ -137,7 +132,8 @@ class SelectCol(MetricWrapper):
             y_pred = self._select_tensor(y_pred)
         if self.apply_to_true:
             y_true = self._select_tensor(y_true)
-        return self.inner.update(y_pred, y_true)
+        self.inner.update(y_pred, y_true)
+        return self
     
     @classmethod
     def col_wise(
@@ -207,7 +203,8 @@ class ToDtype(MetricWrapper):
             y_pred = y_pred.to(dtype)
         if self.apply_to_true:
             y_true = y_true.to(dtype)
-        return self.inner.update(y_pred, y_true)
+        self.inner.update(y_pred, y_true)
+        return self
 
 def to_int(factory : Callable[[], Metric]) -> Callable[[], Metric]:
     import torch

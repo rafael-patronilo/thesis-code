@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 from pathlib import Path
+
+from torch.utils import checkpoint
 from core.training import Trainer
 from core.storage_management import ModelFileManager
 from core.init.options_parsing import option, positional
@@ -14,6 +16,21 @@ class Options:
     model: Path = field(
         metadata=positional(Path, help_="The model to load")
     )
+
+    preferred_checkpoint : str = field(default='best',
+                                       metadata=option(str, help_=
+                                       "Either 'best' or 'last'. Defaults to 'best'. "
+                                       "Specifies which checkpoint to prefer "
+                                       "during checkpoint discovery. "
+                                       "If the checkpoint option is specified, "
+                                       "this option is ignored.")
+                                       )
+
+    checkpoint : Path | None = field(default=None,
+                                metadata=option(Path, help_=
+                                "The checkpoint file to load. If not specified, "
+                                "the script will automatically decide which checkpoint to load, "
+                                "in accordance to the preferred_checkpoint option."))
 
     num_epochs : int | None = field(default=None,
                                 metadata=option(int, help_="Number of epochs to train for"))
