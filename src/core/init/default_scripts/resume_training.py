@@ -1,15 +1,16 @@
 #!/usr/bin/env python
 from pathlib import Path
-from typing import Literal
-from core.training import Trainer
-from core.storage_management import ModelFileManager
-from core.init.options_parsing import option, positional
+from typing import Literal, TYPE_CHECKING
 from dataclasses import dataclass, field
-from core.util.strings import multiline_repr
+from core.init.options_parsing import option, positional
+from core.init import DO_SCRIPT_IMPORTS
 import logging
-
-from src.core.training.stop_criteria import early_stop
-logger = logging.getLogger(__name__)
+if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
+    from core.training import Trainer
+    from core.storage_management import ModelFileManager
+    from core.util.strings import multiline_repr
+    from core.training.stop_criteria import early_stop
+    logger = logging.getLogger(__name__)
 
 @dataclass
 class Options:

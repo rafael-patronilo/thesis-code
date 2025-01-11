@@ -1,7 +1,10 @@
 import sys
-from core.datasets import SplitDataset, get_dataset
-from core.training import Trainer
-from core.storage_management import ModelFileManager
+from typing import TYPE_CHECKING
+from core.init import DO_SCRIPT_IMPORTS
+if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
+    from core.datasets import SplitDataset, get_dataset
+    from core.training import Trainer
+    from core.storage_management import ModelFileManager
 
 TRAINER_PREFIX = 'from_trainer:'
 

@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class Objective(ABC):
 
     # noinspection PyMethodMayBeStatic
-    def select_value(self, results : ResultsDict) -> Any:
+    def select_value(self, results : 'ResultsDict') -> Any:
         """
         Select the value that is compared for including in logs
         :return:

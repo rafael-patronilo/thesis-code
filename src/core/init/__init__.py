@@ -2,6 +2,7 @@
 Provides utilities for basic framework initialization with
 parsing of command line arguments and environment variables.
 """
+import importlib
 import os
 from pathlib import Path
 from typing import Any, Type
@@ -15,6 +16,8 @@ from .scripts import Script, ScriptLoadOptions, scripts, register_from_package, 
 import logging
 from datetime import datetime
 import json
+
+DO_SCRIPT_IMPORTS : bool = False
 
 
 start_time = datetime.now()
@@ -153,9 +156,9 @@ def run_script(script : Script, parsed_args : Namespace, script_configs : dict[s
         import_torch()
     if load_options.import_datasets:
         import_datasets()
-    if script.pre_load is not None:
-        logger.debug("Running script pre_load")
-        script.pre_load()
+    global DO_SCRIPT_IMPORTS
+    DO_SCRIPT_IMPORTS = True
+    importlib.reload(script.module)
     if script.options_cls is not None:
         logger.debug('Resolving script options')
         script_options = resolve(
@@ -178,5 +181,6 @@ __all__ = [
     'start_time',
     'import_torch',
     'parse_args',
-    'import_datasets'
+    'import_datasets',
+    'DO_SCRIPT_IMPORTS'
 ]

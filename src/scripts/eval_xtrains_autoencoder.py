@@ -1,28 +1,31 @@
-import sys
-import pandas as pd
+from typing import TYPE_CHECKING
+from core.init import DO_SCRIPT_IMPORTS
+if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
+    import sys
+    import pandas as pd
 
-from core.training import Trainer
-from core.storage_management import ModelFileManager
-from core.datasets import SplitDataset, dataset_wrappers
-from core.util.progress_trackers import LogProgressContextManager
-from datetime import timedelta
+    from core.training import Trainer
+    from core.storage_management import ModelFileManager
+    from core.datasets import SplitDataset, dataset_wrappers
+    from core.util.progress_trackers import LogProgressContextManager
+    from datetime import timedelta
 
-from core.eval.metrics import metric_wrappers as metric_wrappers
+    from core.eval.metrics import metric_wrappers as metric_wrappers
 
-from core.eval.metrics_crosser import MetricCrosser
-from core.eval.metrics import BinaryBalancedAccuracy, BinarySpecificity
-from core.nn import layers
-import torch
-import torchvision
-import torch.utils.data as torch_data
-from core.datasets import get_dataset
-import logging
-from core.logging import NOTIFY
-from torcheval import metrics
-from core.eval.plotting import CrossBinaryHistogram
+    from core.eval.metrics_crosser import MetricCrosser
+    from core.eval.metrics import BinaryBalancedAccuracy, BinarySpecificity
+    from core.nn import layers
+    import torch
+    import torchvision
+    import torch.utils.data as torch_data
+    from core.datasets import get_dataset
+    import logging
+    from core.logging import NOTIFY
+    from torcheval import metrics
+    from core.eval.plotting import CrossBinaryHistogram
 
-logger = logging.getLogger(__name__)
-progress_cm = LogProgressContextManager(logger, cooldown=timedelta(minutes=2))
+    logger = logging.getLogger(__name__)
+    progress_cm = LogProgressContextManager(logger, cooldown=timedelta(minutes=2))
 SEED = 3892
 NUM_IMAGES = 16
 
@@ -52,9 +55,9 @@ SHORT_CLASSES = [
 
 
 def sample_images(
-        trainer : Trainer, 
-        file_manager : ModelFileManager, 
-        dataset : torch_data.Dataset
+        trainer : 'Trainer',
+        file_manager : 'ModelFileManager',
+        dataset : 'torch_data.Dataset'
     ):
     generator = torch.Generator(device=torch.get_default_device())
     generator.manual_seed(SEED)
@@ -67,11 +70,11 @@ def sample_images(
     torchvision.utils.save_image(results, file_manager.results_dest.joinpath("reconstructed.png"))
 
 def evaluate_encoding_on_set(
-        encoder : torch.nn.Module,
-        file_manager : ModelFileManager,
-        dataloader : torch_data.DataLoader,
+        encoder : 'torch.nn.Module',
+        file_manager : 'ModelFileManager',
+        dataloader : 'torch_data.DataLoader',
         dataset_description : str,
-        crosser : MetricCrosser,
+        crosser : 'MetricCrosser',
         encoding_labels : list[str]
         ):
     histogram = CrossBinaryHistogram(encoding_labels, SHORT_CLASSES)
@@ -107,9 +110,9 @@ def evaluate_encoding_on_set(
     histogram.create_figure(mode='stacked').savefig(results_path.joinpath("densities_stacked.png"))
 
 def evaluate_encoding(
-        trainer : Trainer,
-        file_manager : ModelFileManager,
-        dataset : SplitDataset
+        trainer : 'Trainer',
+        file_manager : 'ModelFileManager',
+        dataset : 'SplitDataset'
     ):
     model : torch.nn.Module = trainer.model.encoder
     normalizer = layers.MinMaxNormalizer.fit(model, trainer.make_loader(dataset.for_training()), progress_cm=progress_cm)
@@ -160,7 +163,7 @@ def evaluate_encoding(
         encoding_labels
     )
 
-def analyze_dataset(trainer : Trainer, file_manager : ModelFileManager, dataset : torch_data.Dataset, dataset_description : str):
+def analyze_dataset(trainer : 'Trainer', file_manager : 'ModelFileManager', dataset : 'torch_data.Dataset', dataset_description : str):
     loader = trainer.make_loader(dataset)
     hist = torch.zeros(len(CLASSES), 2)
     with progress_cm.track(f'Analyzing dataset {dataset_description}', 'batches', loader) as progress_tracker:
@@ -188,7 +191,7 @@ def analyze_dataset(trainer : Trainer, file_manager : ModelFileManager, dataset 
     fig.savefig(file_manager.results_dest.joinpath(f"{dataset_description}_concept_histogram.png"))
     
 
-def analyze_selected_dataset(trainer : Trainer, file_manager : ModelFileManager, selected_dataset : SplitDataset):
+def analyze_selected_dataset(trainer : 'Trainer', file_manager : 'ModelFileManager', selected_dataset : 'SplitDataset'):
     analyze_dataset(trainer, file_manager, selected_dataset.for_training(), 'train')
     analyze_dataset(trainer, file_manager, selected_dataset.for_validation(), 'val')
 

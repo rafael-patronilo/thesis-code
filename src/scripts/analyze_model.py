@@ -1,13 +1,16 @@
-import sys
-from core.training import Trainer
-from core.storage_management import ModelFileManager
-from collections import OrderedDict
-from dataclasses import dataclass
+from typing import TYPE_CHECKING
+from core.init import DO_SCRIPT_IMPORTS
 from typing import NamedTuple
-import torch
-from torch.utils.data import DataLoader
-import logging
-logger = logging.getLogger(__name__)
+if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
+    import sys
+    from core.training import Trainer
+    from core.storage_management import ModelFileManager
+    from collections import OrderedDict
+    from dataclasses import dataclass
+    import torch
+    from torch.utils.data import DataLoader
+    import logging
+    logger = logging.getLogger(__name__)
 
 class Stats(NamedTuple):
     max: float
@@ -15,7 +18,7 @@ class Stats(NamedTuple):
     mean: float
     std: float
 
-def analyze_weights(trainer: Trainer):
+def analyze_weights(trainer: 'Trainer'):
     logger.info("Analyzing model weights...")
     for name, param in trainer.model.named_parameters():
         logger.info(
@@ -26,7 +29,7 @@ def analyze_weights(trainer: Trainer):
             f"\tStd: {param.std()}"
         )
 
-def analyze_layer_output(trainer : Trainer):
+def analyze_layer_output(trainer : 'Trainer'):
     @dataclass
     class LayerStats:
         sum: float = 0

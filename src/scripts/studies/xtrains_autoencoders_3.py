@@ -1,10 +1,13 @@
-from core import datasets
-from core.studies import StudyManager
-from core.storage_management import StudyFileManager
-from typing import NamedTuple
-from torch import nn
-import sys
-import logging
+from typing import TYPE_CHECKING
+from core.init import DO_SCRIPT_IMPORTS
+if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
+    from core import datasets
+    from core.studies import StudyManager
+    from core.storage_management import StudyFileManager
+    from typing import NamedTuple
+    from torch import nn
+    import sys
+    import logging
 
 STUDY_NAME = "xtrains_autoencoders_3"
 

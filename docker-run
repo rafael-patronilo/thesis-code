@@ -10,7 +10,9 @@ STOP_TIMEOUT=-1
 
 ARGS=(--gpus all --name $CONTAINER_NAME --shm-size=$SHM_SIZE --stop-timeout=$STOP_TIMEOUT)
 
-
+if [ -f .env ]; then
+    source .env
+fi
 
 if docker ps -a --filter "name=$CONTAINER_NAME"; then
     echo Attempting to remove old container...

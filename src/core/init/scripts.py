@@ -12,7 +12,6 @@ import importlib
 import inspect
 from core.util.strings import multiline_repr
 
-
 class ScriptLoadOptions(NamedTuple):
     """
     Options for loading scripts.
@@ -43,8 +42,7 @@ class Script:
     """
     options_cls: Type | None
     load_options : ScriptLoadOptions | None
-    pre_load: Callable[[], None] | None
-    main: Callable[[Any], None] | Callable[[], None]
+    module : Any
     name: str
     fullname : str
     help_str: str
@@ -111,7 +109,7 @@ class ScriptGroup(NamedTuple):
             name = fullname.split('.')[-1]
             help_str = main.__doc__ if main.__doc__ is not None else ""
             script_path = module.__file__
-            script = Script(options_cls, load_options, pre_load, main,
+            script = Script(options_cls, load_options, module,
                             name, fullname, help_str, script_path)
             self.children[name] = script
         else:

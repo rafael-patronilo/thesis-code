@@ -1,7 +1,10 @@
-from core import datasets
-from core.studies import StudyManager
-from core.storage_management import StudyFileManager
-from torch import nn
+from typing import TYPE_CHECKING
+from core.init import DO_SCRIPT_IMPORTS
+if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
+    from core import datasets
+    from core.studies import StudyManager
+    from core.storage_management import StudyFileManager
+    from torch import nn
 
 DATASET = "xtrains_ontology_simplified_comp_some_all"
 
