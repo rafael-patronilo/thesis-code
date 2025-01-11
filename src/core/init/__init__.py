@@ -165,10 +165,10 @@ def run_script(script : Script, parsed_args : Namespace, script_configs : dict[s
             script.options_cls, #type: ignore
             parsed_args, script_configs.get(script.fullname, {}))
         logger.info(f"Entering script {script.name} with options:\n{script_options}")
-        script.main(script_options)  # type: ignore
+        script.module.main(script_options)  # type: ignore
     else:
         logger.info(f"Entering script {script.name}")
-        script.main()  # type: ignore
+        script.module.main()  # type: ignore
 
 def main(args : list[str] | None = None, prog : str | None = None):
     from ._late_import_init import main as real_main

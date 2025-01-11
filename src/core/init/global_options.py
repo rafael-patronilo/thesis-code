@@ -17,6 +17,15 @@ class GlobalOptions:
         metadata=option(str, help_=
         'Logging level. Defaults to INFO')
     )
+    log_handler_level : dict[str, str] = field(
+        default_factory=lambda:{
+            'file' : 'DEBUG'
+        },
+        metadata=option(comma_key_values, help_=
+        'Comma separated key value pairs indicating specific logging levels for handlers. '
+        'Available handlers are discord, console and file. '
+        'Example: --log-handler-level console=INFO,file=DEBUG')
+    )
     log_dir: Path = field(
         default=Path("logs"),
         metadata=option(Path, help_=

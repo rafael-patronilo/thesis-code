@@ -1,8 +1,13 @@
-import logging
-from core.logging import NOTIFY
+
 from core.init.options_parsing import option
 from dataclasses import dataclass, field
-logger = logging.getLogger()
+
+from core.init import DO_SCRIPT_IMPORTS
+from typing import TYPE_CHECKING
+if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
+    import logging
+    from core.logging import NOTIFY
+    logger = logging.getLogger()
 
 @dataclass
 class Options:
