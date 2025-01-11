@@ -9,7 +9,7 @@ from datetime import timedelta
 
 from core.eval.metrics import metric_wrappers as metric_wrappers
 
-from core.eval.metrics.metrics_crosser import MetricCrosser
+from core.eval.metrics_crosser import MetricCrosser
 from core.eval.metrics import BinaryBalancedAccuracy, BinarySpecificity
 from core.nn import layers
 import torch
@@ -19,7 +19,7 @@ from core.datasets import get_dataset
 import logging
 from core.logging import NOTIFY
 from torcheval import metrics
-from core.util.plotting import CrossBinaryHistogram
+from core.eval.plotting import CrossBinaryHistogram
 
 logger = logging.getLogger(__name__)
 progress_cm = LogProgressContextManager(logger, cooldown=timedelta(minutes=2))

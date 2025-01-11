@@ -13,6 +13,7 @@ import logging
 from types import SimpleNamespace
 
 from core.datasets import dataset_wrappers
+from src.core.eval.objectives import Maximize, Objective
 logger = logging.getLogger(__name__)
 
 EARLY_STOP = SimpleNamespace()
@@ -155,15 +156,15 @@ def create_trainer(dataset_name : str, **kwargs) -> Trainer:
     train_metrics = TrainingLogger(
         metric_functions=metric_functions | {'loss': loss_metric()}  #type:ignore
     )
+    objective = Maximize('val', 'loss', threshold)
     return Trainer(
         model=make_model(input_shape, **kwargs),
         loss_fn=loss_fn,
         optimizer=torch.optim.Adam,
         training_set=dataset,
         metric_loggers=[train_metrics, val_metrics],
-        stop_criteria=[EarlyStop(
-            metric='loss', prefer='min', metrics_logger ='val', threshold=threshold, patience=patience)],
-        checkpoint_triggers=[BestMetric(
-            metric='loss', prefer='min', metrics_logger ='val', threshold=threshold)],
+        stop_criteria=[EarlyStop(objective, patience=patience)],
+        checkpoint_triggers=[BestMetric(objective)],
+        objective=objective,
         batch_size=64
     )

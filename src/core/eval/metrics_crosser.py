@@ -28,8 +28,8 @@ class MetricCrosser:
                 [metric_factory() for _ in self.true_labels]
                 for _ in self.pred_labels
             ],
-            index = self.pred_labels,
-            columns = self.true_labels)
+            index = self.pred_labels, #type: ignore # Although not annotated, index can be list[str]
+            columns = self.true_labels)  #type: ignore # Although not annotated, columns can be list[str]
     
     def _assert_right_size(self, preds : torch.Tensor, trues : torch.Tensor):
         if not preds.size(1) == self.pred_size: 

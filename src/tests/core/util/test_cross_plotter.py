@@ -29,7 +29,7 @@ class TestCrossPlotter(unittest.TestCase):
     def cross_plotter_param_test(self, num : int):
         expected_path, result_path = create_paths(__file__, 'cross_plotter')
 
-        from core.util.plotting import CrossPlotter
+        from core.eval.plotting import CrossPlotter
         rng = torch.Generator().manual_seed(256)
         cross_plotter = CrossPlotter.basic_config(
             preds = [f'p{i}' for i in range(5)],

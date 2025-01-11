@@ -2,7 +2,7 @@ import unittest
 from torcheval.metrics import BinaryAccuracy, BinaryRecall, BinaryPrecision, BinaryF1Score
 from collections import Counter
 
-from core.eval.metrics.metrics_crosser import *
+from core.eval.metrics_crosser import *
 
 class MetricCrosserTests(unittest.TestCase):
 
