@@ -193,6 +193,9 @@ class Trainer:
             metric_logger.load_state_dict(state_dict["metrics"][metric_logger.identifier])
         for criterion in self.stop_criteria:
             if hasattr(criterion, 'load_state_dict'):
+                if criterion.__class__.__name__ not in state_dict['stop_criteria']:
+                    self.logger.warning(f"Stop criterion {criterion.__class__.__name__} not found in checkpoint")
+                    continue
                 criterion.load_state_dict(state_dict['stop_criteria'][criterion.__class__.__name__]) #type: ignore # hasattr ensures load_state_dict
         metadata = state_dict['metadata']
         self.logger.info(f"Loaded checkpoint: {utils.multiline_str(metadata)}")
