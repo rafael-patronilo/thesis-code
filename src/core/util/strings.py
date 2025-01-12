@@ -1,4 +1,8 @@
+import datetime
+from datetime import datetime
 from functools import wraps
+from typing import Literal
+
 
 def truncate_string(string : str, max_length : int, truncate_suffix : str = ""):
     """
@@ -54,3 +58,11 @@ def multiline_repr(obj, recursive : bool = False, **override_fields : str | None
         body.append(f"\t{key}={prepend_lines(value_repr(value))}")
     return f"{obj.__class__.__name__}(\n{',\n'.join(body)}\n)"
 
+
+def produce_filename_timestamp(time : datetime | None = None, timespec : Literal['seconds', 'microseconds'] = 'seconds') -> str:
+    if time is None:
+        time = datetime.now()
+    filename_timestamp = time.isoformat(timespec=timespec).replace(':', '_')
+    if timespec == 'microseconds':
+        filename_timestamp = filename_timestamp.replace('.', '_')
+    return filename_timestamp

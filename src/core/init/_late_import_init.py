@@ -31,6 +31,9 @@ def main(args : list[str] | None = None, prog : str | None = None):
         logger.warning("No script specified, run with --help for script list.\nExiting.")
         return
     else:
-        run_script(script, parsed_args, script_configs)
+        try:
+            run_script(script, parsed_args, script_configs)
+        except BaseException as e:
+            logger.critical(f"Uncaught exception in script: {e}", exc_info=True)
     logger.log(NOTIFY, f"Script complete in {datetime.now() - start_time}")
     logging.shutdown()

@@ -8,6 +8,7 @@ import datetime
 import logging
 import torch
 from core.init import options
+from src.core.util.strings import produce_filename_timestamp
 if TYPE_CHECKING:
     from core.training.trainer import TrainerConfig
     from core.util.typing import PathLike
@@ -201,7 +202,17 @@ class ModelFileManager:
         self.__assert_context()
         path = self.checkpoint_path.joinpath(self.CHECKPOINT_FORMAT.format(epoch=epoch))
         if path.exists():
-            self.logger.warning(f"Overwriting existing checkpoint at {path}")
+            stamp = f"{epoch}_{produce_filename_timestamp(timespec='microseconds')}"
+            new_path = self.checkpoint_path.joinpath(self.CHECKPOINT_FORMAT.format(epoch=stamp))
+            if new_path.exists():
+                self.logger.critical(f"Checkpoints already exists at path {path} "
+                                     f"and alternate path {new_path}.\n"
+                                     f"{path} will be overwritten.")
+            else:
+                self.logger.warning(f"Checkpoints already exists at path {path}. "
+                                    f"Saving to alternate path {new_path}")
+                path = new_path
+        torch.save(state_dict, path)
         if is_best:
             if not abrupt:
                 self.logger.info(f"Overwriting best checkpoint at {self.best_checkpoint}")
@@ -214,7 +225,7 @@ class ModelFileManager:
         else:
             self.logger.warning("Abrupt checkpoint, not overwriting last checkpoint")
         self.logger.info(f"Saving checkpoint at {path}")
-        torch.save(state_dict, path)
+
         
 
     def load_torch_pickle(self, file : Path):
@@ -259,10 +270,15 @@ class ModelFileManager:
             if file.exists():
                 return self.load_torch_pickle(file)
         checkpoint_files = self.checkpoint_path.glob("*")
-        checkpoint_files = [(int(file.with_suffix("").name.split('_')[-1]), file) for file in checkpoint_files]
-        checkpoint_files.sort(key=lambda x: x[0])
-        if len(checkpoint_files) > 0:
-            checkpoint_file = checkpoint_files[-1][1]
+        checkpoint_epochs = []
+        for file in checkpoint_files:
+            try:
+                checkpoint_epochs.append((int(file.with_suffix("").name.split('_')[-1]), file))
+            except ValueError:
+                self.logger.warning(f"Invalid checkpoint file found at {file}")
+        checkpoint_epochs.sort(key=lambda x: x[0])
+        if len(checkpoint_epochs) > 0:
+            checkpoint_file = checkpoint_epochs[-1][1]
             self.logger.warning(f"No checkpoint found at {self.last_checkpoint} but found checkpoint {checkpoint_file}")
             return self.load_torch_pickle(checkpoint_file)
         else:

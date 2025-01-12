@@ -30,7 +30,7 @@ class TestTrainer(unittest.TestCase):
         trainer.init_file_manager(mock_file_manager)
         trainer.train_epochs(7)
         mock_file_manager.save_checkpoint.assert_called()
-        epoch, state_dict, abrupt = mock_file_manager.save_checkpoint.call_args.args
+        epoch, state_dict, abrupt, __is_best = mock_file_manager.save_checkpoint.call_args.args
         self.assertEqual(epoch, 7)
         self.assertFalse(abrupt)
         self.assertIsNone(find_illegal_children(state_dict))

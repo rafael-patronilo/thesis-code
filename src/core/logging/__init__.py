@@ -13,7 +13,8 @@ import core.init
 from .formatting_utils import MultiLineFormatter
 from .stream_interceptor import StreamInterceptor
 from .handlers import discord_webhook_handler, stdout_log_handler
-from typing import Literal
+
+from ..util.strings import produce_filename_timestamp
 
 NOTIFY = logging.INFO + 5
 logging.addLevelName(NOTIFY, "NOTIFY")
@@ -87,13 +88,6 @@ def trap_stderr():
                                    logging.getLogger("stderr"), logging.ERROR)
 
 
-def format_log_file_name(timespec : Literal['seconds', 'microseconds'] = 'seconds') -> str:
-    file_name = core.init.start_time.isoformat(timespec=timespec).replace(':', '_')
-    if timespec == 'microseconds':
-        file_name = file_name.replace('.', '_')
-    return file_name
-
-
 def setup(version_info : bool = True, stdout_only : bool = False):
     """
     Setup logging for the application
@@ -125,7 +119,10 @@ def setup(version_info : bool = True, stdout_only : bool = False):
         # Setup file logging
         log_dir = core.init.options.log_dir
         log_dir.mkdir(parents=True, exist_ok=True)
-        log_file = log_dir.joinpath(format_log_file_name()).with_suffix(".log")
+        log_file = log_dir.joinpath(produce_filename_timestamp(core.init.start_time)).with_suffix(".log")
+        if log_file.exists():
+            log_file = log_dir.joinpath(
+                produce_filename_timestamp(core.init.start_time, 'microseconds')).with_suffix(".log")
         file_handler = logging.FileHandler(log_file)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
