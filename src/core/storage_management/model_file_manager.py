@@ -1,7 +1,7 @@
 
 from collections import OrderedDict
 from pathlib import Path
-from pickle import PickleError
+from pickle import PickleError, UnpicklingError
 from threading import Timer
 from typing import Callable, Literal, Any, Optional, Self, assert_never, TYPE_CHECKING
 import datetime
@@ -224,20 +224,18 @@ class ModelFileManager:
         self.logger.info(f"Loading torch.load({file}, weights_only=True)")
         try:
             return torch.load(file, weights_only=True)
-        except PickleError as e:
+        except UnpicklingError as e:
             file = file.absolute()
             safety_prompt = f"TRUST {file}"
-            self.logger.critical(f"Loading torch.load({file}, weights_only=True) failed.\n"
-                                 "Loading with weights_only=False may work but exposes "
-                                 "the system to potential code injection vulnerabilities "
-                                 "if the file has been tampered with."
-                                 "\n\n"
-                                 f"To load the file with torch.load({file}, weights_only=True), type:\n"
+            self.logger.critical(f'Loading torch.load("{file}", weights_only=True) failed:\n'
+                                 f"{e}\n\n"
+                                 f'To load the file with torch.load("{file}", weights_only=True), type:\n'
                                  f"{safety_prompt}\n")
             def kill():
                 self.logger.critical("User took too long to respond, raising exception")
                 raise e
             timer = Timer(5*60, kill)
+            timer.daemon = True
             timer.start()
             response = input()
             timer.cancel()

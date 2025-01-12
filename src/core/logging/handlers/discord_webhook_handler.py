@@ -7,6 +7,8 @@ from urllib.parse import urlparse
 import logging
 from logging import LogRecord
 from typing import Callable, NamedTuple, override
+
+from numpy import rec
 from core.util.concurrency import RateLimiter
 import json
 from queue import Queue
@@ -93,6 +95,7 @@ class DiscordLogConsumer:
         Signal end of program so consumer thread tries to go over tasks faster.
         """
         # Called by other threads
+        self.logger.debug("Soft killing discord log consumer")
         self.soft_kill_switch.set()
         self.pending.put(None)
 
@@ -101,6 +104,7 @@ class DiscordLogConsumer:
         Kill the consumer thread immediately and close the client
         """
         # Called by other threads
+        self.logger.debug("Killing discord log consumer")
         if self.thread.is_alive():
             self.kill_switch.set()
             self.soft_kill_switch.set()
@@ -122,36 +126,43 @@ class DiscordLogConsumer:
                 record = self._local_pending.pop()
             else:
                 record = self.pending.get(block=block)
+            block = False
             if record is None:
-                raise StopIteration()
+                raise StopIteration("None record found")
             if self.should_discard(record):
                 discarded += 1
             else:
                 if discarded > 0:
                     self._local_pending.append(record)
                     return suppressed_record()
+                else:
+                    return record
         if discarded > 0:
             return suppressed_record()
-        raise StopIteration()
+        raise StopIteration("No record found")
 
 
-    def _get_records(self) -> list[PendingRecord]:
+    def _accum_records(self) -> list[PendingRecord]:
         # Called by self.thread
         records = []
         size_sum = 0
-        record = self._get_discarding(block=not self.soft_kill_switch.is_set())
-        records.append(record)
-        size_sum += len(record.msg)
-        try:
-            while not self.kill_switch.is_set():
-                record = self._get_discarding(block=False)
-                if size_sum + len(record.msg) > MESSAGE_MAX_LENGTH:
-                    self._local_pending.append(record)
-                    break
-                records.append(record)
-                size_sum += len(record.msg)
-        except (queue.Empty, StopIteration):
-            pass
+        block = not self.soft_kill_switch.is_set()
+        while not self.kill_switch.is_set():
+            try:
+                record = self._get_discarding(block=block)
+            except (queue.Empty, StopIteration):
+                if len(records) == 0:
+                    raise
+                break
+            block = False
+            # message should already be truncated,
+            # however if the message is too long this may loop endlessly
+            assert len(record.msg) <= MESSAGE_MAX_LENGTH
+            if size_sum + len(record.msg) > MESSAGE_MAX_LENGTH:
+                self._local_pending.append(record)
+                break
+            records.append(record)
+            size_sum += len(record.msg)
         return records
 
     def _rate_limit(self):
@@ -167,11 +178,14 @@ class DiscordLogConsumer:
         # Called by self.thread
         while not self.kill_switch.is_set():
             try:
-                records = self._get_records()
+                records = self._accum_records()
+                if len(records) == 0:
+                    break # Soft kill
                 content = "\n".join(rec.msg for rec in records)
                 self._rate_limit()
                 self.client.send(content)
-            except (queue.Empty, StopIteration):
+            except (queue.Empty, StopIteration) as e:
+                self.logger.debug("Soft killed", exc_info=True)
                 break # Soft kill
             except Exception as e:
                 self.logger.error(f"Error sending log message to discord,"

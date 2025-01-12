@@ -135,8 +135,11 @@ class Evaluator:
     def __call__(self, trainer : 'Trainer') -> bool:
         if trainer.epoch % self.eval_each == 0 and trainer.epoch > 0:
             logger.info(f"Evaluating correlations : Epoch {trainer.epoch}")
-            self.eval(trainer)
-            logger.info("Evaluation complete")
+            try:
+                self.eval(trainer)
+                logger.info("Evaluation complete")
+            except Exception as e:
+                logger.critical(f"Failed to evaluate model: {e}", exc_info=True)
         return False
 
 def main(options : Options):

@@ -157,7 +157,7 @@ def argparse_register_scripts(parser : ArgumentParser, script_group : ScriptGrou
     :param title: The title for the script subparsers.
     :param script_group: The script subparsers to register.
     """
-    subparsers = parser.add_subparsers(title='Available scripts', metavar='SCRIPT')
+    subparsers = parser.add_subparsers(title='Available scripts', metavar='SCRIPT', required=True)
     for name, script in script_group.children.items():
         subparser = subparsers.add_parser(name, help=script.help_str, description=script.help_str)
         if isinstance(script, Script):

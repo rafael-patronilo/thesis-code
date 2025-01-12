@@ -104,9 +104,12 @@ def setup(version_info : bool = True, stdout_only : bool = False):
     global log_file
     formatter = MultiLineFormatter(logging.Formatter(FORMAT))
     logger = logging.getLogger()
+    level_names_mapping = logging.getLevelNamesMapping()
     default_level = core.init.options.log_level
-    logger.setLevel(core.init.options.log_level)
+    default_level_code = level_names_mapping[default_level]
     handler_levels = core.init.options.log_handler_level
+    handler_level_codes = {handler: level_names_mapping[level] for handler, level in handler_levels.items()}
+    logger.setLevel(min(default_level_code, *handler_level_codes.values()))
     
     # intercept unexpected writes to stdout and stderr
     trap_stdout()
@@ -114,7 +117,7 @@ def setup(version_info : bool = True, stdout_only : bool = False):
 
     # Setup console logging
     console_handler = stdout_log_handler.add_handler(logger, true_stdout)
-    console_handler.setLevel(handler_levels.get('console', default_level))
+    console_handler.setLevel(handler_level_codes.get('console', default_level_code))
 
     if stdout_only:
         logger.warning("Only logging to stdout; File and external logging disabled")
@@ -126,12 +129,12 @@ def setup(version_info : bool = True, stdout_only : bool = False):
         file_handler = logging.FileHandler(log_file)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
-        file_handler.setLevel(handler_levels.get('file', default_level))
+        file_handler.setLevel(handler_levels.get('file', default_level_code))
 
         # Setup discord logging
         discord_handler = discord_webhook_handler.add_handler(logger)
-        if discord_handler is not None:
-            discord_handler.setLevel(handler_levels.get('discord', default_level))
+        #if discord_handler is not None:
+        #    discord_handler.setLevel(handler_level_codes.get('discord', default_level_code))
 
     # setup warnings logging
     logging.captureWarnings(True)
@@ -150,5 +153,7 @@ Log file: {log_file}"""
 )
     if version_info:
         log_version_info(logger)
+    if 'discord' in handler_levels:
+        logger.critical("Discord logging specific level is not implemented yet")
     for handler in logger.handlers:
         handler.flush()

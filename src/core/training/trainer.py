@@ -274,7 +274,7 @@ class Trainer:
                 if value is None:
                     return 'N/A'
                 else:
-                    return f"{value:.2f}"
+                    return f"{value:.4e}"
             return '\n'.join(f"\t\t{metric} : {get_value(metric)}" for metric in to_display)
         for metric_logger in self.metric_loggers:
             n = n or len(metric_logger.last_n)
@@ -383,7 +383,7 @@ class Trainer:
             self._checkpoint('triggered')
         elif self.first_epoch:
             self.logger.info(self._metrics_str())
-        self.logger.info(f"Epoch {epoch} avg loss = {loss_sum / batches:.4f}\n\n\n")
+        self.logger.info(f"Epoch {epoch} avg loss = {loss_sum / batches}\n\n\n")
             
         #for callback in self.callbacks:
         #    callback(self.model, self.optimizer, self.metrics, epoch)

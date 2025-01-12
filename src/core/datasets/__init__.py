@@ -89,7 +89,7 @@ class SplitDataset:
         raise NotImplementedError("Metric retrieval not implemented")
 
     def _load(self):
-        logger.debug("Data loading not implemented")
+        #logger.debug("Data loading not implemented")
         self.loaded = True
 
     @classmethod

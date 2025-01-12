@@ -13,7 +13,7 @@ import logging
 from types import SimpleNamespace
 
 from core.datasets import dataset_wrappers
-from src.core.eval.objectives import Maximize, Objective
+from core.eval.objectives import Maximize, Objective
 logger = logging.getLogger(__name__)
 
 EARLY_STOP = SimpleNamespace()
