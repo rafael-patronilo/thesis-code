@@ -1,23 +1,32 @@
 import typing
 from dataclasses import field, dataclass
+from datetime import timedelta
+
 from core.init.options_parsing import option, positional
 from pathlib import Path
 
 from core.init import DO_SCRIPT_IMPORTS
+from core.logging import NOTIFY
+
 if typing.TYPE_CHECKING or DO_SCRIPT_IMPORTS:
     from typing import Literal
-    from core.datasets import get_dataset
+    from core.datasets import get_dataset, dataset_wrappers
     from core.eval.metrics import BinaryBalancedAccuracy, metric_wrappers
     from core.eval.metrics.pearson_correlation import PearsonCorrelationCoefficient
-
+    from core.util.progress_trackers import LogProgressContextManager
     from core.storage_management import ModelFileManager
     from core.training import Trainer
+    from core.nn import layers
+
     import torch
+
+    from torch import nn
     import logging
     from core.eval.metrics_crosser import MetricCrosser
     import torch.utils.data as torch_data
     import torchvision
     logger = logging.getLogger(__name__)
+    progress_cm = LogProgressContextManager(logger, cooldown=timedelta(minutes=2))
 
 SEED = 3892
 NUM_IMAGES = 16
@@ -90,7 +99,11 @@ class Evaluator:
         self.encoding_crosser = MetricCrosser(enc_labels, enc_labels, {
             'correlation' : PearsonCorrelationCoefficient,
         })
-        self.dataset = get_dataset('xtrains_with_concepts')
+        dataset = get_dataset('xtrains_with_concepts')
+        label_indices = dataset.get_column_references().get_label_indices(CLASSES)
+        selected_dataset = dataset_wrappers.SelectCols(dataset, select_y=label_indices)
+        self.dataset = dataset
+        self.selected_dataset = selected_dataset
 
     def produce_images(self, trainer : 'Trainer', dest : Path):
         generator = torch.Generator(device=torch.get_default_device())
@@ -106,17 +119,28 @@ class Evaluator:
         torchvision.utils.save_image(results, dest.joinpath("reconstructed.png"))
 
     def eval_metrics(self, model : 'torch.nn.Module', trainer : 'Trainer', dest : Path):
-        for x, y in trainer.make_loader(self.dataset.for_validation()):
-            with torch.no_grad():
-                pred = model(x)
-                self.concept_crosser.update(pred, y)
-                self.encoding_crosser.update(pred, pred)
+        normalizer = layers.MinMaxNormalizer.fit(model, trainer.make_loader(self.selected_dataset.for_training()),
+                                                 progress_cm=progress_cm)
+        logger.info(f"Normalizer min: {normalizer.min}; max: {normalizer.max}")
+        model = nn.Sequential(model, normalizer)
+        loader = trainer.make_loader(self.selected_dataset.for_validation())
+        with progress_cm.track('Evaluating encoding on val set', 'batches', len(loader)) as tracker:
+            for x, y in loader:
+                with torch.no_grad():
+                    pred = model(x)
+                    self.concept_crosser.update(pred, y)
+                    self.encoding_crosser.update(pred, pred)
+                tracker.tick()
         concept_results = self.concept_crosser.compute()
         for metric, result in concept_results.items():
             result.to_csv(dest.joinpath(f"concepts_{metric}.csv"))
         encoding_results = self.encoding_crosser.compute()
         for metric, result in encoding_results.items():
             result.to_csv(dest.joinpath(f"encoding_{metric}.csv"))
+        for metric, result in concept_results.items():
+            logger.info(f"Concepts {metric}\n"
+                        f"Max : {result.max()}\n"
+                        f"Min : {result.min()}")
 
     def eval(self, trainer : 'Trainer'):
         trainer.model.eval()
@@ -137,7 +161,7 @@ class Evaluator:
             logger.info(f"Evaluating correlations : Epoch {trainer.epoch}")
             try:
                 self.eval(trainer)
-                logger.info("Evaluation complete")
+                logger.log(NOTIFY, f"Evaluation at Epoch {trainer.epoch} complete")
             except Exception as e:
                 logger.critical(f"Failed to evaluate model: {e}", exc_info=True)
         return False

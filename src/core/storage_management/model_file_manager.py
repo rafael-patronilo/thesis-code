@@ -8,7 +8,7 @@ import datetime
 import logging
 import torch
 from core.init import options
-from src.core.util.strings import produce_filename_timestamp
+from core.util.strings import produce_filename_timestamp
 if TYPE_CHECKING:
     from core.training.trainer import TrainerConfig
     from core.util.typing import PathLike
