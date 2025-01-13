@@ -100,6 +100,7 @@ class Evaluator:
             'correlation' : PearsonCorrelationCoefficient,
         })
         dataset = get_dataset('xtrains_with_concepts')
+        dataset.for_validation() # Ensure that the dataset is loaded
         label_indices = dataset.get_column_references().get_label_indices(CLASSES)
         selected_dataset = dataset_wrappers.SelectCols(dataset, select_y=label_indices)
         self.dataset = dataset
@@ -126,6 +127,8 @@ class Evaluator:
         loader = trainer.make_loader(self.selected_dataset.for_validation())
         with progress_cm.track('Evaluating encoding on val set', 'batches', len(loader)) as tracker:
             for x, y in loader:
+                x = x.to(torch.get_default_device())
+                y = y.to(torch.get_default_device())
                 with torch.no_grad():
                     pred = model(x)
                     self.concept_crosser.update(pred, y)
@@ -143,12 +146,15 @@ class Evaluator:
                         f"Min : {result.min()}")
 
     def eval(self, trainer : 'Trainer'):
-        trainer.model.eval()
-        model = trainer.model.encoder
         file_manager = trainer.model_file_manager
         assert file_manager is not None
         dest = file_manager.results_dest.joinpath("per_epoch").joinpath(f'epoch_{trainer.epoch}')
+        if dest.exists():
+            logger.warning(f"Destination {dest} already exists. Overwriting")
         dest.mkdir(parents=True, exist_ok=True)
+
+        trainer.model.eval()
+        model = trainer.model.encoder
         logger.info(f"Outputting results to {dest}")
         self.produce_images(trainer, dest)
         logger.info("Images saved")
@@ -179,7 +185,9 @@ def main(options : Options):
         trainer = Trainer.load_checkpoint(file_manager, options.checkpoint, preferred_checkpoint)
         if options.clear_stop_criteria:
             trainer.stop_criteria = []
-        trainer.stop_criteria.append(Evaluator(options.eval_each))
+        evaluator = Evaluator(options.eval_each)
+        trainer.stop_criteria.append(evaluator)
+        evaluator.eval(trainer)
         if options.num_epochs is not None:
             trainer.train_epochs(options.num_epochs)
         else:

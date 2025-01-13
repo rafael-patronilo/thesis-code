@@ -18,11 +18,11 @@ class _State(TypedDict):
 
 def _blank_state() -> _State:
     return _State(
-        x = torch.tensor(0, requires_grad=False),
-        y = torch.tensor(0, requires_grad=False),
-        x_sq = torch.tensor(0, requires_grad=False),
-        y_sq = torch.tensor(0, requires_grad=False),
-        xy = torch.tensor(0, requires_grad=False)
+        x = torch.tensor(0.0, requires_grad=False),
+        y = torch.tensor(0.0, requires_grad=False),
+        x_sq = torch.tensor(0.0, requires_grad=False),
+        y_sq = torch.tensor(0.0, requires_grad=False),
+        xy = torch.tensor(0.0, requires_grad=False)
     )
 
 
