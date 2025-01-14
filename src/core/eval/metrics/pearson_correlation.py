@@ -77,3 +77,7 @@ class PearsonCorrelationCoefficient(Metric):
         std_y = (means['y_sq'] - means['y'] ** 2).sqrt()
         return cov / (std_x * std_y)
 
+
+__all__=[
+    'PearsonCorrelationCoefficient',
+]

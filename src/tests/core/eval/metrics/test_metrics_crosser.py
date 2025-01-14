@@ -77,8 +77,8 @@ class MetricCrosserTests(unittest.TestCase):
                 [compute_cell(factory,i,j) for j in range(9)]
                 for i in range(5)
             ],
-            index = [f'p{i}' for i in range(5)],
-            columns = [f't{j}' for j in range(9)])
+            index = [f'p{i}' for i in range(5)], # type: ignore
+            columns = [f't{j}' for j in range(9)]) # type: ignore
             for name, factory in metrics.items()
         }
         crosser.update(preds, trues)

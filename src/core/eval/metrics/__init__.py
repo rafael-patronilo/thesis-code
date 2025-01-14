@@ -110,3 +110,11 @@ class BinaryPositiveRate(BinaryConfusionMatrix):
         total = positives + negatives
         return positives / total
 
+from .pearson_correlation import PearsonCorrelationCoefficient
+
+__all__=[
+    'BinaryBalancedAccuracy',
+    'BinarySpecificity',
+    'BinaryPositiveRate',
+    'PearsonCorrelationCoefficient'
+]
