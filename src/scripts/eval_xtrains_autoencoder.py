@@ -1,5 +1,7 @@
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 from core.init import DO_SCRIPT_IMPORTS
+from core.init.options_parsing import positional
 if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
     import sys
     import pandas as pd
@@ -10,7 +12,7 @@ if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
     from core.util.progress_trackers import LogProgressContextManager
     from datetime import timedelta
 
-    from core.eval.metrics import metric_wrappers as metric_wrappers
+    from core.eval.metrics import metric_wrappers as metric_wrappers, PearsonCorrelationCoefficient
 
     from core.eval.metrics_crosser import MetricCrosser
     from core.eval.metrics import BinaryBalancedAccuracy, BinarySpecificity
@@ -38,7 +40,10 @@ CLASSES = [
     'LongPassengerCar',
     'AtLeast2PassengerCars',
     'AtLeast2FreightWagons',
-    'AtLeast3Wagons'
+    'AtLeast3Wagons',
+    'TypeA',
+    'TypeB',
+    'TypeC',
 ]
 
 SHORT_CLASSES = [
@@ -50,7 +55,10 @@ SHORT_CLASSES = [
     'LongPassenger',
     '2Passenger',
     '2Freight',
-    '3Wagons'
+    '3Wagons',
+    'TypeA',
+    'TypeB',
+    'TypeC',
 ]
 
 
@@ -75,27 +83,31 @@ def evaluate_encoding_on_set(
         dataloader : 'torch_data.DataLoader',
         dataset_description : str,
         crosser : 'MetricCrosser',
+        encoding_crosser : 'MetricCrosser',
         encoding_labels : list[str]
         ):
     histogram = CrossBinaryHistogram(encoding_labels, SHORT_CLASSES)
 
     crosser.reset()
+    encoding_crosser.reset()
     with progress_cm.track(f'Encoding evaluation on {dataset_description} set', 'batches', dataloader) as progress_tracker:
         for x, y in dataloader:
             x = x.to(torch.get_default_device())
             y = y.to(torch.get_default_device())
             z = encoder(x)
             crosser.update(z, y)
+            encoding_crosser.update(z, z)
             histogram.update(z, y)
             progress_tracker.tick()
     results = crosser.compute()
+    encoding_results = encoding_crosser.compute()
     results_path = file_manager.results_dest.joinpath(f"concept_cross_metrics").joinpath(dataset_description)
     results_path.mkdir(parents=True, exist_ok=True)
     for metric, result in results.items():
         logger.info(f"{dataset_description} {metric} results:\n{result}")
-        dest_file = results_path.joinpath(f"{metric}.json")
+        dest_file = results_path.joinpath(f"{metric}.csv")
         logger.info(f"Saving {metric} results to {dest_file}")
-        result.to_csv(results_path.joinpath(f"{metric}.csv"))
+        result.to_csv(dest_file)
         summarized = pd.DataFrame(
             columns=result.columns,
             index=['max', 'max_encoding', 'min', 'min_encoding'] # type: ignore # Although not annotated, index can be list[str]
@@ -105,6 +117,14 @@ def evaluate_encoding_on_set(
         summarized.loc['min'] = result.min()
         summarized.loc['min_encoding'] = result.idxmin()
         summarized.to_csv(results_path.joinpath(f"{metric}_summarized.csv"))
+    encoding_results_path = results_path.joinpath("encoding")
+    encoding_results_path.mkdir(parents=True, exist_ok=True)
+    for metric, result in encoding_results.items():
+        dest_file = encoding_results_path.joinpath(f"{metric}.csv")
+        logger.info(f"Saving {metric} encoding results to {dest_file}")
+        logger.info(f"Abs max of {metric}:\n {result.abs().max()}")
+        result.to_csv(dest_file)
+
     torch.save(histogram.histogram, results_path.joinpath("histogram.pt"))
     histogram.create_figure(mode='overlayed').savefig(results_path.joinpath("densities_overlayed.png"))
     histogram.create_figure(mode='stacked').savefig(results_path.joinpath("densities_stacked.png"))
@@ -125,23 +145,22 @@ def evaluate_encoding(
         encoding_labels,
         SHORT_CLASSES,
         {
-            'accuracy' : metrics.BinaryAccuracy,
-            'f1' : metrics.BinaryF1Score,
-            'balanced_accuracy' : lambda : metric_wrappers.ToDtype(
-                BinaryBalancedAccuracy(),torch.int32, apply_to_pred=False),
-            'precision' : lambda: metric_wrappers.ToDtype(
-                metrics.BinaryPrecision(), torch.int32, apply_to_pred=False),
-            'recall' : lambda: metric_wrappers.ToDtype(
-                metrics.BinaryRecall(), torch.int32, apply_to_pred=False),
-            'specificity' : lambda: metric_wrappers.ToDtype(
-                BinarySpecificity(), torch.int32, apply_to_pred=False),
-            'entropy' : lambda: metric_wrappers.ToDtype(
-                metrics.BinaryNormalizedEntropy(), torch.float32),
-            'auc' : metrics.BinaryAUROC,
-            
+            'correlation': PearsonCorrelationCoefficient,
+            'balanced_accuracy': lambda: metric_wrappers.ToDtype(
+                BinaryBalancedAccuracy(), torch.int32, apply_to_pred=False),
+            'auc': metrics.BinaryAUROC,
         }
     )
+    encoding_crosser = MetricCrosser(
+        encoding_labels,
+        encoding_labels,
+        {
+            'correlation': PearsonCorrelationCoefficient,
+        }
+    )
+
     crosser.to(torch.get_default_device())
+    encoding_crosser.to(torch.get_default_device())
 
     logger.info("Computing cross metrics on training set")
     evaluate_encoding_on_set(
@@ -150,6 +169,7 @@ def evaluate_encoding(
         trainer.make_loader(dataset.for_training()), 
         'train', 
         crosser,
+        encoding_crosser,
         encoding_labels
     )
 
@@ -160,6 +180,7 @@ def evaluate_encoding(
         trainer.make_loader(dataset.for_validation()), 
         'val', 
         crosser,
+        encoding_crosser,
         encoding_labels
     )
 
@@ -195,14 +216,17 @@ def analyze_selected_dataset(trainer : 'Trainer', file_manager : 'ModelFileManag
     analyze_dataset(trainer, file_manager, selected_dataset.for_training(), 'train')
     analyze_dataset(trainer, file_manager, selected_dataset.for_validation(), 'val')
 
-def main():
-    model_name = sys.argv[1]
-    model_path = None
-    if len(sys.argv) > 2:
-        model_path = sys.argv[2]
+@dataclass
+class Options:
+    model_name : str = field(
+        metadata=positional(str, help_="Name of the model to evaluate"))
+
+
+def main(options : Options):
+    model_name = options.model_name
     with torch.no_grad():
-        with ModelFileManager(model_name, model_path) as file_manager:
-            trainer = Trainer.load_checkpoint(file_manager)
+        with ModelFileManager(model_name) as file_manager:
+            trainer = Trainer.load_checkpoint(file_manager, prefer='best')
             trainer.model.eval()
             dataset = get_dataset('xtrains_with_concepts')
             val_set = dataset.for_validation()

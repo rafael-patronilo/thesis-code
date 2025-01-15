@@ -4,7 +4,7 @@ parsing of command line arguments and environment variables.
 """
 import importlib
 import os
-from pathlib import Path
+from pathlib import Path, PosixPath
 from typing import Any, Type
 
 from .global_options import GlobalOptions
@@ -62,7 +62,6 @@ def import_torch():
     """
     Imports and configures torch by setting the preferred device.
     """
-    # TODO refactor function
     global _torch_imported
     if _torch_imported:
         return
@@ -83,6 +82,7 @@ def import_torch():
     if force_device and device.type != preferred_device:
         raise RuntimeError(f"Failed to force device to {preferred_device}")
     torch.set_default_device(device)
+    torch.serialization.add_safe_globals([PosixPath]) # Added to support a bug in older checkpoints
     logger.info(f"Using torch device: {device}")
     _torch_imported = True
 

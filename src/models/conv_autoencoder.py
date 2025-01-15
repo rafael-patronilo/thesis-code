@@ -13,7 +13,7 @@ import logging
 from types import SimpleNamespace
 
 from core.datasets import dataset_wrappers
-from core.eval.objectives import Maximize, Objective
+from core.eval.objectives import Maximize, Minimize, Objective
 logger = logging.getLogger(__name__)
 
 EARLY_STOP = SimpleNamespace()
@@ -156,7 +156,7 @@ def create_trainer(dataset_name : str, **kwargs) -> Trainer:
     train_metrics = TrainingLogger(
         metric_functions=metric_functions | {'loss': loss_metric()}  #type:ignore
     )
-    objective = Maximize('val', 'loss', threshold)
+    objective = Minimize('val', 'loss', threshold)
     return Trainer(
         model=make_model(input_shape, **kwargs),
         loss_fn=loss_fn,
