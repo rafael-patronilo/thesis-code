@@ -30,40 +30,41 @@ class StudyManager:
         self.skip_comparison = False
         if metric_key is not None:
             logger_identifier, metric_name = metric_key
-        metric_getter = lambda x: x[logger_identifier][metric_name]
-        if isinstance(compare_strategy, str):
-            if metric_key is None:
+            metric_getter = lambda x: x[logger_identifier][metric_name]
+            if isinstance(compare_strategy, str):
+                favored = compare_strategy
+                match favored:
+                    case 'max':
+                        self.compare_strategy = lambda x, y: metric_getter(x) > metric_getter(y)
+                    case 'min':
+                        self.compare_strategy = lambda x, y: metric_getter(x) < metric_getter(y)
+                    case _:
+                        assert_never(favored)
+            else:
+                self.compare_strategy = compare_strategy
+            if isinstance(stop_criteria, tuple):
+                value, strategy = stop_criteria
+                match strategy:
+                    case 'eq':
+                        self.stop_criteria = lambda x: metric_getter(x) == value
+                    case 'ge':
+                        self.stop_criteria = lambda x: metric_getter(x) >= value
+                    case 'le':
+                        self.stop_criteria = lambda x: metric_getter(x) <= value
+                    case _:
+                        assert_never(strategy)
+            else:
+                self.stop_criteria: Optional[Callable[[dict], bool]] = stop_criteria
+        else:
+            if isinstance(compare_strategy, str):
                 raise ValueError("Must provide metric_key if compare_strategy is a string")
-            favored = compare_strategy
-            match favored:
-                case 'max':
-                    self.compare_strategy = lambda x, y: metric_getter(x) > metric_getter(y)
-                case 'min':
-                    self.compare_strategy = lambda x, y: metric_getter(x) < metric_getter(y)
-                case _:
-                    assert_never(favored)
-        else:
-            self.compare_strategy = compare_strategy
-        if isinstance(stop_criteria, tuple):
-            if metric_key is None:
+            if isinstance(stop_criteria, tuple):
                 raise ValueError("Must provide metric_key if stop_criteria is a tuple")
-            value, strategy = stop_criteria
-            match strategy:
-                case 'eq':
-                    self.stop_criteria = lambda x: metric_getter(x) == value
-                case 'ge':
-                    self.stop_criteria = lambda x: metric_getter(x) >= value
-                case 'le':
-                    self.stop_criteria = lambda x: metric_getter(x) <= value
-                case _:
-                    assert_never(strategy)
-        else:
-            self.stop_criteria : Optional[Callable[[dict], bool]] = stop_criteria
 
     def _create_trainer(self, model_file_manager, config : TrainerConfig):
         trainer = Trainer.from_config(config)
         trainer.init_file_manager(model_file_manager)
-        checkpoint = model_file_manager.load_last_checkpoint()
+        checkpoint = model_file_manager.load_checkpoint(prefer='last')
         if checkpoint is not None:
             self.logger.info(f"Checkpoint found, loading...")
             trainer.load_state_dict(checkpoint)

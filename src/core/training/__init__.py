@@ -1,9 +1,9 @@
 from .trainer import Trainer, ResultsDict
 from .metrics_recorder import MetricsRecorder
-from .metrics_recorder import TrainingLogger
+from .metrics_recorder import TrainingRecorder
 __all__=[
     'Trainer',
     'MetricsRecorder',
-    'TrainingLogger',
+    'TrainingRecorder',
     'ResultsDict'
 ]

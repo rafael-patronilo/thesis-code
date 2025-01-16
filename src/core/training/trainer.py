@@ -4,7 +4,7 @@ from pathlib import Path
 
 from torch.utils.data import DataLoader, Dataset
 from typing import Optional, Any, Callable, Literal, TypedDict, Iterable, TYPE_CHECKING
-from core.training.metrics_recorder import MetricsRecorder, TrainingLogger
+from core.training.metrics_recorder import MetricsRecorder, TrainingRecorder
 from core.datasets import SplitDataset
 from core.storage_management.model_file_manager import ModelFileManager
 from core.logging import NOTIFY, log_file
@@ -122,7 +122,7 @@ class Trainer:
         self.model_file_manager : Optional[ModelFileManager] = None
         self.metric_loggers : list[MetricsRecorder] = metric_loggers
         self.train_logger = None
-        _train_logger = [logger for logger in metric_loggers if isinstance(logger, TrainingLogger)]
+        _train_logger = [logger for logger in metric_loggers if isinstance(logger, TrainingRecorder)]
         if len(_train_logger) > 1:
             raise ValueError("Multiple TrainLossLoggers found")
         elif len(_train_logger) == 1:
@@ -218,7 +218,9 @@ class Trainer:
     def train_epochs(self, num_epochs):
         self.train_until_epoch(self.epoch + num_epochs)
 
-    def get_results_dict(self) -> ResultsDict:
+    def get_results_dict(self) -> ResultsDict | None:
+        if self.first_epoch:
+            return None
         snapshot = {}
         for metric_logger in self.metric_loggers:
             snapshot[metric_logger.identifier] = metric_logger.last_record
@@ -268,17 +270,18 @@ class Trainer:
         averages_last_n = ""
         last_record = ""
         n = None
-        to_display = [name for logger in self.metric_loggers for name,_ in logger.ordered_metrics]
+        #to_display = [name for logger in self.metric_loggers for name,_ in logger.ordered_metrics]
         def format_dict(values : dict | None):
             if values is None:
                 return 'N/A'
-            def get_value(metric):
-                value = values.get(metric, None)
+            def fmt_value(value):
                 if value is None:
                     return 'N/A'
-                else:
+                elif value < 0.01:
                     return f"{value:.4e}"
-            return '\n'.join(f"\t\t{metric} : {get_value(metric)}" for metric in to_display)
+                else:
+                    return f"{value:.4f}"
+            return '\n'.join(f"\t\t{metric} : {fmt_value(value)}" for metric, value in values.items() )
         for metric_logger in self.metric_loggers:
             n = n or len(metric_logger.last_n)
             averages += f"\t{metric_logger.identifier} : {format_dict(metric_logger.averages())}\n"
@@ -301,11 +304,12 @@ class Trainer:
             raise ValueError("Model file manager not initialized")
         is_abrupt = reason in ABRUPT_CHECKPOINT_REASONS
         is_best = False
-        if not is_abrupt and self.objective is not None:
+        results = self.get_results_dict()
+        if results is not None and not is_abrupt and self.objective is not None:
             if self.best_checkpoint_results is None:
                 self.logger.debug("Initializing best checkpoint results with first checkpoint")
                 is_best = True
-            elif self.objective.compare_strict(self.get_results_dict(), self.best_checkpoint_results):
+            elif self.objective.compare_strict(results, self.best_checkpoint_results):
                 self.logger.info("New best checkpoint")
                 is_best = True
             if is_best:
@@ -353,8 +357,8 @@ class Trainer:
         batches = 0
         update_metrics = lambda _, __ : None
         if self.train_logger is not None:
-            self.train_logger._prepare_torch_metrics()
-            update_metrics = self.train_logger._update_torch_metrics
+            self.train_logger.prepare_torch_metrics()
+            update_metrics = self.train_logger.update_torch_metrics
         loss_sum = 0
         x = None
         y = None
@@ -398,6 +402,8 @@ class Trainer:
         loss = self.loss_fn(pred, y)
         loss.backward()
         self.optimizer.step()
+        if self.train_logger is not None:
+            self.train_logger.update_loss(loss.detach())
         return loss, pred
 
     def try_get_validation_set(self) -> Dataset:
@@ -428,10 +434,14 @@ class Trainer:
             fields.append(f"{k} = {v}")
         return f"Trainer(\n{',\n'.join(fields)}\n)"
 
-
+    @classmethod
+    def _get_build_module(cls, build_script : str):
+        # Sanitation checks before loading the script
+        assert utils.is_import_safe(build_script), f"Invalid build script name: {build_script}"
+        return importlib.import_module('.' + build_script, 'models')
 
     @classmethod
-    def from_config(cls, config : TrainerConfig) -> 'Trainer':
+    def _from_config_with_script(cls, config : TrainerConfig) -> tuple['Trainer', Any]:
         build_script = config['build_script']
         build_args = config.get('build_args', [])
         build_kwargs = config.get('build_kwargs', {})
@@ -439,10 +449,14 @@ class Trainer:
             if key not in ['build_script', 'build_args', 'build_kwargs']:
                 module_logger.warning(f"Unused key in config: {key}")
         module_logger.info(f"Creating trainer from script {build_script}")
-        # Sanitation checks before loading the script
-        assert utils.is_import_safe(build_script), f"Invalid build script name: {build_script}"
-        trainer = importlib.import_module('.' + build_script, 'models').create_trainer(*build_args, **build_kwargs)
+        script = cls._get_build_module(build_script)
+        trainer = script.create_trainer(*build_args, **build_kwargs)
         module_logger.info(trainer)
+        return trainer, script
+
+    @classmethod
+    def from_config(cls, config : TrainerConfig) -> 'Trainer':
+        trainer, _ = cls._from_config_with_script(config)
         return trainer
 
     @classmethod
@@ -454,7 +468,7 @@ class Trainer:
             ) -> 'Trainer':
         module_logger.info(f"Loading Model {file_manager.model_name}")
         config = file_manager.load_config()
-        trainer = cls.from_config(config)
+        trainer, script = cls._from_config_with_script(config)
         trainer.init_file_manager(file_manager)
         module_logger.info(f"{trainer}")
 
@@ -467,7 +481,9 @@ class Trainer:
             trainer.load_state_dict(checkpoint)
         else:
             module_logger.info("No checkpoint found.")
-
+            if hasattr(script, "init_weights"):
+                module_logger.info("Calling 'init_weights' from script")
+                script.init_weigths(trainer)
         return trainer
     
 

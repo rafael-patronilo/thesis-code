@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from math import isnan
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -50,15 +51,13 @@ class FloatObjective(Objective,ABC):
 
     def select_value(self, results : 'ResultsDict') -> float:
         value = results[self.metrics_group][self.metric]
-        if value is None:
-            return float('nan')
         assert isinstance(value, float)
         return value
 
     def _get_values(self, a : 'ResultsDict', b : 'ResultsDict') -> tuple[float, float]:
-        value_a = a[self.metrics_group][self.metric]
-        value_b = b[self.metrics_group][self.metric]
-        if value_a is None or value_b is None:
+        value_a = self.select_value(a)
+        value_b = self.select_value(b)
+        if value_a is None or value_b is None or isnan(value_a) or isnan(value_b):
             return 0.0, 0.0
         assert isinstance(value_a, float) and isinstance(value_b, float)
         return value_a, value_b

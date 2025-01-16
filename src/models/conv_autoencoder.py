@@ -7,7 +7,7 @@ from typing import Literal, Sequence, assert_never
 from torch import nn
 import torch
 from core.nn.autoencoder import AutoEncoder
-from core.training import Trainer, MetricsRecorder, TrainingLogger
+from core.training import Trainer, MetricsRecorder, TrainingRecorder
 import torcheval.metrics as torch_metrics
 import logging
 from types import SimpleNamespace
@@ -153,8 +153,8 @@ def create_trainer(dataset_name : str, **kwargs) -> Trainer:
         metric_functions=metric_functions | {'loss': loss_metric()}, #type:ignore
         dataset=dataset.for_validation
     )
-    train_metrics = TrainingLogger(
-        metric_functions=metric_functions | {'loss': loss_metric()}  #type:ignore
+    train_metrics = TrainingRecorder(
+        metric_functions=metric_functions  #type:ignore
     )
     objective = Minimize('val', 'loss', threshold)
     return Trainer(

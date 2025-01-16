@@ -1,4 +1,7 @@
-from typing import Callable
+from typing import Callable, Literal
+
+import torch
+from torch._dynamo.utils import Lit
 from core.datasets import ColumnReferences, SplitDataset
 from torch.utils.data import Dataset, IterableDataset
 
@@ -136,3 +139,20 @@ class ForAutoencoder(ItemMapper):
 
     def __init__(self, dataset : SplitDataset):
         super().__init__(dataset, self._autoencoder_mapper)
+
+class ConcatConst(ItemMapper):
+    def __init__(self, dataset : SplitDataset, value : torch.Tensor | float, target_tensor : Literal['x', 'y']):
+        if not isinstance(value, torch.Tensor):
+            value = torch.tensor(value)
+        self.value = value
+        self.target_tensor = target_tensor
+        super().__init__(dataset, self._append_mapper)
+
+
+    def _append_mapper(self, sample):
+        x, y = sample
+        if self.target_tensor == 'x':
+            x = torch.cat([x, self.value], dim=1)
+        else:
+            y = torch.cat([y, self.value], dim=1)
+        return x, y

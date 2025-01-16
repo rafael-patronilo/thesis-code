@@ -1,11 +1,12 @@
-from typing import NamedTuple, Optional, Any, Protocol, Sequence, Callable
+from typing import NamedTuple, Optional, Any, Protocol, Sequence, Callable, Iterable
 import logging
 from collections import OrderedDict, deque
 import torch
 from torch.utils.data import DataLoader
-from core.eval.metrics import select_metrics, NamedMetricFunction, MetricFunction
 import time
 import math
+
+from torcheval.metrics.metric import Metric, TSelf
 from core.util import debug, safe_div
 from core.util.typing import TorchDataset
 from torcheval.metrics import Metric as TorchMetric
@@ -50,13 +51,8 @@ class MetricsRecorder:
                  batch_size = 64,
                  num_loaders : int = int(os.getenv('NUM_THREADS', 4)),
                  ):
-        #TODO deprecated checks in this constructor
         self.identifier = identifier
-        self.__metric_functions : dict[str, Any]
-        if type(metric_functions) is list:
-            self.__metric_functions = select_metrics(metric_functions)
-        else:
-            self.__metric_functions = metric_functions # type: ignore
+        self.__metric_functions = metric_functions # type: ignore
         self.torch_metrics = {k: v for k, v in self.__metric_functions.items() if isinstance(v, TorchMetric)}
         self.last_record = None
         def sort_key(metric):
@@ -166,22 +162,28 @@ class MetricsRecorder:
             for k,v in self.sums_last_n.items()
         }
 
-    def _prepare_torch_metrics(self):
+    def prepare_torch_metrics(self):
+        self._debugged = False
         for metric_fn in self.torch_metrics.values():
             metric_fn.to(device=torch.get_default_device())
             metric_fn.reset()
 
-    def _update_torch_metrics(self, y_pred, y_true):
+    def update_torch_metrics(self, y_pred, y_true):
         y_pred = torch.flatten(y_pred, start_dim=1)
         y_true = torch.flatten(y_true, start_dim=1)
-        for metric_fn in self.torch_metrics.values():
+        if not self._debugged:
+            logger.debug(f"Updating metrics for {self.identifier}")
+        for name, metric_fn in self.torch_metrics.items():
+            if not self._debugged:
+                logger.debug(f"Updating metric {name}")
             metric_fn.update(y_pred, y_true)
+        self._debugged = True
 
     def _eval(self, model):
         if hasattr(self, '_evaluated_externally') and self._evaluated_externally: # type: ignore
             return
         model.eval()
-        self._prepare_torch_metrics()
+        self.prepare_torch_metrics()
         y_pred = None
         y_true = None
         #logger.info(f"Producing predictions for metrics logger {self.identifier}")
@@ -193,12 +195,14 @@ class MetricsRecorder:
                 x = x.to(torch.get_default_device())
                 y = y.to(torch.get_default_device())
                 y_pred, y_true = self.evaluator(model, x, y)
-                self._update_torch_metrics(y_pred, y_true)
+                self.update_torch_metrics(y_pred, y_true)
                 now = time.time()
                 if now - last_log > LOG_STEP_EVERY: #TODO deprecated, should use the context manager
                     logger.info(f"\t\tEvaluating longer than {LOG_STEP_EVERY} seconds ({now - start_time:.0f}), current batch = {batches}")
                     last_log = now
                 batches += 1
+        if batches == 0:
+            logger.warning("No batches were processed")
         if y_pred is not None and y_true is not None and len(y_pred.shape) <= 2:
             # store predictions for debugging
             debug.debug_table(f"{self.identifier}_preds.csv", y_preds=y_pred, y_trues=y_true)
@@ -233,22 +237,56 @@ class MetricsRecorder:
         
         self._eval(model) #TODO rework this class and the concept of metric
         for metric_name, metric_fn in self.ordered_metrics:
-            if isinstance(metric_fn, TorchMetric):
-                value = metric_fn.compute()
-                if isinstance(value, torch.Tensor):
-                    value = value.item()
-            else:
-                value = metric_fn(epoch=epoch)
+            value = metric_fn.compute()
+            if isinstance(value, torch.Tensor):
+                value = value.item()
             record[metric_name] = value
+        logger.debug(f"Produced record {record}")
         return record
 
     def __repr__(self):
         return f"MetricsLogger({self.identifier}, metrics=[{self.ordered_metrics}])"
 
-class TrainingLogger(MetricsRecorder):
+class _MeanLoss(Metric):
+    def update(self: TSelf, *_: Any, **__: Any) -> TSelf:
+        return self
+
+    def merge_state(self: TSelf, metrics: Iterable[TSelf]) -> TSelf:
+        raise NotImplementedError()
+
+    def __init__(self):
+        self.sum = torch.tensor(0.0)
+        self.count = torch.tensor(0.0)
+        super().__init__()
+
+    def to(self, device, *_, **__):
+        self.sum = self.sum.to(device)
+        self.count = self.count.to(device)
+        return self
+
+    def update_loss(self, batch_loss):
+        self.sum += batch_loss
+        self.count += 1
+
+    def compute(self):
+        return self.sum / self.count
+
+class TrainingRecorder(MetricsRecorder):
     def __init__(
             self, 
-            metric_functions : dict[str, MetricFunction] | Sequence[NamedMetricFunction],
+            metric_functions : dict[str, TorchMetric],
+            loss_key : str | None = 'loss',
             identifier='train'):
-        super(TrainingLogger, self).__init__(identifier, metric_functions=metric_functions, dataset=None) # type:ignore
+        self.loss_metric = None
+        if loss_key is not None:
+            self.loss_metric = _MeanLoss()
+            metric_functions = metric_functions | {loss_key: self.loss_metric} # type: ignore
+        super(TrainingRecorder, self).__init__(
+            identifier,
+            metric_functions=metric_functions,
+            dataset=None) # type:ignore
         self._evaluated_externally = True
+
+    def update_loss(self, batch_loss):
+        if self.loss_metric is not None:
+            self.loss_metric.update_loss(batch_loss)

@@ -1,3 +1,4 @@
+import logging
 import torch
 from typing import Any, Optional, Sequence
 import torch
@@ -5,6 +6,8 @@ import inspect
 from torcheval.metrics import functional as torch_metrics
 from torcheval.metrics import Metric, BinaryConfusionMatrix
 import torcheval
+from torcheval.metrics.classification.confusion_matrix import TBinaryConfusionMatrix
+
 from core.datasets import SplitDataset
 from .elapsed import Elapsed
 from typing import Callable
@@ -70,6 +73,12 @@ class BinaryBalancedAccuracy(BinaryConfusionMatrix):
         assert torcheval.version.__version__ == '0.0.7', "confusion matrix order may have been changed: https://github.com/pytorch/torcheval/issues/183"
         super().__init__()
 
+    def update(
+        self, input: torch.Tensor, target: torch.Tensor
+    ):
+        super().update(input, target)
+        return self
+
     def compute(self):
         cm = super().compute()
         # docs are wrong: https://github.com/pytorch/torcheval/issues/183
@@ -79,7 +88,8 @@ class BinaryBalancedAccuracy(BinaryConfusionMatrix):
         tp = cm[1, 1]
         specificity = tn / (tn + fp)
         recall = tp / (tp + fn)
-        return (specificity + recall) / 2
+        result = (specificity + recall) / 2
+        return result
 
 class BinarySpecificity(BinaryConfusionMatrix):
     def __init__(self):
@@ -116,5 +126,6 @@ __all__=[
     'BinaryBalancedAccuracy',
     'BinarySpecificity',
     'BinaryPositiveRate',
-    'PearsonCorrelationCoefficient'
+    'PearsonCorrelationCoefficient',
+    'Elapsed'
 ]

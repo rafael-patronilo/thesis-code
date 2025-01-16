@@ -23,18 +23,19 @@ class EarlyStop:
         )
     
     def load_state_dict(self, state):
-        self.best_result = state['best_value']
+        self.best_result = state['best_result']
         self.best_epoch = state['best_epoch']
     
     def __call__(self, trainer : Trainer) -> bool:
         results = trainer.get_results_dict()
-        value = self.objective.select_value(results)
         if results is None:
             return False
+        value = self.objective.select_value(results)
         if self.best_result is None or self.best_epoch is None:
-            self.best_result = results
-            self.best_epoch = trainer.epoch
-            logger.info(f"Initializing early stop with objective {self.objective}: {value = }")
+            if not trainer.first_epoch:
+                self.best_result = results
+                self.best_epoch = trainer.epoch
+                logger.info(f"Initializing early stop with objective {self.objective}: {value = }")
             return False
         else:
             if self.objective.compare(results, self.best_result):

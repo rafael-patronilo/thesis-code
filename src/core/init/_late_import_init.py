@@ -10,6 +10,8 @@ from core.init.scripts import Script
 from core.logging import NOTIFY, setup as setup_logging
 import logging
 
+from core.util import NoInterrupt
+
 logger = logging.getLogger()
 
 def main(args : list[str] | None = None, prog : str | None = None):
@@ -33,6 +35,12 @@ def main(args : list[str] | None = None, prog : str | None = None):
     else:
         try:
             run_script(script, parsed_args, script_configs)
+        except KeyboardInterrupt:
+            logger.info("Script interrupted by user.")
+        except SystemExit as e:
+            logger.info(f"Script exited with code {e.code}")
+        except NoInterrupt.InterruptException as e:
+            logger.info(f"Script safely interrupted with signal {e.signal}.")
         except BaseException as e:
             logger.critical(f"Uncaught exception in script: {e}", exc_info=True)
     logger.log(NOTIFY, f"Script complete in {datetime.now() - start_time}")

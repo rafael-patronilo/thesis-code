@@ -1,3 +1,5 @@
+import logging
+from sys import exc_info
 from typing import Callable, Iterable, TYPE_CHECKING, Literal, Self
 from torcheval.metrics import Metric
 from core.datasets import SplitDataset
@@ -78,7 +80,7 @@ class MultiMetricWrapper(Metric):
             dataset : 'TorchDataset | SplitDataset', 
             metric : Callable[[], Metric],
         ) -> 'MultiMetricWrapper':
-        return cls(*SelectCol.col_wise(dataset, {'metric' : metric}, include_flatten=False).values())
+        return cls(*SelectCol.col_wise(dataset, {'metric' : metric}, reduction=None).values())
 
 
 def unwrap(metric : Metric) -> Metric:
@@ -138,23 +140,34 @@ class SelectCol(MetricWrapper):
     @classmethod
     def col_wise(
             cls, 
-            dataset : 'TorchDataset | SplitDataset', 
+            dataset_or_label_names : 'TorchDataset | SplitDataset | list[str]',
             metrics:dict[str, Callable[[],Metric]], 
-            include_flatten : bool = True,
+            reduction : Literal['flatten_first', 'min'] | None = 'flatten_first',
             out_dict : dict[str, Metric] | None = None
         ) -> dict[str, Metric]:
-        split_dataset = SplitDataset.of(dataset)
-        try:
-            label_names = split_dataset.get_column_references().labels.columns_to_names
-        except:
-            warnings.warn(f"Could not get column references from {dataset}. SelectCol will use indices instead of names.")
-            label_names = map(str, range(split_dataset.get_shape()[1][0]))
+        if isinstance(dataset_or_label_names, list):
+            label_names = dataset_or_label_names
+        else:
+            split_dataset = SplitDataset.of(dataset_or_label_names)
+            try:
+                label_names = split_dataset.get_column_references().labels.columns_to_names
+            except: # noqa
+                warnings.warn(f"Could not get column references from {dataset_or_label_names}. "
+                              f"SelectCol will use indices instead of names."
+                              )
+                label_names = map(str, range(split_dataset.get_shape()[1][0]))
         result = out_dict or {}
         for name, metric_factory in metrics.items():
-            if include_flatten:
-                result[name] = Flatten(metric_factory())
+            to_reduce = []
             for label_idx, label_name in enumerate(label_names):
-                result[f"{name}_{label_name}"] = cls(metric_factory(), label_idx)
+                metric = cls(metric_factory(), label_idx)
+                result[f"{name}_{label_name}"] = metric
+                to_reduce.append(SkipUpdate(metric))
+            match reduction:
+                case 'flatten_first':
+                    result[name] = Flatten(metric_factory())
+                case 'min':
+                    result[name] = MinOf(*to_reduce)
         return result
     
     @classmethod
@@ -180,6 +193,9 @@ class MinOf(MultiMetricWrapper):
     def compute(self):
         return min(metric.compute() for metric in self.metrics)
 
+class SkipUpdate(MetricWrapper):
+    def update(self, y_pred, y_true):
+        return self
 
 class ToDtype(MetricWrapper):
     def __init__(self, 
@@ -209,3 +225,15 @@ class ToDtype(MetricWrapper):
 def to_int(factory : Callable[[], Metric]) -> Callable[[], Metric]:
     import torch
     return lambda: ToDtype(factory(), torch.int32, apply_to_pred=False)
+
+class Unary(MetricWrapper):
+    def __init__(self, inner : Metric, side : Literal['pred', 'true'] = 'pred') -> None:
+        super().__init__(inner)
+        self.side = side
+
+    def update(self, y_pred, y_true):
+        if self.side == 'pred':
+            self.inner.update(y_pred)
+        else:
+            self.inner.update(y_true)
+        return self
