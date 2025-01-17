@@ -1,3 +1,4 @@
+from ast import Or
 from typing import Optional, Sequence
 import logging
 import torch
@@ -5,6 +6,7 @@ import abc
 import numpy as np
 from . import random_dataset
 from . import SplitDataset, ColumnReferences, ColumnSubReferences
+from collections import OrderedDict
 from torch.utils.data import Dataset, Subset
 import warnings
 
@@ -143,7 +145,8 @@ class BinaryGenerator:
             feature_names : Optional[list[str]] = None,
             label_names : Optional[list[str]] = None,
             validation_node : Optional[BinaryASTNode] = None,
-            valid_label : str = 'valid'
+            valid_label : str = 'valid',
+            make_invalid_labels_0 : bool = True
         ):
         self.to_generate = to_generate
         self.features : list[BinaryASTNode] = features
@@ -152,6 +155,7 @@ class BinaryGenerator:
         self.valid_label = valid_label
         self.label_names = label_names
         self.validation_node = validation_node
+        self.make_invalid_labels_0 = make_invalid_labels_0
 
     def _attach_column_references[T:SplitDataset](self, dataset : T) -> T:
         include_valid = dataset.get_shape()[1][0] == len(self.labels) + 1
@@ -186,14 +190,17 @@ class BinaryGenerator:
     def _attach_valid_label(self, attribution : torch.Tensor, force_valid : bool, labels):
         valid = None
         if self.validation_node is not None:
-            valid = self.validation_node(attribution, force_valid)
+            valid = self.validation_node(attribution, force_valid).item() == 1.0
         if valid is not False and not force_valid:
             valid = (
                 all(node.is_valid(attribution) for node in self.features) and 
                 all(node.is_valid(attribution) for node in self.labels)
             )
         if valid is not None:
-            labels.append(torch.tensor(1 if valid else 0, device='cpu'))
+            if not valid and self.make_invalid_labels_0:
+                return [torch.tensor(0, device='cpu') for _ in labels] + [torch.tensor(0, device='cpu')]
+            else:
+                labels.append(torch.tensor(1 if valid else 0, device='cpu'))
         return labels
 
     def generate_samples(self, attribution : torch.Tensor, force_valid : bool = True) -> tuple[torch.Tensor, torch.Tensor]:
@@ -263,8 +270,8 @@ class BinaryGeneratorBuilder:
 
     def __init__(self):
         self._to_generate = 0
-        self.features : dict[str, BinaryASTNode] = {}
-        self.labels : dict[str, BinaryASTNode] = {}
+        self.features : dict[str, BinaryASTNode] = OrderedDict()
+        self.labels : dict[str, BinaryASTNode] = OrderedDict()
         self.validation_node : Optional[BinaryASTNode] = None
         self.valid_label = 'valid'
 
@@ -321,19 +328,25 @@ class BinaryGeneratorBuilder:
         Returns:
             BinaryGenerator: The generator
         """
-        sorted_feature = sorted(self.features.items(), key=lambda x: x[0])
-        sorted_label = sorted(self.labels.items(), key=lambda x: x[0])
-        sorted_feature_nodes = [node for _, node in sorted_feature]
-        sorted_label_nodes = [node for _, node in sorted_label]
-        sorted_feature_names = [name for name, _ in sorted_feature]
-        sorted_label_names = [name for name, _ in sorted_label]
+        if isinstance(self.features, OrderedDict):
+            ordered_features = self.features.items()
+        else:
+            ordered_features = sorted(self.features.items(), key=lambda x: x[0])
+        if isinstance(self.labels, OrderedDict):
+            ordered_labels = self.labels.items()
+        else:
+            ordered_labels = sorted(self.labels.items(), key=lambda x: x[0])
+        ordered_feature_nodes = [node for _, node in ordered_features]
+        ordered_label_nodes = [node for _, node in ordered_labels]
+        ordered_feature_names = [name for name, _ in ordered_features]
+        ordered_label_names = [name for name, _ in ordered_labels]
         
         return BinaryGenerator(
             self._to_generate, 
-            sorted_feature_nodes, 
-            sorted_label_nodes,
-            feature_names=sorted_feature_names,
-            label_names=sorted_label_names,
+            ordered_feature_nodes,
+            ordered_label_nodes,
+            feature_names=ordered_feature_names,
+            label_names=ordered_label_names,
             validation_node=self.validation_node,
             valid_label=self.valid_label
         )

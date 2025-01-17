@@ -6,7 +6,7 @@ if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
     from core.storage_management import StudyFileManager
     from torch import nn
 
-DATASET = "xtrains_ontology_simplified_comp_some_all"
+DATASET = "xtrains_ontology"
 
 CONFIGS=[
     ('L16', [16]),
@@ -31,9 +31,7 @@ def main():
     num_ouputs = dataset.get_shape()[1][0]
     study_manager = StudyManager(
         file_manager,
-        compare_strategy="max",
-        metric_key=("val", "balanced_accuracy"),
-        num_epochs=100
+        max_epochs=100
     )
     def config_of(layer_sizes):
         return dict(

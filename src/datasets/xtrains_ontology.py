@@ -1,42 +1,39 @@
-from core.datasets.binary_generator import BinaryGeneratorBuilder, BinaryASTNode
+from pathlib import Path
+
 from core.datasets import register_datasets, RandomDataset, SplitDataset
-from . import xtrains_ontology_simplified
 import logging
 
+from core.datasets.csv_dataset import CSVDataset
+
 logger = logging.getLogger(__name__)
-PREFIX = 'xtrains_ontology'
 
-def _build_ontology():
-    # reuse ontology definition from xtrains_ontology_simplified
-    return xtrains_ontology_simplified._build_ontology(simplify=False)
+CONCEPTS = [
+    'PassengerCar',
+    'FreightWagon',
+    'EmptyWagon',
+    'LongWagon',
+    'ReinforcedCar',
+    'LongPassengerCar',
+    'AtLeast2PassengerCars',
+    'AtLeast2FreightWagons',
+    'AtLeast3Wagons',
+    'AtLeast2LongWagons'
+]
 
-_ontology = _build_ontology() # temporary variable to avoid re-executing the function
+CLASSES = ['TypeA', 'TypeB', 'TypeC', 'valid']
+PATH = Path('data/xtrains_ontology.csv')
 
-logger.debug(f"{_ontology}\nNumber of samples: {len(_ontology.build()):_}")
-SIZE = len(_ontology.build())
-del _ontology # remove temporary variable, to avoid reusing the same object
 
-RANDOM_SIZES = (50_000, 10_000, 10_000)
+SEED = 170125
+COMPLETE_SPLIT = (1.0, 0.0)
 
-if SIZE <= sum(RANDOM_SIZES):
-    RANDOM_SIZES = (int(0.8*SIZE), int(0.1*SIZE), int(0.1*SIZE))
 
-def _random_dataset(func) -> RandomDataset:
-    return RandomDataset(
-        func, 
-        RANDOM_SIZES,
-        val_seed=48,
-        test_seed=49
+register_datasets(
+    xtrains_ontology = CSVDataset(
+        path = PATH,
+        target = CLASSES,
+        features = CONCEPTS,
+        splits=COMPLETE_SPLIT,
+        random_state=SEED
     )
-
-generators = {
-    "typeA" : _build_ontology().with_labels("typeA").build(),
-    "typeB" : _build_ontology().with_labels("typeB").build(),
-    "typeC" : _build_ontology().with_labels("typeC").build(),
-    "all"   : _build_ontology().build()
-}
-
-random_datasets : dict[str, RandomDataset] = {f"{PREFIX}_rand_{k}" : _random_dataset(v.generate_random) for k, v in generators.items()}
-complete_datasets : dict[str, SplitDataset] = {f"{PREFIX}_comp_{k}" : v.as_complete_dataset() for k, v in generators.items()}
-register_datasets(**random_datasets)
-register_datasets(**complete_datasets)
+)

@@ -3,6 +3,7 @@ from core.logging import NOTIFY
 from typing import Iterable, Callable, Literal, Optional, Any, assert_never
 from core.storage_management.study_file_manager import StudyFileManager
 from core.training.trainer import Trainer, TrainerConfig, ResultsDict
+from core.eval.objectives import Objective
 
 module_logger = logging.getLogger(__name__)
 
@@ -10,13 +11,8 @@ class StudyManager:
     def __init__(
             self, 
             file_manager : StudyFileManager,
-            compare_strategy : Callable[[ResultsDict, ResultsDict], bool] | Literal["max", "min"],
-            metric_key : Optional[tuple[str, str]] = ('train', 'loss'),
-            stop_criteria : Optional[
-                Callable[[ResultsDict], bool] |
-                tuple[Any, Literal['ge', 'le', 'eq']]
-                ] = None,
-            num_epochs : int = 10,
+            objective : Optional[Objective] = None,
+            max_epochs : Optional[int] = 100,
             ):
         self.logger = module_logger.getChild(file_manager.study_name)
         self.name = file_manager.study_name
@@ -24,42 +20,11 @@ class StudyManager:
         self.logger.debug(f"Logger context switch")
         self.file_manager = file_manager
         self.compare_strategy : Callable[[dict, dict], bool]
-        self.num_epochs = num_epochs
+        self.num_epochs = max_epochs
         self.best_results : Optional[tuple[str, ResultsDict]] = None
         self.results = {}
         self.skip_comparison = False
-        if metric_key is not None:
-            logger_identifier, metric_name = metric_key
-            metric_getter = lambda x: x[logger_identifier][metric_name]
-            if isinstance(compare_strategy, str):
-                favored = compare_strategy
-                match favored:
-                    case 'max':
-                        self.compare_strategy = lambda x, y: metric_getter(x) > metric_getter(y)
-                    case 'min':
-                        self.compare_strategy = lambda x, y: metric_getter(x) < metric_getter(y)
-                    case _:
-                        assert_never(favored)
-            else:
-                self.compare_strategy = compare_strategy
-            if isinstance(stop_criteria, tuple):
-                value, strategy = stop_criteria
-                match strategy:
-                    case 'eq':
-                        self.stop_criteria = lambda x: metric_getter(x) == value
-                    case 'ge':
-                        self.stop_criteria = lambda x: metric_getter(x) >= value
-                    case 'le':
-                        self.stop_criteria = lambda x: metric_getter(x) <= value
-                    case _:
-                        assert_never(strategy)
-            else:
-                self.stop_criteria: Optional[Callable[[dict], bool]] = stop_criteria
-        else:
-            if isinstance(compare_strategy, str):
-                raise ValueError("Must provide metric_key if compare_strategy is a string")
-            if isinstance(stop_criteria, tuple):
-                raise ValueError("Must provide metric_key if stop_criteria is a tuple")
+        self.objective = objective
 
     def _create_trainer(self, model_file_manager, config : TrainerConfig):
         trainer = Trainer.from_config(config)
@@ -77,11 +42,14 @@ class StudyManager:
             self.logger.info(f"Running experiment {experiment_name} for {self.num_epochs} epochs")
             trainer = self._create_trainer(model_file_manager, config)
             model_file_manager.save_config(config)
-            if trainer.epoch >= self.num_epochs:
-                self.logger.info(f"Experiment {experiment_name} was already complete.")
+            if self.num_epochs is None:
+                trainer.train_indefinitely()
             else:
-                trainer.train_until_epoch(self.num_epochs)
-                self.logger.log(NOTIFY, f"Experiment {experiment_name} complete")
+                if trainer.epoch >= self.num_epochs:
+                    self.logger.info(f"Experiment {experiment_name} was already complete.")
+                else:
+                    trainer.train_until_epoch(self.num_epochs)
+            self.logger.log(NOTIFY, f"Experiment {experiment_name} complete")
             if self.skip_comparison:
                 self.logger.warning("Skipping automatic results comparison")
             else:
@@ -89,33 +57,43 @@ class StudyManager:
                     self._evaluate_experiment(experiment_name, trainer)
                 except BaseException as e:
                     self.logger.error(f"Error comparing experiment {experiment_name}: {e}\n" +
-                                 "Training will continue skipping comparison")
+                                 "Training will continue skipping comparison", exc_info=True)
                     self.skip_comparison = True
 
 
     def _evaluate_experiment(self, experiment_name : str, trainer : Trainer):
-        snapshot = trainer.get_results_dict()
-        self.results[experiment_name] = snapshot
+        if trainer.best_checkpoint_results is not None:
+            results = trainer.best_checkpoint_results
+        else:
+            results = trainer.get_results_dict()
+        self.results[experiment_name] = results
+        if results is None:
+            raise ValueError(f"Results for experiment {experiment_name} are None")
+        if self.objective is None:
+            trainer_objective = trainer.objective
+            if trainer_objective is None:
+                raise ValueError("No objective found")
+            self.objective = trainer_objective
         if self.best_results is None:
-                self.best_results = (experiment_name, snapshot)
+                self.best_results = (experiment_name, results)
                 self.logger.debug(f"Saved first experiment {experiment_name} as best")
         else:
-            
-            if self.compare_strategy(snapshot, self.best_results[1]):
-                self.best_results = (experiment_name, snapshot)
+            if self.objective.compare_strict(results, self.best_results[1]):
+                self.best_results = (experiment_name, results)
                 self.logger.info(f"New best experiment {experiment_name}")
             else:
                 self.logger.info(f"Best experiment remains {self.best_results[0]}")
 
     def check_stop_criteria(self) -> bool:
-        if self.best_results is None:
-            return False
-        experiment_name, snapshot = self.best_results
-        if self.stop_criteria is not None and self.stop_criteria(snapshot):
-            self.logger.info(f"Stopping criteria met for {experiment_name}")
-            return True
-        else:
-            return False
+        return False # TODO: Implement or delete
+        # if self.best_results is None:
+        #     return False
+        # experiment_name, snapshot = self.best_results
+        # if self.stop_criteria is not None and self.stop_criteria(snapshot):
+        #     self.logger.info(f"Stopping criteria met for {experiment_name}")
+        #     return True
+        # else:
+        #     return False
     
     def run_with_script(self, script : str, config_generator : Iterable[tuple[str, list, dict]]):
         generator : Iterable[tuple[str, TrainerConfig]] = (

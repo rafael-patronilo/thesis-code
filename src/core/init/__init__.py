@@ -84,6 +84,8 @@ def import_torch():
     torch.set_default_device(device)
     torch.serialization.add_safe_globals([PosixPath]) # Added to support a bug in older checkpoints
     logger.info(f"Using torch device: {device}")
+    logger.info(f"Using torch version: {torch.__version__}")
+    logger.info(f"Default torch dtype: {torch.get_default_dtype()}")
     _torch_imported = True
 
 def import_datasets():

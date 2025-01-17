@@ -212,7 +212,7 @@ class Trainer:
     def train_indefinitely(self):
         self.train_until([])
 
-    def train_until_epoch(self, end_epoch):
+    def train_until_epoch(self, end_epoch : int):
         self.train_until([lambda x : x.epoch >= end_epoch])
 
     def train_epochs(self, num_epochs):

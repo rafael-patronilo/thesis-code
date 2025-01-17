@@ -163,6 +163,8 @@ class DiscordLogConsumer:
                 break
             records.append(record)
             size_sum += len(record.msg)
+            if len(records) > 1:
+                size_sum += 1
         return records
 
     def _rate_limit(self):
