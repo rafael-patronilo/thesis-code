@@ -1,9 +1,15 @@
-from typing import Callable, Literal
+from abc import ABC
+from math import log
+from typing import Callable, Literal, Protocol, Sequence, Self
 
+from pandas.io.sql import abstractmethod
 import torch
-from torch._dynamo.utils import Lit
 from core.datasets import ColumnReferences, SplitDataset
 from torch.utils.data import Dataset, IterableDataset
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 class SplitDatasetWrapper(SplitDataset):
     def __init__(self, inner : SplitDataset) -> None:
@@ -16,8 +22,8 @@ class SplitDatasetWrapper(SplitDataset):
     def get_metric(self, metric : str):
         return self.inner.get_metric(metric)
 
-    def get_column_references(self) -> ColumnReferences:
-        return self.inner.get_column_references()
+    def get_column_references(self, load_if_needed = True) -> ColumnReferences:
+        return self.inner.get_column_references(load_if_needed)
 
     def for_training(self) -> Dataset:
         return self.inner.for_training()
@@ -77,21 +83,28 @@ class _IterableDatasetWrapper(IterableDataset):
         for sample in self.inner:
             yield self.mapper(sample)
 
-class ItemMapper(SplitDatasetWrapper):
-    def __init__(self, inner: SplitDataset, mapper : Callable) -> None:
+class ItemMapperABC(SplitDatasetWrapper, ABC):
+    def __init__(self, inner: SplitDataset) -> None:
         super().__init__(inner)
-        self.mapper = mapper
-    
-    def get_column_references(self) -> ColumnReferences:
-        sample = self.inner.get_column_references().as_sample()
-        mapped_sample = self.mapper(sample)
+
+    @abstractmethod
+    def _mapper(self, sample : tuple[torch.Tensor, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+        pass
+
+    @abstractmethod
+    def _cols_mapper(self, sample : tuple[list[str], list[str]]) -> tuple[list[str], list[str]]:
+        pass
+
+    def get_column_references(self, load_if_needed = True) -> ColumnReferences:
+        sample = self.inner.get_column_references(load_if_needed).as_sample()
+        mapped_sample = self._cols_mapper(sample)
         return ColumnReferences.from_sample(mapped_sample)
     
     def _wrap_torch_dataset(self, dataset : Dataset) -> Dataset:
         if isinstance(dataset, IterableDataset):
-            wrapped = _IterableDatasetWrapper(dataset, self.mapper)
+            wrapped = _IterableDatasetWrapper(dataset, self._mapper)
         else:
-            wrapped = _DatasetWrapper(dataset, self.mapper)
+            wrapped = _DatasetWrapper(dataset, self._mapper)
         self._attach_self(wrapped)
         return wrapped
     
@@ -107,8 +120,7 @@ class ItemMapper(SplitDatasetWrapper):
             return None
         return self._wrap_torch_dataset(dataset)
 
-
-class SelectCols(ItemMapper):
+class SelectCols(ItemMapperABC):
     def __init__(
             self, 
             dataset : SplitDataset, 
@@ -121,38 +133,59 @@ class SelectCols(ItemMapper):
             select_y = [select_y]
         self.select_x : list | None = select_x
         self.select_y : list | None = select_y
-        super().__init__(dataset, self._select_mapper)
+        super().__init__(dataset)
     
-    def _select_mapper(self, sample):
+    def _seq_mapper[T](self, sample : tuple[T, T]) -> tuple[T, T]:
         x, y = sample
         if self.select_x is not None:
-            x = x[self.select_x]
+            x = x[self.select_x] # type: ignore
         if self.select_y is not None:
-            y = y[self.select_y]
+            y = y[self.select_y] # type: ignore
         return x, y
 
-class ForAutoencoder(ItemMapper):
+    def _mapper(self, sample : tuple[torch.Tensor, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+        return self._seq_mapper(sample)
+
+    def _cols_mapper(self, sample : tuple[list[str], list[str]]) -> tuple[list[str], list[str]]:
+        return self._seq_mapper(sample)
+
+
+class ForAutoencoder(ItemMapperABC):
     @classmethod
-    def _autoencoder_mapper(cls, sample):
+    def _seq_mapper[T](cls, sample : tuple[T, T]) -> tuple[T, T]:
         x, _ = sample
         return x, x
 
-    def __init__(self, dataset : SplitDataset):
-        super().__init__(dataset, self._autoencoder_mapper)
+    def _mapper(self, sample: tuple[torch.Tensor, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+        return self._seq_mapper(sample)
 
-class ConcatConst(ItemMapper):
+    def _cols_mapper(self, sample: tuple[list[str], list[str]]) -> tuple[list[str], list[str]]:
+        return self._seq_mapper(sample)
+
+    def __init__(self, dataset : SplitDataset):
+        super().__init__(dataset)
+
+class ConcatConst(ItemMapperABC):
     def __init__(self, dataset : SplitDataset, value : torch.Tensor | float, target_tensor : Literal['x', 'y']):
         if not isinstance(value, torch.Tensor):
-            value = torch.tensor(value)
-        self.value = value
+            value = torch.tensor([value])
+        self.value = value.to('cpu')
         self.target_tensor = target_tensor
-        super().__init__(dataset, self._append_mapper)
+        super().__init__(dataset)
 
+    def _cols_mapper(self, sample : tuple[list[str], list[str]]) -> tuple[list[str], list[str]]:
+        features, labels = sample
+        value_list = [self.value.item()] if self.value.numel() == 1 else self.value.tolist()
+        if self.target_tensor == 'x':
+            features.extend([f"const_{x}" for x in value_list])
+        else:
+            labels.extend([f"const_{x}" for x in value_list])
+        return features, labels
 
-    def _append_mapper(self, sample):
+    def _mapper(self, sample):
         x, y = sample
         if self.target_tensor == 'x':
-            x = torch.cat([x, self.value], dim=1)
+            x = torch.hstack((x, self.value))
         else:
-            y = torch.cat([y, self.value], dim=1)
+            y = torch.hstack((y, self.value))
         return x, y

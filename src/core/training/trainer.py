@@ -196,7 +196,11 @@ class Trainer:
                 if criterion.__class__.__name__ not in state_dict['stop_criteria']:
                     self.logger.warning(f"Stop criterion {criterion.__class__.__name__} not found in checkpoint")
                     continue
-                criterion.load_state_dict(state_dict['stop_criteria'][criterion.__class__.__name__]) #type: ignore # hasattr ensures load_state_dict
+                try:
+                    criterion.load_state_dict(state_dict['stop_criteria'][criterion.__class__.__name__]) #type: ignore # hasattr ensures load_state_dict
+                except BaseException as e:
+                    self.logger.error(f"Error loading stop criterion {criterion.__class__.__name__}: {e}",
+                                      exc_info=True)
         metadata = state_dict['metadata']
         self.logger.info(f"Loaded checkpoint: {utils.multiline_str(metadata)}")
         if metadata['reason'] in ABRUPT_CHECKPOINT_REASONS:

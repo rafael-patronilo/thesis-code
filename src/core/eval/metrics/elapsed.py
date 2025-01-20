@@ -3,6 +3,7 @@
 from typing import Any, Iterable
 import time
 from torcheval.metrics import Metric
+from torcheval.metrics.ranking import retrieval_precision
 
 
 class Elapsed(Metric):
@@ -11,8 +12,9 @@ class Elapsed(Metric):
         super().__init__()
         self.last_time = None
 
-    def reset(self) -> None:
+    def reset(self):
         self.last_time = time.time()
+        return self
 
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         return self.compute()
@@ -27,8 +29,8 @@ class Elapsed(Metric):
             self.last_time = current_time
             return elapsed
         
-    def update(self, *_, **__) -> None:
-        pass
+    def update(self, *_, **__):
+        return self
 
     def merge_state(self, metrics: Iterable['Elapsed']) -> 'Elapsed':
         raise NotImplementedError("Merging not implemented")

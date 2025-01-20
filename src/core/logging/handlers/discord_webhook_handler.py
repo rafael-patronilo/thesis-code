@@ -18,7 +18,7 @@ import core.init
 
 DISCORD_FORMAT = '`%(asctime)s` [%(levelname)s]\n-# (%(name)s|%(threadName)s)\n```%(message)s```' # noqa
 
-MESSAGE_MAX_LENGTH = 2000
+MESSAGE_MAX_LENGTH = 1900 # actual max is 2000 but there seems to be some discrepancy
 LOG_RECORD_MAX_LENGTH = 1500
 RECORD_EXPIRY = timedelta(seconds=10)
 ERROR_COOLDOWN = timedelta(minutes=5)
@@ -45,7 +45,8 @@ class DiscordWebhookClient:
         try:
             response_str = str(response.read())
             if not (200 <= response.status < 300):
-                raise Exception(f"Unexpected response code: {response.status}\n{response.msg}\n{response_str}")
+                raise Exception(f"Unexpected response code: {response.status}\n{response.msg}\n{response_str}"
+                                f"\nPayload: {payload}")
         finally:
             if response_str is None:
                 response.read()
@@ -189,9 +190,9 @@ class DiscordLogConsumer:
             except (queue.Empty, StopIteration) as e:
                 self.logger.debug("Soft killed", exc_info=True)
                 break # Soft kill
-            except Exception as e:
+            except Exception as e: # noqa
                 self.logger.error(f"Error sending log message to discord,"
-                                  f" disabling discord logging for {ERROR_COOLDOWN}\n{e}",
+                                  f" disabling discord logging for {ERROR_COOLDOWN}",
                                   exc_info=True)
                 if self.soft_kill_switch.is_set():
                     break
@@ -221,6 +222,7 @@ class DiscordFormatter(logging.Formatter):
         record = copy(record)
         # noinspection SpellCheckingInspection
         record.levelname = self.level_map.get(record.levelname, record.levelname)
+        record.message = record.message.replace("\t", "    ") # discord doesn't like tabs
         max_length = LOG_RECORD_MAX_LENGTH + 3
         trunc_msg = ""
         trunc = len(record.message) - max_length
@@ -251,7 +253,7 @@ class DiscordFormatter(logging.Formatter):
             if not record.exc_text:
                 record.exc_text = self.formatException(record.exc_info)
         if record.exc_text:
-            if record.message[-1:] != "\n":
+            if record.message[-1] != "\n":
                 record.message = record.message + "\n"
             record.message = record.message + record.exc_text
         return self.formatMessage(record)

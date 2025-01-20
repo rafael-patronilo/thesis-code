@@ -24,7 +24,8 @@ CONCEPTS = [
     'LongPassengerCar',
     'AtLeast2PassengerCars',
     'AtLeast2FreightWagons',
-    'AtLeast3Wagons'
+    'AtLeast3Wagons',
+    'AtLeast2LongWagons'
 ]
 
 CLASSES = ['TypeA', 'TypeB', 'TypeC']
@@ -91,6 +92,17 @@ register_datasets(
             (IMAGE_COLUMN, name_getter),
         ],
         target = CLASSES + CONCEPTS,
+        features = [IMAGE_COLUMN],
+        filter = some_class,
+        random_state=SEED
+    ),
+    xtrains_concepts_only = CSVImageDataset(
+        csv_path = PATH.joinpath('extended_trains.csv'),
+        images_path = PATH.joinpath('images'),
+        image_columns = [
+            (IMAGE_COLUMN, name_getter),
+        ],
+        target = CONCEPTS,
         features = [IMAGE_COLUMN],
         filter = some_class,
         random_state=SEED

@@ -5,13 +5,16 @@ from torch.utils.data import Dataset, IterableDataset
 
 logger = logging.getLogger(__name__)
 
-ColumnSubReferences = NamedTuple("ColumnSubReferences", [("names_to_column", dict[str, int]), ("columns_to_names", list[str])])
+class ColumnSubReferences(NamedTuple):
+    names_to_column : dict[str, int]
+    columns_to_names : list[str]
+
 class ColumnReferences(NamedTuple):
     features: ColumnSubReferences 
     labels : ColumnSubReferences
 
     def as_sample(self) -> tuple[list[str], list[str]]:
-        return (self.features.columns_to_names, self.labels.columns_to_names)
+        return self.features.columns_to_names, self.labels.columns_to_names
     
     def get_feature_indices(self, columns : list[str]) -> list[int]:
         """Get indices for a list of feature column names. Respects argument order
@@ -99,8 +102,12 @@ class SplitDataset:
         else:
             return (splits, 1.0 - splits) # type: ignore
     
-    def get_column_references(self) -> ColumnReferences:
+    def get_column_references(self, load_if_needed : bool = True) -> ColumnReferences:
         if self.column_references is None:
+            if not self.loaded and load_if_needed:
+                self._load()
+                if self.column_references is not None:
+                    return self.column_references
             raise ValueError("Column references not available")
         return self.column_references
 

@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import TypedDict, Required
 import torcheval
@@ -12,7 +13,7 @@ from core.storage_management import ModelFileManager
 from core.nn.hybrid_network import HybridNetwork
 from core.nn import PartiallyPretrained
 import torch
-from torcheval.metrics import Mean
+from torcheval.metrics import Mean, metric
 from torch import nn
 
 from core.nn.autoencoder import AutoEncoder
@@ -20,6 +21,7 @@ import logging
 
 from core.training.checkpoint_triggers import BestMetric
 from core.training.stop_criteria import EarlyStop
+from core.training.metrics_recorder import EvaluationResult
 
 logger = logging.getLogger(__name__)
 
@@ -51,12 +53,12 @@ def modify_perception_network(
         encoder = perception_network.encoder
         return modify_perception_network(encoder, num_concepts)
     elif isinstance(perception_network, nn.Sequential):
-        layers = [(layer, True) for layer in perception_network.layers]
+        layers = [(layer, True) for layer in perception_network]
         layers.pop()
         if layers[-1][0].out_features != num_concepts:
             logger.info("Replacing last linear with correct size")
-            layers.pop()
-            layers.append((nn.Linear(perception_network.layers[-2].in_features, num_concepts), False))
+            removed, _ = layers.pop()
+            layers.append((nn.Linear(removed.in_features, num_concepts), False))
         logger.info("Setting last activation to sigmoid")
         layers.append((nn.Sigmoid(), False))
         return PartiallyPretrained(*layers)
@@ -70,8 +72,7 @@ def modify_perception_network(
 def create_model(
         num_concepts: int,
         perception_network_path : ModelLoadPath,
-        reasoning_network_path : ModelLoadPath,
-        load_perception_weights : bool = True,
+        reasoning_network_path : ModelLoadPath
     ) -> HybridNetwork:
     perception_network = load_network(perception_network_path)
     reasoning_network = load_network(reasoning_network_path)
@@ -82,41 +83,65 @@ def create_model(
         perception_network=perception_network
     )
 
-
+def pn_evaluator(model : 'HybridNetwork', x, y):
+    return EvaluationResult(model.perception_network(x), y)
 
 def create_trainer(
         dataset_name : str,
+        concept_dataset_name : str,
+        concepts : list[str],
         pre_trained_learning_rate : float = 0.00001,
         untrained_learning_rate : float = 0.001,
+        valid_col_weight : float = 1,
         **kwargs) -> Trainer:
     dataset = dataset_wrappers.ConcatConst(datasets.get_dataset(dataset_name), 1, 'y')
     dataset.for_training() # make sure it is loaded
+    concept_dataset = datasets.get_dataset(concept_dataset_name)
+    concept_dataset.for_validation() # make sure it is loaded
     col_refs = dataset.get_column_references()
-    num_labels = len(col_refs.labels)
-    valid_col = num_labels
-    weights = torch.ones(num_labels + 1)
-    weights[valid_col] = 4
+    logger.info(f"Column info for dataset: {col_refs}")
+    concept_col_refs = concept_dataset.get_column_references()
+    logger.info(f"Column info for concept dataset: {concept_col_refs}")
+    num_labels = len(col_refs.labels.columns_to_names)
+    valid_col = num_labels - 1
+    weights = torch.ones(num_labels)
+    weights[valid_col] = valid_col_weight
+    logger.info(f"Loss weights: {weights}")
     loss_fn = nn.BCELoss(weights)
     patience = kwargs.pop('patience', 10)
-    metric_functions : dict = {
-        'elapsed' : metrics.Elapsed,
-        'mean_valid' : lambda: metric_wrappers.SelectCol(metric_wrappers.Unary(Mean()), valid_col)
-    }
-    classes : list[str] = dataset.get_column_references().labels.columns_to_names + ['valid']
-    metric_functions.update(**metric_wrappers.SelectCol.col_wise(classes, {
-        'balanced_accuracy' : metrics.BinaryBalancedAccuracy,
-    }, reduction='min'))
+
+    classes : list[str] = col_refs.labels.columns_to_names
+    def metric_functions():
+        metric_functions_ : dict = {
+            'elapsed': metrics.Elapsed(),
+            'mean_valid': metric_wrappers.SelectCol(metric_wrappers.Unary(Mean()), valid_col)
+        }
+        metric_functions_.update(**metric_wrappers.SelectCol.col_wise(classes, {
+            'balanced_accuracy' : metric_wrappers.to_int(metrics.BinaryBalancedAccuracy),
+        }, reduction='min'))
+        return metric_functions_
     val_metrics = MetricsRecorder(
         identifier='val',
-        metric_functions=metric_functions,
+        metric_functions=metric_functions(),
         dataset=dataset.for_validation
     )
     train_metrics = TrainingRecorder(
-        metric_functions=metric_functions
+        metric_functions=metric_functions()
+    )
+    pn_metrics = MetricsRecorder(
+        identifier='pn_val',
+        metric_functions={
+            f"balanced_accuracy_{concept}" : metric_wrappers.SelectCol(
+                metric_wrappers.to_int(metrics.BinaryBalancedAccuracy)(),
+                concept_col_refs.labels.names_to_column[concept]
+            ) for concept in concepts
+        },
+        dataset=concept_dataset.for_validation,
+        evaluator=pn_evaluator
     )
     objective = Maximize('val', 'balanced_accuracy')
 
-    model = create_model(**kwargs)
+    model = create_model(len(concepts), **kwargs)
 
     def optimizer(_) -> torch.optim.Optimizer:
         pn = model.perception_network
@@ -132,7 +157,7 @@ def create_trainer(
         loss_fn=loss_fn,
         optimizer=optimizer,
         training_set=dataset,
-        metric_loggers=[train_metrics, val_metrics],
+        metric_loggers=[train_metrics, val_metrics, pn_metrics],
         stop_criteria=[EarlyStop(objective, patience=patience)],
         checkpoint_triggers=[BestMetric(objective)],
         objective=objective,
