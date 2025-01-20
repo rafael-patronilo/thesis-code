@@ -5,13 +5,13 @@ from torch.nn.parameter import Parameter
 
 class HybridNetwork(NNModule):
     def __init__(
-            self, 
-            reasoning_network : NNModule, 
-            perception_network : NNModule
+            self,
+            perception_network: NNModule,
+            reasoning_network : NNModule
     ):
         super(HybridNetwork, self).__init__()
-        self.reasoning_network = reasoning_network
         self.perception_network = perception_network
+        self.reasoning_network = reasoning_network
     
     def forward(self, x):
         x = self.perception_network(x)

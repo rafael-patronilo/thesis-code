@@ -1,6 +1,5 @@
 from abc import ABC
-from math import log
-from typing import Callable, Literal, Protocol, Sequence, Self
+from typing import Callable, Literal
 
 from pandas.io.sql import abstractmethod
 import torch
@@ -189,3 +188,27 @@ class ConcatConst(ItemMapperABC):
         else:
             y = torch.hstack((y, self.value))
         return x, y
+
+class BinaryNoiseAugmentation(ItemMapperABC):
+    """
+    Adds noise to binary input data preserving the logical meaning.
+    For example, an input with an original value of 0 will take a value between 0 and 0.49
+    while an input with an original value of 1 will take a value between 0.5 and 1.
+    Values which are neither 0 nor 1 will be unaffected.
+    """
+    def __init__(self, dataset : SplitDataset, negative_max : float = 0.49, positive_min : float = 0.5):
+        self.negative_max = negative_max
+        self.positive_min = positive_min
+        super().__init__(dataset)
+
+    def _mapper(self, sample: tuple[torch.Tensor, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+        x = sample[0]
+        noise = torch.rand_like(x)
+        positive = x == 1
+        negative = x == 0
+        x[positive] -= noise[positive] * (1 - self.positive_min)
+        x[negative] += noise[negative] * self.negative_max
+        return x, sample[1]
+
+    def _cols_mapper(self, sample: tuple[list[str], list[str]]) -> tuple[list[str], list[str]]:
+        return sample

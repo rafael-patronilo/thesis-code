@@ -79,8 +79,8 @@ def create_model(
 
     perception_network = modify_perception_network(perception_network, num_concepts)
     return HybridNetwork(
-        reasoning_network=reasoning_network,
-        perception_network=perception_network
+        perception_network=perception_network,
+        reasoning_network=reasoning_network
     )
 
 def pn_evaluator(model : 'HybridNetwork', x, y):

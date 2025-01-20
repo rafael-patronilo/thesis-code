@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 from core.init import DO_SCRIPT_IMPORTS
+#noinspection Duplicates
 if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
     from core import datasets
     from core.studies import StudyManager
