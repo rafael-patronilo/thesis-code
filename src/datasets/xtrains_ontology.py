@@ -4,7 +4,7 @@ from core.datasets import register_datasets, RandomDataset, SplitDataset
 import logging
 
 from core.datasets.csv_dataset import CSVDataset
-from src.core.datasets import dataset_wrappers
+from core.datasets import dataset_wrappers
 
 logger = logging.getLogger(__name__)
 

@@ -25,6 +25,7 @@ class CSVImageDataset(CSVDataset):
         column_transforms : Optional[dict[str, Transform]] = None,
         shuffle: bool = True,
         random_state = None,
+        splits: float | tuple[float, float] = (0.7, 0.15),
         filter : Optional[Callable[['pd.Series'], bool]] = None
     ):
         super().__init__(
@@ -33,6 +34,7 @@ class CSVImageDataset(CSVDataset):
             features,
             shuffle=shuffle,
             random_state=random_state,
+            splits=splits,
             filter=filter
         )
         self.images_path = Path(images_path)

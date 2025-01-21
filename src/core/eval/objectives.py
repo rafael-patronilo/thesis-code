@@ -44,7 +44,7 @@ class Objective(ABC):
         raise NotImplementedError()
 
 class FloatObjective(Objective,ABC):
-    def __init__(self, metrics_group : str, metric : str, threshold : float = 0) -> None:
+    def __init__(self, metrics_group : str, metric : str, threshold : float) -> None:
         self.metrics_group = metrics_group
         self.metric = metric
         self.threshold = threshold

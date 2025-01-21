@@ -1,6 +1,5 @@
 from typing import TYPE_CHECKING
 from core.init import DO_SCRIPT_IMPORTS
-from src.scripts.studies.xtrains_autoencoders_3 import STUDY_NAME
 
 if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
     from core import datasets

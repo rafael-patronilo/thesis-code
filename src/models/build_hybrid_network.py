@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import TypedDict, Required
+from typing import TypedDict, Required, Optional
 import torcheval
 from core import datasets
 from core.datasets import dataset_wrappers
@@ -13,7 +13,7 @@ from core.storage_management import ModelFileManager
 from core.nn.hybrid_network import HybridNetwork
 from core.nn import PartiallyPretrained
 import torch
-from torcheval.metrics import Mean, metric
+from torcheval.metrics import Mean, BinaryAccuracy
 from torch import nn
 
 from core.nn.autoencoder import AutoEncoder
@@ -22,6 +22,7 @@ import logging
 from core.training.checkpoint_triggers import BestMetric
 from core.training.stop_criteria import EarlyStop
 from core.training.metrics_recorder import EvaluationResult
+from core.training.trainer import TrainerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -46,12 +47,13 @@ def load_network(load_path : ModelLoadPath) -> nn.Module:
 
 def modify_perception_network(
         perception_network : nn.Module,
-        num_concepts : int
+        num_concepts : int,
+        dropout_last_pn : Optional[float]
 ):
     if isinstance(perception_network, AutoEncoder):
         logger.info("Selecting encoder")
         encoder = perception_network.encoder
-        return modify_perception_network(encoder, num_concepts)
+        return modify_perception_network(encoder, num_concepts, dropout_last_pn)
     elif isinstance(perception_network, nn.Sequential):
         layers = [(layer, True) for layer in perception_network]
         layers.pop()
@@ -61,8 +63,14 @@ def modify_perception_network(
             layers.append((nn.Linear(removed.in_features, num_concepts), False))
         logger.info("Setting last activation to sigmoid")
         layers.append((nn.Sigmoid(), False))
+        if dropout_last_pn is not None:
+            logger.info(f"Adding dropout to last layer with p={dropout_last_pn}")
+            layers.append((nn.Dropout(dropout_last_pn), False))
         return PartiallyPretrained(*layers)
     else:
+        if dropout_last_pn is not None:
+            logger.info(f"Adding dropout to last layer with p={dropout_last_pn}")
+            return nn.Sequential(perception_network, nn.Dropout(dropout_last_pn))
         logger.warning("No modification applied.")
         return perception_network
 
@@ -71,13 +79,21 @@ def modify_perception_network(
 
 def create_model(
         num_concepts: int,
-        perception_network_path : ModelLoadPath,
-        reasoning_network_path : ModelLoadPath
+        reasoning_network_path: ModelLoadPath,
+        perception_network_path : Optional[ModelLoadPath] = None,
+        perception_network_config : Optional[TrainerConfig] = None,
+        dropout_last_pn : Optional[float] = None,
     ) -> HybridNetwork:
-    perception_network = load_network(perception_network_path)
+    if perception_network_path is not None:
+        perception_network = load_network(perception_network_path)
+        perception_network = modify_perception_network(perception_network, num_concepts, dropout_last_pn)
+    elif perception_network_config is not None:
+        perception_network = Trainer.from_config(perception_network_config).model
+    else:
+        raise ValueError("Perception network must be specified")
     reasoning_network = load_network(reasoning_network_path)
 
-    perception_network = modify_perception_network(perception_network, num_concepts)
+
     return HybridNetwork(
         perception_network=perception_network,
         reasoning_network=reasoning_network
@@ -108,7 +124,8 @@ def create_trainer(
     weights[valid_col] = valid_col_weight
     logger.info(f"Loss weights: {weights}")
     loss_fn = nn.BCELoss(weights)
-    patience = kwargs.pop('patience', 10)
+    patience = kwargs.pop('patience', 20)
+    threshold = kwargs.pop('threshold', 0.01)
 
     classes : list[str] = col_refs.labels.columns_to_names
     def metric_functions():
@@ -128,18 +145,27 @@ def create_trainer(
     train_metrics = TrainingRecorder(
         metric_functions=metric_functions()
     )
+    pn_metric_functions = {}
+    for concept in concepts:
+        pn_metric_functions.update(
+            {
+                f"balanced_accuracy_{concept}": metric_wrappers.SelectCol(
+                    metric_wrappers.to_int(metrics.BinaryBalancedAccuracy)(),
+                    concept_col_refs.labels.names_to_column[concept]
+                ),
+                f"accuracy_{concept}": metric_wrappers.SelectCol(
+                    metric_wrappers.to_int(BinaryAccuracy)(),
+                    concept_col_refs.labels.names_to_column[concept]
+                )
+            }
+        )
     pn_metrics = MetricsRecorder(
         identifier='pn_val',
-        metric_functions={
-            f"balanced_accuracy_{concept}" : metric_wrappers.SelectCol(
-                metric_wrappers.to_int(metrics.BinaryBalancedAccuracy)(),
-                concept_col_refs.labels.names_to_column[concept]
-            ) for concept in concepts
-        },
+        metric_functions=pn_metric_functions,
         dataset=concept_dataset.for_validation,
         evaluator=pn_evaluator
     )
-    objective = Maximize('val', 'balanced_accuracy')
+    objective = Maximize('val', 'balanced_accuracy', threshold=threshold)
 
     model = create_model(len(concepts), **kwargs)
 
@@ -150,7 +176,7 @@ def create_trainer(
                 {'params': pn.pre_trained_parameters(), 'lr': pre_trained_learning_rate},
                 {'params': pn.untrained_parameters(), 'lr': untrained_learning_rate}])
         else:
-            return torch.optim.Adam(pn.parameters(), lr = pre_trained_learning_rate)
+            return torch.optim.Adam(pn.parameters(), lr = untrained_learning_rate)
 
     return Trainer(
         model=model,
