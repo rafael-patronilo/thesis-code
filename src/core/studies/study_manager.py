@@ -1,11 +1,14 @@
 import logging
 from core.logging import NOTIFY
-from typing import Iterable, Callable, Literal, Optional, Any, assert_never
+from typing import Iterable, Callable, Literal, Optional, Any, Sized, assert_never
 from core.storage_management.study_file_manager import StudyFileManager
 from core.training.trainer import Trainer, TrainerConfig, ResultsDict
 from core.eval.objectives import Objective
+from core.util.progress_trackers import LogProgressContextManager
 
 module_logger = logging.getLogger(__name__)
+
+experiments_progress_cm = LogProgressContextManager(module_logger)
 
 class StudyManager:
     def __init__(
@@ -103,12 +106,17 @@ class StudyManager:
         self.run(generator)
 
     def run(self, config_generator : Iterable[tuple[str, TrainerConfig]]):
-        for experiment_name, details in config_generator:
-            self.run_experiment(experiment_name, details)
-            if self.check_stop_criteria():
-                break
-        self.logger.log(NOTIFY, f"Study complete")
+        estimated_total = None
+        if isinstance(config_generator, Sized):
+            estimated_total = len(config_generator)
+        with experiments_progress_cm.track(self.name, 'experiments', estimated_total) as progress:
+            for experiment_name, details in config_generator:
+                self.run_experiment(experiment_name, details)
+                progress.tick()
+                if self.check_stop_criteria():
+                    break
         self.store_results()
+        self.logger.log(NOTIFY, f"Study complete")
 
     def store_results(self):
         if self.best_results is not None:

@@ -17,6 +17,7 @@ from datetime import timedelta
 from core import util as utils
 from core.util.progress_trackers import LogProgressContextManager
 from core.eval.objectives import Objective
+from src.core.training.stop_criteria.stop_at_epoch import StopAtEpoch
 if TYPE_CHECKING:
     from torch.optim.optimizer import Optimizer
 
@@ -143,7 +144,8 @@ class Trainer:
 
     def _set_logger(self, logger : logging.Logger):
         self.logger = logger
-        self.progress_cm = LogProgressContextManager(self.logger, cooldown=timedelta(minutes=5))
+        self.train_progress_cm = LogProgressContextManager(self.logger, cooldown=timedelta(minutes=5))
+        self.epoch_progress_cm = LogProgressContextManager(self.logger, cooldown=timedelta(minutes=30))
         if self.logger is not module_logger:
             self.logger.debug(f"Logger context switch")
 
@@ -217,7 +219,7 @@ class Trainer:
         self.train_until([])
 
     def train_until_epoch(self, end_epoch : int):
-        self.train_until([lambda x : x.epoch >= end_epoch])
+        self.train_until([StopAtEpoch(end_epoch)])
 
     def train_epochs(self, num_epochs):
         self.train_until_epoch(self.epoch + num_epochs)
@@ -234,6 +236,12 @@ class Trainer:
         if self.model_file_manager is None:
             raise ValueError("Model file manager not initialized")
         criteria = criteria + self.stop_criteria
+        estimated_total_epochs = None
+        for criterion in criteria:
+            if hasattr(criterion, 'total_epochs'):
+                crit_epochs = criterion.total_epochs(self) # type: ignore # hasattr ensures total_epochs
+                if estimated_total_epochs is None or crit_epochs < estimated_total_epochs:
+                    estimated_total_epochs = crit_epochs
         self.logger.info("Initiating training loop...\n"
                     f"Model: {self.model_file_manager.model_name}\n"
                     f"Epoch: {self.epoch}\n"
@@ -242,11 +250,13 @@ class Trainer:
         
         try:
             no_interrupt = utils.NoInterrupt("mid epoch", self.logger)
-            while not any(criterion(self) for criterion in criteria):
-                with no_interrupt:
-                    if not self.first_epoch:
-                        self.epoch += 1
-                    self._train_epoch(self.epoch)
+            with self.epoch_progress_cm.track('Training', 'epochs', estimated_total_epochs) as progress_tracker:
+                while not any(criterion(self) for criterion in criteria):
+                    with no_interrupt:
+                        if not self.first_epoch:
+                            self.epoch += 1
+                        self._do_epoch(self.epoch)
+                        progress_tracker.tick()
             self._checkpoint('end')
             self.logger.log(NOTIFY, "Training complete.")
         except (KeyboardInterrupt, utils.NoInterrupt.InterruptException):
@@ -351,7 +361,7 @@ class Trainer:
             record = metric_logger.log_record(self.epoch, self.model)
             self.model_file_manager.write_metrics(metric_logger.identifier, record)
 
-    def _train_epoch(self, epoch):
+    def _do_epoch(self, epoch):
         if self.model_file_manager is None:
             raise ValueError("Model file manager not initialized")
         self.epoch = epoch
@@ -368,7 +378,7 @@ class Trainer:
         y = None
         try:
             loader = self.training_loader()
-            with self.progress_cm.track(f'Epoch {epoch}', 'batches', loader) as progress_tracker:
+            with self.train_progress_cm.track(f'Epoch {epoch}', 'batches', loader) as progress_tracker:
                 for x, y in loader:
                     x = x.to(torch.get_default_device())
                     y = y.to(torch.get_default_device())

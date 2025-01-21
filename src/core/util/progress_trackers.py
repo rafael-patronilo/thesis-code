@@ -29,7 +29,7 @@ class ProgressTracker:
             return float(expected_total)
         else:
             try:
-                return len(expected_total)
+                return len(expected_total) #type:ignore
             except:
                 return None
 
@@ -213,7 +213,7 @@ class LogProgressContextManager(ProgressContextManager):
         return tracker
 
 
-    def _exit(self, tracker : LogProgressTracker) -> None:
+    def _exit(self, tracker : LogProgressTracker) -> None: # type: ignore
         tracker.log_callback(f'{tracker.task_name} complete ({tracker.elapsed_time()})')
 
     def but(self, log_level : int | None = None, cooldown : timedelta | float | None = None) -> 'LogProgressContextManager':
