@@ -1,5 +1,7 @@
 import logging
-from core.training.trainer import Trainer
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from core.training.trainer import Trainer
 
 logger = logging.getLogger(__name__)
 
@@ -8,7 +10,7 @@ class GoalReached:
         self.value = value
         self._disabled = False
 
-    def __call__(self, trainer : Trainer) -> bool:
+    def __call__(self, trainer : 'Trainer') -> bool:
         if self._disabled:
             return False
         if trainer.objective is None:

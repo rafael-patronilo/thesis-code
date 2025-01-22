@@ -1,3 +1,4 @@
+import copy
 from abc import ABC
 from typing import Callable, Literal
 
@@ -95,7 +96,7 @@ class ItemMapperABC(SplitDatasetWrapper, ABC):
         pass
 
     def get_column_references(self, load_if_needed = True) -> ColumnReferences:
-        sample = self.inner.get_column_references(load_if_needed).as_sample()
+        sample = copy.deepcopy(self.inner.get_column_references(load_if_needed).as_sample())
         mapped_sample = self._cols_mapper(sample)
         return ColumnReferences.from_sample(mapped_sample)
     

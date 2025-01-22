@@ -1,18 +1,15 @@
 from typing import TYPE_CHECKING
-from collections import OrderedDict
 from core.init import DO_SCRIPT_IMPORTS
+import copy
 if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
-    from core import datasets
     from core.studies import StudyManager
     from core.storage_management import StudyFileManager
-    from typing import NamedTuple
-    from torch import nn
-    import sys
 STUDY_NAME = "study_hn_1"
-BUILD_SCRIPT = ''
+
+DATASET_NAME = "xtrains"
 
 BASE_KWARGS= {
-    "dataset_name" : "xtrains",
+    "dataset_name" : DATASET_NAME,
     "concept_dataset_name" : "xtrains_concepts_only",
     "concepts" :[
         "PassengerCar",
@@ -34,12 +31,14 @@ BASE_KWARGS= {
         "build_script" : "conv_pn",
         "build_args" : [],
         "build_kwargs" : {
+            "dataset_name" : DATASET_NAME,
             "num_concepts": 10,
+            "hidden_activations" : ('leaky_relu', 0.01),
+            "kernel_size" : 3
         }
     }
 }
 
-# noinspection DuplicatedCode
 CONVOLUTIONS = {
     "C32" : (
         [32, 32, ('pool', 2)]
@@ -111,12 +110,12 @@ EXPERIMENTS = [
 def gen_configs() -> list[tuple[str, list, dict]]:
     configs = []
     for c_name, l_name in EXPERIMENTS:
-        config = BASE_KWARGS.copy()
+        config = copy.deepcopy(BASE_KWARGS)
         config['perception_network_config']['build_kwargs'].update(
             conv_layers=CONVOLUTIONS[c_name],
             linear_layers=LINEARS[l_name]
         )
-        configs.append((f"{c_name}_{l_name}", [], config))
+        configs.append((f"{c_name}_{l_name}" if l_name != "" else c_name, [], config))
     return configs
 
 

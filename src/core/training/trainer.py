@@ -17,7 +17,7 @@ from datetime import timedelta
 from core import util as utils
 from core.util.progress_trackers import LogProgressContextManager
 from core.eval.objectives import Objective
-from src.core.training.stop_criteria.stop_at_epoch import StopAtEpoch
+from core.training.stop_criteria.stop_at_epoch import StopAtEpoch
 if TYPE_CHECKING:
     from torch.optim.optimizer import Optimizer
 

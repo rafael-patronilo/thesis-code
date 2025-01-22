@@ -123,21 +123,27 @@ class DiscordLogConsumer:
                 datetime.now()
             )
         while not self.kill_switch.is_set():
-            if len(self._local_pending) > 0:
-                record = self._local_pending.pop()
-            else:
-                record = self.pending.get(block=block)
-            block = False
-            if record is None:
-                raise StopIteration("None record found")
-            if self.should_discard(record):
-                discarded += 1
-            else:
+            try:
+                if len(self._local_pending) > 0:
+                    record = self._local_pending.pop()
+                else:
+                    record = self.pending.get(block=block)
+                block = False
+                if record is None:
+                    raise StopIteration("None record found")
+                if self.should_discard(record):
+                    discarded += 1
+                else:
+                    if discarded > 0:
+                        self._local_pending.append(record)
+                        return suppressed_record()
+                    else:
+                        return record
+            except queue.Empty:
                 if discarded > 0:
-                    self._local_pending.append(record)
                     return suppressed_record()
                 else:
-                    return record
+                    raise
         if discarded > 0:
             return suppressed_record()
         raise StopIteration("No record found")
@@ -188,8 +194,16 @@ class DiscordLogConsumer:
                 self._rate_limit()
                 self.client.send(content)
             except (queue.Empty, StopIteration) as e:
-                self.logger.debug("Soft killed", exc_info=True)
-                break # Soft kill
+                if self.kill_switch.is_set():
+                    self.logger.debug("Killed", exc_info=True)
+                    break
+                elif self.soft_kill_switch.is_set():
+                    self.logger.debug("Soft killed", exc_info=True)
+                    break
+                else:
+                    self.logger.error("Unexpected Empty/StopIteration, "
+                                      f" disabling discord logging for {ERROR_COOLDOWN}", exc_info=True)
+                    self.soft_kill_switch.wait(ERROR_COOLDOWN.total_seconds())
             except Exception as e: # noqa
                 self.logger.error(f"Error sending log message to discord,"
                                   f" disabling discord logging for {ERROR_COOLDOWN}",
