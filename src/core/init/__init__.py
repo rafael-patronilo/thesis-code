@@ -53,7 +53,7 @@ If no configuration file is specified and './config.json' exists, it will be loa
  
 """
 
-options : GlobalOptions = GlobalOptions()
+options : GlobalOptions = None # type: ignore
 
 register_from_package(default_scripts, scripts)
 
@@ -159,6 +159,7 @@ def run_script(script : Script, parsed_args : Namespace, script_configs : dict[s
     if load_options.import_datasets:
         import_datasets()
     global DO_SCRIPT_IMPORTS
+    logger.debug("Reimporting script module")
     DO_SCRIPT_IMPORTS = True
     importlib.reload(script.module)
     if script.options_cls is not None:

@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 from core.init import DO_SCRIPT_IMPORTS
-from core.init.options_parsing import positional
+from core.init.options_parsing import option, positional
 
 if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
     from core.training import Trainer
@@ -21,6 +21,9 @@ if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
 class Options:
     model_name: str = field(
         metadata=positional(str, help_="Name of the model to evaluate"))
+    with_training_set : bool = field(default=False,
+        metadata=option(bool, help_="Whether to evaluate on the training set as well."))
+
 
 
 def main(options: Options):
@@ -37,7 +40,8 @@ def main(options: Options):
             selected_dataset = dataset_wrappers.SelectCols(dataset, select_y=label_indices)
 
             evaluate_perception_network(trainer, perception_network, file_manager, selected_dataset,
-                                        SHORT_CLASSES, SHORT_CONCEPTS)
+                                        options.with_training_set,
+                                        False, SHORT_CLASSES, SHORT_CONCEPTS)
             logger.info("Perception network evaluation done")
 
             analyze_dataset(trainer, file_manager, selected_dataset.for_training(),

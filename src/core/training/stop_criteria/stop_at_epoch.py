@@ -13,7 +13,7 @@ class StopAtEpoch:
         return trainer.epoch >= self.max_epoch
 
     def total_epochs(self, trainer : 'Trainer') -> int:
-        if trainer.first_epoch:
+        if trainer.first_session_epoch:
             return self.max_epoch
         else:
             return self.max_epoch - trainer.epoch

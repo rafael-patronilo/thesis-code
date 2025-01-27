@@ -137,7 +137,7 @@ class Trainer:
         self.batch_size = batch_size
         self.num_loaders = num_loaders
         self.shuffle = shuffle
-        self.first_epoch = True
+        self.first_session_epoch = True
         self.epoch_checkpoint = False
         self.best_checkpoint_results : Optional[ResultsDict] = None
         self.objective = objective
@@ -225,7 +225,7 @@ class Trainer:
         self.train_until_epoch(self.epoch + num_epochs)
 
     def get_results_dict(self) -> ResultsDict | None:
-        if self.first_epoch:
+        if self.first_session_epoch and self.epoch == 0:
             return None
         snapshot = {}
         for metric_logger in self.metric_loggers:
@@ -253,7 +253,7 @@ class Trainer:
             with self.epoch_progress_cm.track('Training', 'epochs', estimated_total_epochs) as progress_tracker:
                 while not any(criterion(self) for criterion in criteria):
                     with no_interrupt:
-                        if not self.first_epoch:
+                        if not self.first_session_epoch:
                             self.epoch += 1
                         self._do_epoch(self.epoch)
                         progress_tracker.tick()
@@ -308,7 +308,7 @@ class Trainer:
             )
 
     def _checkpoint(self, reason : CheckpointReason):
-        if self.first_epoch:
+        if self.first_session_epoch:
             self.logger.warning("No training done yet, skipping checkpoint")
             return
         if self.epoch_checkpoint:
@@ -387,7 +387,7 @@ class Trainer:
                     update_metrics(pred, y)
                     batches += 1
                     progress_tracker.tick()
-            self.first_epoch = False
+            self.first_session_epoch = False
         except BaseException as e:
             self.logger.error(f"Exception during training loop {debug_model(e, self.model, x, y)}")
             raise
@@ -402,7 +402,7 @@ class Trainer:
         elif any(trigger(self) for trigger in self.checkpoint_triggers):
             self.logger.info(f"Triggered checkpoint")
             self._checkpoint('triggered')
-        elif self.first_epoch:
+        elif self.first_session_epoch:
             self.logger.info(self._metrics_str())
         self.logger.info(f"Epoch {epoch} avg loss = {loss_sum / batches}\n\n\n")
             

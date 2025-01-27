@@ -1,0 +1,54 @@
+#!/usr/bin/bash
+
+IMAGE=rpatronilo-thesis
+
+# Set shared memory for multiprocessing data loading
+SHM_SIZE=1G
+
+# Set stop timeout to -1 to prevent container from being killed. Request stop twice to forcefully kill container
+STOP_TIMEOUT=-1
+
+ARGS=(--shm-size=$SHM_SIZE --stop-timeout=$STOP_TIMEOUT)
+
+if [ -f .env ]; then
+    source .env
+fi
+
+HOST_DIR=${HOST_DIR:-$(pwd)}
+CONTAINER_DIR=/workspace/
+MOUNTS=(logs data storage debug)
+
+for dir in ${MOUNTS[@]}; do
+    ARGS+=(-v "$HOST_DIR$dir:$CONTAINER_DIR$dir")
+done
+
+if [ -f .env ]; then
+    ARGS+=(--env-file .env)
+fi
+
+for arg in $@; do
+    if [[ $arg == "IMG" ]]; then
+        ARGS+=($IMAGE)
+    elif [[ $arg == "-d" ]]; then
+        ARGS+=($arg)
+        DETACHED=true
+    else
+        ARGS+=($arg)
+    fi
+done
+
+CMD="docker run ${ARGS[@]}"
+
+echo Running command:
+echo
+echo "$CMD"
+echo
+eval "$CMD"
+
+if [[ $DETACHED == true ]]; then
+    echo
+    echo Container running in detached mode
+    echo
+fi
+
+

@@ -234,7 +234,7 @@ class ModelFileManager:
             raise FileNotFoundError(f"File {file} does not exist")
         self.logger.info(f"Loading torch.load({file}, weights_only=True)")
         try:
-            return torch.load(file, weights_only=True)
+            return torch.load(file, weights_only=True, map_location=torch.get_default_device())
         except UnpicklingError as e:
             file = file.absolute()
             safety_prompt = f"TRUST {file}"
@@ -251,7 +251,7 @@ class ModelFileManager:
             response = input()
             timer.cancel()
             if response == safety_prompt:
-                return torch.load(file, weights_only=False)
+                return torch.load(file, weights_only=False, map_location=torch.get_default_device())
             else:
                 self.logger.critical("User response did not match, raising exception")
                 raise e

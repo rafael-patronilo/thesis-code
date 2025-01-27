@@ -153,8 +153,8 @@ def create_trainer(
                     metric_wrappers.to_int(metrics.BinaryBalancedAccuracy)(),
                     concept_col_refs.labels.names_to_column[concept]
                 ),
-                f"accuracy_{concept}": metric_wrappers.SelectCol(
-                    metric_wrappers.to_int(BinaryAccuracy)(),
+                f"correlation_{concept}": metric_wrappers.SelectCol(
+                    metrics.PearsonCorrelationCoefficient(),
                     concept_col_refs.labels.names_to_column[concept]
                 )
             }

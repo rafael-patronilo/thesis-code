@@ -36,13 +36,10 @@ class EarlyStop:
     def __call__(self, trainer : 'Trainer') -> bool:
         results = trainer.get_results_dict()
         if results is None:
-            if trainer.first_epoch and self._check_patience(trainer):
-                logger.info("Loaded checkpoint already exceeded patience; skipping training")
-                return True
             return False
         value = self.objective.select_value(results)
         if self.best_result is None or self.best_epoch is None:
-            if not trainer.first_epoch:
+            if not trainer.first_session_epoch:
                 self.best_result = results
                 self.best_epoch = trainer.epoch
                 logger.info(f"Initializing early stop with objective {self.objective}: {value = }")

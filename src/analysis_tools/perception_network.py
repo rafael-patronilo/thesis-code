@@ -79,15 +79,20 @@ def evaluate_perception_network(
         perception_network : 'torch.nn.Module',
         file_manager : 'ModelFileManager',
         dataset : 'SplitDataset',
+        with_training : bool,
+        min_max_normalize : bool,
         class_labels : list[str],
         encoding_labels : Optional[list[str]] = None
     ):
-    normalizer = layers.MinMaxNormalizer.fit(perception_network, trainer.make_loader(dataset.for_training()), progress_cm=progress_cm)
-    logger.info(f"Normalizer min: {normalizer.min}")
-    logger.info(f"Normalizer max: {normalizer.max}")
-    model = layers.add_layers(perception_network, normalizer)
+    if min_max_normalize:
+        normalizer = layers.MinMaxNormalizer.fit(perception_network, trainer.make_loader(dataset.for_training()), progress_cm=progress_cm)
+        logger.info(f"Normalizer min: {normalizer.min}")
+        logger.info(f"Normalizer max: {normalizer.max}")
+        model = layers.add_layers(perception_network, normalizer)
+    else:
+        model = perception_network
     if encoding_labels is None:
-        encoding_labels = [f"E{i}" for i in range(normalizer.min.size(0))]
+        encoding_labels = [f"E{i}" for i in range(dataset.get_shape()[1][0])]
 
     crosser = MetricCrosser(
         encoding_labels,
@@ -110,17 +115,18 @@ def evaluate_perception_network(
     crosser.to(torch.get_default_device())
     encoding_crosser.to(torch.get_default_device())
 
-    logger.info("Computing cross metrics on training set")
-    evaluate_perception_network_on_set(
-        model,
-        file_manager,
-        trainer.make_loader(dataset.for_training()),
-        'train',
-        crosser,
-        encoding_crosser,
-        encoding_labels,
-        class_labels
-    )
+    if with_training:
+        logger.info("Computing cross metrics on training set")
+        evaluate_perception_network_on_set(
+            model,
+            file_manager,
+            trainer.make_loader(dataset.for_training()),
+            'train',
+            crosser,
+            encoding_crosser,
+            encoding_labels,
+            class_labels
+        )
 
     logger.info("Computing cross metrics on validation set")
     evaluate_perception_network_on_set(
