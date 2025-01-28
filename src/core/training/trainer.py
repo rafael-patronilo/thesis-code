@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 
 from torch.utils.data import DataLoader, Dataset
-from typing import Optional, Any, Callable, Literal, TypedDict, Iterable, TYPE_CHECKING
+from typing import Optional, Any, Callable, Literal, TypedDict, Iterable, TYPE_CHECKING, Required
 from core.training.metrics_recorder import MetricsRecorder, TrainingRecorder
 from core.datasets import SplitDataset
 from core.storage_management.model_file_manager import ModelFileManager
@@ -92,6 +92,13 @@ class TrainerConfig(TypedDict, total=True):
     build_script : str
     build_args : list[Any]
     build_kwargs : dict[str, Any]
+
+class ModelLoadPath(TypedDict, total=False):
+    model_name : Required[str]
+    model_path : str
+    load_checkpoint : bool
+    checkpoint_preference : str
+    checkpoint_path : str
 
 class _EvalExceptionWrapper(BaseException):
     def __init__(self, inner : BaseException):
@@ -472,6 +479,34 @@ class Trainer:
     def from_config(cls, config : TrainerConfig) -> 'Trainer':
         trainer, _ = cls._from_config_with_script(config)
         return trainer
+
+    @classmethod
+    def model_from_path(cls, load_path : ModelLoadPath) -> nn.Module:
+        model_name = load_path['model_name']
+        model_path = load_path.get('model_path', None)
+        load_checkpoint = load_path.get('load_checkpoint', True)
+        if load_checkpoint:
+            checkpoint_preference = load_path.get('checkpoint_preference', 'best')
+            checkpoint_path = load_path.get('checkpoint_path', None)
+            checkpoint_path = Path(checkpoint_path) if checkpoint_path is not None else None
+            with ModelFileManager(model_name, model_path) as file_manager:
+                trainer = Trainer.load_checkpoint(file_manager, checkpoint_path,
+                                                  prefer=checkpoint_preference)  # type: ignore
+                return trainer.model
+        else:
+            with ModelFileManager(model_name, model_path) as file_manager:
+                trainer = Trainer.from_config(file_manager.load_config())
+                trainer.init_file_manager(file_manager)
+                return trainer.model
+
+
+
+    @classmethod
+    def model_from_path_or_config(cls, config : TrainerConfig | ModelLoadPath) -> nn.Module:
+        if 'build_script' in config:
+            return cls.from_config(config).model
+        else:
+            return cls.model_from_path(config)
 
     @classmethod
     def load_checkpoint(

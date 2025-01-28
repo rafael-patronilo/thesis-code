@@ -8,7 +8,7 @@ if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
 
 DATASET = "xtrains_ontology_lvl1"
 #noinspection Duplicates
-STUDY_NAME=__name__
+STUDY_NAME=f"xtrains_{__name__.split('.')[-1]}"
 
 CONFIGS=[
     ('L16', [16]),

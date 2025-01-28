@@ -8,9 +8,6 @@ PATH=Path("data/xtrains_dataset")
 
 SEED = 42
 
-def some_class(x):
-    return x['TypeA'] == 1 or x['TypeB'] == 1 or x['TypeC'] == 1
-
 IMAGE_COLUMN = 'name'
 def name_getter(x):
     return f"{int(x):07d}.png"
@@ -28,7 +25,7 @@ CONCEPTS = [
     'AtLeast2LongWagons'
 ]
 
-CLASSES = ['TypeA', 'TypeB', 'TypeC']
+CLASSES = ['TypeA', 'TypeB', 'TypeC', 'Other']
 
 DTYPES = defaultdict(lambda : np.int32, {
     'name' : str,
@@ -64,25 +61,14 @@ DTYPES = defaultdict(lambda : np.int32, {
 
 
 register_datasets(
-    xtrains_unfiltered = CSVImageDataset(
-        csv_path = PATH.joinpath('trains.csv'),
-        images_path = PATH.joinpath('images'),
-        image_columns = [
-            (IMAGE_COLUMN, name_getter),
-        ],
-        target = CLASSES,
-        features = [IMAGE_COLUMN],
-        random_state=SEED
-    ),
     xtrains = CSVImageDataset(
-        csv_path = PATH.joinpath('trains.csv'),
+        csv_path = PATH.joinpath('extended_trains.csv'),
         images_path = PATH.joinpath('images'),
         image_columns = [
             (IMAGE_COLUMN, name_getter),
         ],
         target = CLASSES,
         features = [IMAGE_COLUMN],
-        filter = some_class,
         random_state=SEED
     ),
     xtrains_with_concepts = CSVImageDataset(
@@ -93,7 +79,6 @@ register_datasets(
         ],
         target = CLASSES + CONCEPTS,
         features = [IMAGE_COLUMN],
-        filter = some_class,
         random_state=SEED
     ),
     xtrains_concepts_only = CSVImageDataset(
@@ -104,7 +89,6 @@ register_datasets(
         ],
         target = CONCEPTS,
         features = [IMAGE_COLUMN],
-        filter = some_class,
         random_state=SEED
     )
 )

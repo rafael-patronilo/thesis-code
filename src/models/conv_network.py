@@ -18,14 +18,14 @@ def make_model(
         input_shape: Sequence[int],
         conv_layers: Sequence[int | tuple[Literal['pool'], int]],
         linear_layers: Sequence[int],
-        num_concepts: int,
+        num_outputs: int,
         hidden_activations: Literal['relu'] | tuple[Literal['leaky_relu'], float] = 'relu',
         dropout_last_layer : Optional[float] = None,
         kernel_size: int = 3
 ):
-    logger.debug(f"Creating convolutional perception network...")
+    logger.debug(f"Creating convolutional network...")
     same_padding = (kernel_size - 1) // 2
-    pn_layers: list[nn.Module] = []
+    layers: list[nn.Module] = []
 
     def hidden_activation():
         match hidden_activations:
@@ -42,13 +42,13 @@ def make_model(
     for conv_layer in conv_layers:
         match conv_layer:
             case ('pool', pool_ksize):
-                pn_layers.append(nn.MaxPool2d(pool_ksize, padding=0))
+                layers.append(nn.MaxPool2d(pool_ksize, padding=0))
                 in_shape = conv_out_shape(in_shape, pool_ksize, padding=0, stride=pool_ksize)
                 logger.debug(f"\tpool {pool_ksize}")
             case out_channels:
                 assert isinstance(out_channels, int)
-                pn_layers.append(nn.Conv2d(in_channels, out_channels, kernel_size, padding=same_padding))
-                pn_layers.append(hidden_activation())
+                layers.append(nn.Conv2d(in_channels, out_channels, kernel_size, padding=same_padding))
+                layers.append(hidden_activation())
                 in_channels = out_channels
                 logger.debug(f"\tconv")
         logger.debug(f"\t{in_channels} x {in_shape} -> ")
@@ -57,22 +57,22 @@ def make_model(
     for dim_size in in_shape:
         last_conv_total_features *= dim_size
     in_features = last_conv_total_features
-    pn_layers.append(nn.Flatten())
+    layers.append(nn.Flatten())
     logger.debug(f"\tFlatten {in_features} ->")
 
     for out_features in linear_layers:
-        pn_layers.append(nn.Linear(in_features, out_features))
-        pn_layers.append(hidden_activation())
+        layers.append(nn.Linear(in_features, out_features))
+        layers.append(hidden_activation())
         in_features = out_features
         logger.debug(f"\tLinear {out_features} ->")
 
-    logger.debug(f"\tOutput {num_concepts}->")
-    pn_layers.append(nn.Linear(in_features, num_concepts))
-    pn_layers.append(nn.Sigmoid())
+    logger.debug(f"\tOutput {num_outputs}->")
+    layers.append(nn.Linear(in_features, num_outputs))
+    layers.append(nn.Sigmoid())
     if dropout_last_layer is not None:
-        pn_layers.append(nn.Dropout(dropout_last_layer))
+        layers.append(nn.Dropout(dropout_last_layer))
 
-    return nn.Sequential(*pn_layers)
+    return nn.Sequential(*layers)
 
 
 def create_trainer(dataset_name: str, **kwargs) -> Trainer:
