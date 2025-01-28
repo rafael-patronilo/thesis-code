@@ -8,6 +8,7 @@ from . import random_dataset
 from . import SplitDataset, ColumnReferences, ColumnSubReferences
 from collections import OrderedDict
 from torch.utils.data import Dataset, Subset
+import operator
 import warnings
 
 logger = logging.getLogger(__name__)
@@ -16,23 +17,20 @@ class BinaryASTNode(abc.ABC):
     """An abstract syntax tree node for binary data generation"""
 
     @abc.abstractmethod
-    def __call__(self, generated : torch.Tensor, force_valid : bool) -> torch.Tensor:
+    def __call__(self, generated : torch.Tensor, force_valid : bool) -> bool:
         pass
 
     def is_valid(self, generated : torch.Tensor) -> bool:
         return bool(self(generated, True) == self(generated, False))
 
     def __or__(self, value : 'BinaryASTNode') -> 'BinaryASTNode':
-        return _BinaryOpNode(self, value, torch.bitwise_or, '|')
+        return _BinaryOpNode(self, value, operator.or_, '|')
     
     def __and__(self, value : 'BinaryASTNode') -> 'BinaryASTNode':
-        return _BinaryOpNode(self, value, torch.bitwise_and, '&')
-    
-    def __xor__(self, value : 'BinaryASTNode') -> 'BinaryASTNode':
-        return _BinaryOpNode(self, value, torch.bitwise_xor, '^')
+        return _BinaryOpNode(self, value, operator.and_, '&')
     
     def __invert__(self) -> 'BinaryASTNode':
-        return _UnaryOpNode(self, torch.bitwise_not, '~')
+        return _UnaryOpNode(self, operator.not_, '~')
 
 
 
@@ -43,8 +41,8 @@ class _FreeVariable(BinaryASTNode):
         self.idx = idx
         self.name = None
 
-    def __call__(self, generated : torch.Tensor, force_valid : bool) -> torch.Tensor:
-        return generated[self.idx]
+    def __call__(self, generated : torch.Tensor, force_valid : bool) -> bool:
+        return generated[self.idx].item() == 1
 
     def unnamed_repr(self):
         return f"FreeVariable({self.idx})"
@@ -67,12 +65,12 @@ class _ImpliedVariable(BinaryASTNode):
         self.idx = idx
         self.node = node
 
-    def __call__(self, generated : torch.Tensor, force_valid : bool) -> torch.Tensor:
+    def __call__(self, generated : torch.Tensor, force_valid : bool) -> bool:
         implication_value = self.node(generated, force_valid)
         if force_valid:
-            return generated[self.idx] | implication_value
+            return generated[self.idx].item() == 1 or implication_value
         else:
-            return generated[self.idx]
+            return generated[self.idx].item() == 1
 
     def __repr__(self) -> str:
         return f"ImpliedBy({self.idx}, {self.node})"
@@ -94,7 +92,7 @@ class _BinaryOpNode(BinaryASTNode):
         self.func = func
         self.symbol = symbol
     
-    def __call__(self, generated : torch.Tensor, force_valid : bool) -> torch.Tensor:
+    def __call__(self, generated : torch.Tensor, force_valid : bool) -> bool:
         return self.func(self.left(generated, force_valid), self.right(generated, force_valid))
 
     def __repr__(self) -> str:
@@ -120,7 +118,7 @@ class _UnaryOpNode(BinaryASTNode):
         self.func = func
         self.symbol = symbol
 
-    def __call__(self, generated : torch.Tensor, force_valid : bool) -> torch.Tensor:
+    def __call__(self, generated : torch.Tensor, force_valid : bool) -> bool:
         return self.func(self.child(generated, force_valid))
 
     def __repr__(self) -> str:
@@ -186,30 +184,24 @@ class BinaryGenerator:
     def generate_from_int(self, value : int, force_valid : bool = True) -> tuple[torch.Tensor, torch.Tensor]:
         bits = torch.tensor([int(x) for x in f"{value:0{self.to_generate}b}"], device='cpu')
         return self.generate_samples(bits, force_valid)
-    
-    def _attach_valid_label(self, attribution : torch.Tensor, force_valid : bool, labels):
-        valid = None
-        if self.validation_node is not None:
-            valid = self.validation_node(attribution, force_valid).item() == 1.0
-        if valid is not False and not force_valid:
-            valid = (
-                all(node.is_valid(attribution) for node in self.features) and 
-                all(node.is_valid(attribution) for node in self.labels)
-            )
-        if valid is not None:
-            if not valid and self.make_invalid_labels_0:
-                return [torch.tensor(0, device='cpu') for _ in labels] + [torch.tensor(0, device='cpu')]
-            else:
-                labels.append(torch.tensor(1 if valid else 0, device='cpu'))
-        return labels
 
     def generate_samples(self, attribution : torch.Tensor, force_valid : bool = True) -> tuple[torch.Tensor, torch.Tensor]:
-        features = torch.stack([node(attribution, force_valid) for node in self.features])
-        labels = torch.stack(self._attach_valid_label(
-            attribution,
-            force_valid,
-            [node(attribution, force_valid) for node in self.labels]
-        ))
+        features = torch.tensor([1 if node(attribution, force_valid) else 0 for node in self.features])
+        valid = None
+        if self.validation_node is not None:
+            valid = self.validation_node(attribution, force_valid)
+        if valid is not False and not force_valid:
+            valid = (
+                    all(node.is_valid(attribution) for node in self.features) and
+                    all(node.is_valid(attribution) for node in self.labels)
+            )
+        bool_labels = [node(attribution, force_valid) for node in self.labels]
+        if valid is not None:
+            if self.make_invalid_labels_0 and valid is False:
+                bool_labels = [False] * len(bool_labels)
+            bool_labels.append(valid)
+
+        labels = torch.tensor([1 if x else 0 for x in bool_labels])
         return features.to(torch.get_default_dtype()), labels.to(torch.get_default_dtype())
 
     def as_complete_dataset(

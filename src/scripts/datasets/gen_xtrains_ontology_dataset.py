@@ -75,10 +75,21 @@ def _build_ontology() -> 'BinaryGeneratorBuilder':
     type_a = war_train | empty_train
     type_b = passenger_train | long_freight_train
     type_c = rural_train | mixed_train
-    gen.labels["TypeA"] = type_a
-    gen.labels["TypeB"] = type_b
-    gen.labels["TypeC"] = type_c
-    gen.require(type_a | type_b | type_c)
+    other = ~ (type_a | type_b | type_c)
+    gen.labels.update(
+        TypeA = type_a,
+        TypeB = type_b,
+        TypeC = type_c,
+        Other = other,
+        WarTrain = war_train,
+        PassengerTrain = passenger_train,
+        FreightTrain = freigh_train,
+        RuralTrain = rural_train,
+        MixedTrain = mixed_train,
+        LongTrain = long_train,
+        EmptyTrain = empty_train,
+        LongFreightTrain = long_freight_train
+    )
 
     return gen
 

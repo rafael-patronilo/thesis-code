@@ -1,12 +1,14 @@
 from typing import TYPE_CHECKING
 from core.init import DO_SCRIPT_IMPORTS
+
 if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
     from core import datasets
     from core.studies import StudyManager
     from core.storage_management import StudyFileManager
-    from torch import nn
 
-DATASET = "xtrains_ontology"
+DATASET = "xtrains_ontology_lvl1"
+#noinspection Duplicates
+STUDY_NAME=__name__
 
 CONFIGS=[
     ('L16', [16]),
@@ -24,9 +26,10 @@ CONFIGS=[
     ('L64x3', [64, 64, 64]),
 ]
 
+#noinspection Duplicates
 def main():
     # Load study manager
-    file_manager = StudyFileManager("rn_xtrains_1")
+    file_manager = StudyFileManager(STUDY_NAME)
     dataset = datasets.get_dataset(DATASET)
     num_ouputs = dataset.get_shape()[1][0]
     study_manager = StudyManager(
@@ -41,6 +44,3 @@ def main():
         )
     experiments = [(name, [], config_of(layer_sizes=arch)) for name, arch in CONFIGS]
     study_manager.run_with_script('linear_rn', experiments)
-
-if __name__ == '__main__':
-    main()

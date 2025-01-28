@@ -14,7 +14,7 @@ import torcheval
 import torch
 
 from core.training.stop_criteria import EarlyStop
-from core.eval.objectives import Maximize
+from core.eval.objectives import Maximize, Minimize
 from core.training.metrics_recorder import TrainingRecorder
 
 
@@ -44,6 +44,7 @@ def create_trainer(layer_sizes : list[int], num_outputs : int, dataset_name : st
     )
 
     objective = Maximize('train', 'balanced_accuracy', threshold=0.01)
+    patience_objective = Minimize('train', 'loss', threshold=0.001)
 
     return Trainer(
         model=create_model(layer_sizes, num_outputs),
@@ -53,6 +54,6 @@ def create_trainer(layer_sizes : list[int], num_outputs : int, dataset_name : st
         checkpoint_each=25,
         objective=objective,
         metric_loggers=[train_metrics],
-        stop_criteria=[EarlyStop(objective, patience=20), GoalReached(1.0)],
+        stop_criteria=[EarlyStop(patience_objective, patience=20), GoalReached(1.0)],
         checkpoint_triggers=[BestMetric(objective)],
     )

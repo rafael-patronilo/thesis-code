@@ -8,7 +8,7 @@ from core.datasets import dataset_wrappers
 
 logger = logging.getLogger(__name__)
 
-CONCEPTS = [
+BASIC_CONCEPTS = [
     'PassengerCar',
     'FreightWagon',
     'EmptyWagon',
@@ -21,23 +21,53 @@ CONCEPTS = [
     'AtLeast2LongWagons'
 ]
 
-CLASSES = ['TypeA', 'TypeB', 'TypeC', 'valid']
+INTERMEDIARY_CONCEPTS = [
+    'WarTrain',
+    'PassengerTrain',
+    'FreightTrain',
+    'RuralTrain',
+    'MixedTrain',
+    'LongTrain',
+    'EmptyTrain',
+    'LongFreightTrain'
+]
+
+CLASSES = [
+    'TypeA',
+    'TypeB',
+    'TypeC',
+    'Other',
+    'valid'
+]
 PATH = Path('data/xtrains_ontology.csv')
 
 
-SEED = 170125
 COMPLETE_SPLIT = (1.0, 0.0)
 
 
-xtrains_ontology = CSVDataset(
+basics_to_intermediary = CSVDataset(
+    path = PATH,
+    target = INTERMEDIARY_CONCEPTS,
+    features = BASIC_CONCEPTS,
+    splits=COMPLETE_SPLIT
+)
+
+intermediary_to_classes = CSVDataset(
     path = PATH,
     target = CLASSES,
-    features = CONCEPTS,
-    splits=COMPLETE_SPLIT,
-    random_state=SEED
+    features = INTERMEDIARY_CONCEPTS,
+    splits=COMPLETE_SPLIT
+)
+
+basics_to_classes = CSVDataset(
+    path = PATH,
+    target = CLASSES,
+    features = BASIC_CONCEPTS,
+    splits=COMPLETE_SPLIT
 )
 
 register_datasets(
-    xtrains_ontology = xtrains_ontology,
-    xtrains_noisy_ontology = dataset_wrappers.BinaryNoiseAugmentation(xtrains_ontology),
+    xtrains_ontology = basics_to_classes,
+    xtrains_ontology_lvl1 = basics_to_intermediary,
+    xtrains_ontology_lvl2 = intermediary_to_classes
 )

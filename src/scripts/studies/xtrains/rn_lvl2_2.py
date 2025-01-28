@@ -5,26 +5,19 @@ if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
     from core import datasets
     from core.studies import StudyManager
     from core.storage_management import StudyFileManager
-    from torch import nn
 
-DATASET = "xtrains_noisy_ontology"
-STUDY_NAME="rn_xtrains_2"
+DATASET = "xtrains_ontology_lvl2"
 
 #noinspection Duplicates
-CONFIGS=[
-    ('L16', [16]),
-    ('L32', [32]),
-    ('L64', [64]),
-    ('L16x2', [16, 16]),
-    ('L16L32', [16, 32]),
-    ('L32x2', [32, 32]),
-    ('L32L64', [32, 64]),
-    ('L64x2', [64, 64]),
-    ('L16x3', [16, 16, 16]),
-    ('L16L32x2', [16, 32, 32]),
-    ('L32x3', [32, 32, 32]),
-    ('L16L32L64', [16, 32, 64]),
-    ('L64x3', [64, 64, 64]),
+STUDY_NAME= __name__
+
+CONFIGS = [
+    ('L64x3L32x2', [64, 64, 64, 32, 32]),
+    ('L64x3L32x2L16', [64, 64, 64, 32, 32, 16]),
+    ('L64x3L32x3L16', [64, 64, 64, 32, 32, 32, 16]),
+    ('L128L64x2', [128, 64, 64, 32, 16]),
+    ('L128L64x3', [128, 64, 64, 64, 32, 16]),
+    ('L128x2L64x3', [128, 128, 64, 64, 64, 32, 16]),
 ]
 
 #noinspection Duplicates
@@ -45,6 +38,3 @@ def main():
         )
     experiments = [(name, [], config_of(layer_sizes=arch)) for name, arch in CONFIGS]
     study_manager.run_with_script('linear_rn', experiments)
-
-if __name__ == '__main__':
-    main()
