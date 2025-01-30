@@ -118,6 +118,7 @@ class Trainer:
             num_loaders : int = int(os.getenv('NUM_THREADS', 4)),
             shuffle : bool = True,
             checkpoint_each : Optional[int] = 10,
+            report_each : Optional[int] = 5,
             checkpoint_triggers : Optional[list[Callable[[Any], bool]]] = None,
             stop_criteria : Optional[list[Callable[['Trainer'], bool]]] = None,
             objective : Optional[Objective] = None
@@ -130,6 +131,7 @@ class Trainer:
         self.model_file_manager : Optional[ModelFileManager] = None
         self.metric_loggers : list[MetricsRecorder] = metric_loggers
         self.train_logger = None
+        self.report_each = report_each
         _train_logger = [logger for logger in metric_loggers if isinstance(logger, TrainingRecorder)]
         if len(_train_logger) > 1:
             raise ValueError("Multiple TrainLossLoggers found")
@@ -367,6 +369,7 @@ class Trainer:
         for metric_logger in self.metric_loggers:
             record = metric_logger.log_record(self.epoch, self.model)
             self.model_file_manager.write_metrics(metric_logger.identifier, record)
+        self.model_file_manager.flush()
 
     def _do_epoch(self, epoch):
         if self.model_file_manager is None:
@@ -411,10 +414,9 @@ class Trainer:
             self._checkpoint('triggered')
         elif self.first_session_epoch:
             self.logger.info(self._metrics_str())
+        elif epoch > 0 and self.report_each is not None and epoch % self.report_each == 0:
+            self.logger.info("Periodic report:\n" + self._metrics_str())
         self.logger.info(f"Epoch {epoch} avg loss = {loss_sum / batches}\n\n\n")
-            
-        #for callback in self.callbacks:
-        #    callback(self.model, self.optimizer, self.metrics, epoch)
 
     def __train_step(self, x, y):
         self.model.train()

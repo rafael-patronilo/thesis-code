@@ -23,7 +23,7 @@ ENTRY_CONCEPTS = [
 
 RN_WITH_WEIGHTS = {
     "model_name" : "L64x2",
-    "model_path" : "storage/studies/rn_xtrains_1"
+    "model_path" : "storage/studies/xtrains_rn_1"
 }
 
 RN_WITHOUT_WEIGHTS = {
@@ -115,7 +115,7 @@ def main():
     file_manager = StudyFileManager(STUDY_NAME)
     study_manager = StudyManager(
         file_manager,
-        max_epochs=100
+        max_epochs=20
     )
 
     configs = make_configs()

@@ -1,6 +1,10 @@
+from datetime import timedelta
 from typing import TYPE_CHECKING
 from core.init import DO_SCRIPT_IMPORTS
 from pathlib import Path
+
+from core.util.progress_trackers import LogProgressContextManager
+
 if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
     import pickle
     import logging
@@ -35,9 +39,9 @@ def main():
 
     def other(row):
         return "1" if (
-                row['TypeA'] == 0 and
-                row['TypeB'] == 0 and
-                row['TypeC'] == 0
+                int(row['TypeA']) == 0 and
+                int(row['TypeB']) == 0 and
+                int(row['TypeC']) == 0
         ) else "0"
 
     def long_passenger_car(row):
@@ -47,23 +51,24 @@ def main():
             car[1]['cargo_type'] == 'circle' and car[1]['width'] > 1
             for car in config['cars'])
         return '1' if value else '0'
-
+    progress_cm = LogProgressContextManager(logger, cooldown=timedelta(seconds=30))
     with open(PATH.joinpath('extended_trains.csv'), 'x') as dest_file:
         dest_file.write(','.join(augmented_header) + '\n')
-        for line in original_csv.readlines():
-            line = line.strip('\n')
-            row = parse_row(line)
-            logger.info(f"Processing {row['name']}")
-            new_values = [
-                at_least(row, 2, 'NumberOfPassengerCars'),
-                at_least(row, 2, 'NumberOfFreightWagons'),
-                long_passenger_car(row),
-                at_least(row, 3, 'NumberOfWagons'),
-                at_least(row, 2, 'NumberOfLongWagons'),
-                other(row)
-            ]
-            new_line = line + ',' + ','.join(new_values)
-            logger.info('\t' + new_line)
-            dest_file.write(new_line + '\n')
+        samples = original_csv.readlines()
+        with progress_cm.track('Augmenting trains dataset', 'samples', len(samples)) as progress_tracker:
+            for line in samples:
+                line = line.strip('\n')
+                row = parse_row(line)
+                new_values = [
+                    at_least(row, 2, 'NumberOfPassengerCars'),
+                    at_least(row, 2, 'NumberOfFreightWagons'),
+                    long_passenger_car(row),
+                    at_least(row, 3, 'NumberOfWagons'),
+                    at_least(row, 2, 'NumberOfLongWagons'),
+                    other(row)
+                ]
+                new_line = line + ',' + ','.join(new_values)
+                progress_tracker.tick()
+                dest_file.write(new_line + '\n')
 
     original_csv.close()
