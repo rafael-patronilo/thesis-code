@@ -39,6 +39,7 @@ class ModelFileManager:
     CHECKPOINTS_DIR = "checkpoints"
     RESULTS_DIR = "results"
     LAST_CHECKPOINT = "last_checkpoint.pth"
+    TEMP_CHECKPOINT = "temp_checkpoint.pth"
     BEST_CHECKPOINT = "best_checkpoint.pth"
     METRICS_FORMAT = "metrics_{identifier}.csv"
     METRICS_DIR = ""
@@ -78,14 +79,17 @@ class ModelFileManager:
                 self.logger.warning(f"{self.path} is a symlink but points outside of {self.models_path} ({linked_path})")
 
     def __format_paths(self):
+        # noinspection Duplicates
         self.checkpoint_path = self.path.joinpath(self.CHECKPOINTS_DIR)
         self.model_file = self.path.joinpath(self.MODEL_FILE_NAME)
         self.config_file = self.path.joinpath(self.CONFIG_FILE_NAME)
         self.metrics_dest = self.path.joinpath(self.METRICS_DIR)
         self.results_dest = self.path.joinpath(self.RESULTS_DIR)
+        # noinspection Duplicates
         self.debug_dir = self.path.joinpath(self.DEBUG_DIR)
         self.last_checkpoint = self.path.joinpath(self.LAST_CHECKPOINT)
         self.best_checkpoint = self.path.joinpath(self.BEST_CHECKPOINT)
+        self.temp_checkpoint = self.path.joinpath(self.TEMP_CHECKPOINT)
         self.cache_dir = self.path.joinpath(self.CACHE_DIR)
 
     def __create_paths(self, exists_ok = False):
@@ -198,7 +202,7 @@ class ModelFileManager:
         else:
             raise FileNotFoundError(f"Config file not found at {self.config_file}")
     
-    def save_checkpoint(self, epoch : int, state_dict, abrupt : bool, is_best : bool):
+    def save_checkpoint(self, epoch : int, state_dict, abrupt : bool, is_best : bool, clear_temp : bool = True):
         self.__assert_context()
         path = self.checkpoint_path.joinpath(self.CHECKPOINT_FORMAT.format(epoch=epoch))
         if path.exists():
@@ -225,6 +229,10 @@ class ModelFileManager:
         else:
             self.logger.warning("Abrupt checkpoint, not overwriting last checkpoint")
         self.logger.info(f"Saving checkpoint at {path}")
+        if clear_temp:
+            if self.temp_checkpoint.exists():
+                self.logger.info(f"Removing temp checkpoint at {self.temp_checkpoint}")
+                self.temp_checkpoint.unlink()
 
         
 
@@ -261,11 +269,13 @@ class ModelFileManager:
         if file is not None:
             return self.load_torch_pickle(file)
         fallback_list = [
-            self.last_checkpoint,
-            self.best_checkpoint
+            self.temp_checkpoint,
+            self.last_checkpoint
         ]
-        if prefer == 'best':
-            fallback_list.reverse()
+        if prefer=='best':
+            fallback_list.insert(0, self.best_checkpoint)
+        else:
+            fallback_list.append(self.best_checkpoint)
         for file in fallback_list:
             if file.exists():
                 return self.load_torch_pickle(file)
@@ -297,3 +307,7 @@ class ModelFileManager:
             bufferer.stream.close()
         self.__metrics_bufferers.clear()
         self.__is_context = False
+
+    def save_temp_checkpoint(self, state_dict):
+        self.logger.debug(f"Saving temp checkpoint at {self.temp_checkpoint}")
+        torch.save(state_dict, self.temp_checkpoint)

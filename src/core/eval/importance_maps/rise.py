@@ -45,24 +45,26 @@ class RISE:
     def generate(
             self,
             model : nn.Module,
-            images : torch.Tensor,
-            output_index : Optional[int] = None) -> torch.Tensor:
+            images : torch.Tensor) -> torch.Tensor:
         assert images.ndim == 4, "Expected images to have shape (n_images, n_channels, height, width)"
         assert images.shape[2] == self.image_height, f"Expected images to have height {self.image_height}"
         assert images.shape[3] == self.image_width, f"Expected images to have width {self.image_width}"
         i = 0
         num_images = images.shape[0]
-        sums = torch.zeros(num_images, self.image_height, self.image_width)
+        sums : torch.Tensor | None = None
+        # sums = torch.zeros(num_images, self.image_height, self.image_width)
         with torch.no_grad():
             while i < self.n_masks:
                 batch_masks = num_images * min(self.batch_size, self.n_masks - i)
                 masks = self.mask_generator(batch_masks, self.image_height, self.image_width, self.probability)
                 masked_images = images * masks
                 output = model(masked_images)
-                if output_index is not None:
-                    output = output[:, output_index]
+                num_outputs = output.shape[1]
+                if sums is None:
+                    sums = torch.zeros(num_images, num_outputs, self.image_height, self.image_width)
                 sums += output * masks
                 i += batch_masks
+        assert sums is not None
         return sums / (self.n_masks * self.probability)
 
 

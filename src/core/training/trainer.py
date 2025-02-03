@@ -1,4 +1,5 @@
 from collections import OrderedDict
+import datetime
 import logging
 from pathlib import Path
 
@@ -74,7 +75,8 @@ type CheckpointReason = Literal[
     "error", 
     "eval_error", 
     'triggered', 
-    'periodic', 
+    'periodic',
+    'temp',
     'end'
 ]
 
@@ -317,14 +319,20 @@ class Trainer:
             )
 
     def _checkpoint(self, reason : CheckpointReason):
-        if self.first_session_epoch:
-            self.logger.warning("No training done yet, skipping checkpoint")
-            return
-        if self.epoch_checkpoint:
-            self.logger.warning("Checkpoint already saved for this epoch, skipping")
-            return
         if self.model_file_manager is None:
             raise ValueError("Model file manager not initialized")
+        is_temp = reason == 'temp'
+        if not is_temp:
+            if self.first_session_epoch:
+                self.logger.warning("No training done yet, skipping checkpoint")
+                return
+            if self.epoch_checkpoint:
+                self.logger.warning("Checkpoint already saved for this epoch, skipping")
+                return
+        state_dict = self.state_dict(reason)
+        if is_temp:
+            self.model_file_manager.save_temp_checkpoint(state_dict)
+            return
         is_abrupt = reason in ABRUPT_CHECKPOINT_REASONS
         is_best = False
         results = self.get_results_dict()
@@ -337,7 +345,6 @@ class Trainer:
                 is_best = True
             if is_best:
                 self.best_checkpoint_results = self.get_results_dict()
-        state_dict = self.state_dict(reason)
         self.model_file_manager.save_checkpoint(self.epoch, state_dict, is_abrupt, is_best)
         self.model_file_manager.flush()
         self.epoch_checkpoint = True
@@ -386,6 +393,7 @@ class Trainer:
         loss_sum = 0
         x = None
         y = None
+        start_time = datetime.datetime.now()
         try:
             loader = self.training_loader()
             with self.train_progress_cm.track(f'Epoch {epoch}', 'batches', loader) as progress_tracker:
@@ -412,10 +420,11 @@ class Trainer:
         elif any(trigger(self) for trigger in self.checkpoint_triggers):
             self.logger.info(f"Triggered checkpoint")
             self._checkpoint('triggered')
-        elif self.first_session_epoch:
-            self.logger.info(self._metrics_str())
-        elif epoch > 0 and self.report_each is not None and epoch % self.report_each == 0:
-            self.logger.info("Periodic report:\n" + self._metrics_str())
+        else:
+            if datetime.datetime.now() - start_time > timedelta(minutes=1):
+                self._checkpoint('temp')
+            if epoch > 0 and self.report_each is not None and epoch % self.report_each == 0:
+                self.logger.info("Periodic report:\n" + self._metrics_str())
         self.logger.info(f"Epoch {epoch} avg loss = {loss_sum / batches}\n\n\n")
 
     def __train_step(self, x, y):
