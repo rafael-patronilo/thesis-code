@@ -1,0 +1,5 @@
+Read Observations: 
+	__input__ Type has some ReinforcedCar
+
+Found Justifications:
+

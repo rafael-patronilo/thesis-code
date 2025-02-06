@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="Justifier">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/Justifier.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

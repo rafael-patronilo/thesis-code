@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <rdf:RDF xmlns="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#"
      xml:base="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology"
-     xmlns:owl="http://www.w3.org/2002/07/owl#"
      xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+     xmlns:owl="http://www.w3.org/2002/07/owl#"
      xmlns:xml="http://www.w3.org/XML/1998/namespace"
      xmlns:xsd="http://www.w3.org/2001/XMLSchema#"
      xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
@@ -10,10 +10,10 @@
     <owl:Ontology rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology">
         <owl:versionIRI rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology/1.3.0"/>
     </owl:Ontology>
-    
 
 
-    <!-- 
+
+    <!--
     ///////////////////////////////////////////////////////////////////////////////////////
     //
     // Object Properties
@@ -21,7 +21,7 @@
     ///////////////////////////////////////////////////////////////////////////////////////
      -->
 
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#carries -->
@@ -30,7 +30,7 @@
         <rdfs:domain rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Wagon"/>
         <rdfs:range rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Content"/>
     </owl:ObjectProperty>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#has -->
@@ -46,10 +46,10 @@
             </owl:Class>
         </rdfs:range>
     </owl:ObjectProperty>
-    
 
 
-    <!-- 
+
+    <!--
     ///////////////////////////////////////////////////////////////////////////////////////
     //
     // Data properties
@@ -57,7 +57,7 @@
     ///////////////////////////////////////////////////////////////////////////////////////
      -->
 
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#content_shape -->
@@ -124,7 +124,7 @@
             </rdfs:Datatype>
         </rdfs:range>
     </owl:DatatypeProperty>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#quantity -->
@@ -155,7 +155,7 @@
             </rdfs:Datatype>
         </rdfs:range>
     </owl:DatatypeProperty>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#roof -->
@@ -198,7 +198,7 @@
             </rdfs:Datatype>
         </rdfs:range>
     </owl:DatatypeProperty>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#size -->
@@ -235,7 +235,7 @@
             </rdfs:Datatype>
         </rdfs:range>
     </owl:DatatypeProperty>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#wagon_length -->
@@ -260,7 +260,7 @@
             </rdfs:Datatype>
         </rdfs:range>
     </owl:DatatypeProperty>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#wagon_shape -->
@@ -309,7 +309,7 @@
             </rdfs:Datatype>
         </rdfs:range>
     </owl:DatatypeProperty>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#wheel_num -->
@@ -340,7 +340,7 @@
             </rdfs:Datatype>
         </rdfs:range>
     </owl:DatatypeProperty>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#wheel_size -->
@@ -349,10 +349,10 @@
         <rdfs:domain rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Train"/>
         <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#int"/>
     </owl:DatatypeProperty>
-    
 
 
-    <!-- 
+
+    <!--
     ///////////////////////////////////////////////////////////////////////////////////////
     //
     // Classes
@@ -360,7 +360,7 @@
     ///////////////////////////////////////////////////////////////////////////////////////
      -->
 
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Content -->
@@ -406,7 +406,7 @@
         <owl:disjointWith rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Train"/>
         <owl:disjointWith rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Wagon"/>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#CosyWagon -->
@@ -414,7 +414,7 @@
     <owl:Class rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#CosyWagon">
         <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Wagon"/>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#EmptyTrain -->
@@ -443,7 +443,7 @@
             </owl:Class>
         </owl:equivalentClass>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#EmptyWagon -->
@@ -461,7 +461,7 @@
             </owl:Class>
         </owl:equivalentClass>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#FreightTrain -->
@@ -469,7 +469,7 @@
     <owl:Class rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#FreightTrain">
         <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Train"/>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#FreightWagon -->
@@ -501,7 +501,7 @@
             </owl:Class>
         </owl:equivalentClass>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#LargeWheelTrain -->
@@ -509,7 +509,7 @@
     <owl:Class rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#LargeWheelTrain">
         <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Train"/>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Locomotive -->
@@ -518,7 +518,7 @@
         <owl:disjointWith rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Train"/>
         <owl:disjointWith rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Wagon"/>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#LongFreightTrain -->
@@ -533,7 +533,7 @@
             </owl:Class>
         </owl:equivalentClass>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#LongPassengerTrain -->
@@ -548,7 +548,7 @@
             </owl:Class>
         </owl:equivalentClass>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#LongTrain -->
@@ -556,7 +556,7 @@
     <owl:Class rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#LongTrain">
         <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Train"/>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#LongWagon -->
@@ -565,7 +565,7 @@
         <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Wagon"/>
         <owl:disjointWith rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#ShortWagon"/>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#MixedTrain -->
@@ -573,7 +573,7 @@
     <owl:Class rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#MixedTrain">
         <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Train"/>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#OpenRoofCar -->
@@ -591,7 +591,7 @@
             </owl:Class>
         </owl:equivalentClass>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#PassengerCar -->
@@ -619,7 +619,7 @@
             </owl:Class>
         </owl:equivalentClass>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#PassengerTrain -->
@@ -627,7 +627,7 @@
     <owl:Class rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#PassengerTrain">
         <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Train"/>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#ReinforcedCar -->
@@ -645,7 +645,7 @@
             </owl:Class>
         </owl:equivalentClass>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#RuralTrain -->
@@ -653,7 +653,7 @@
     <owl:Class rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#RuralTrain">
         <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Train"/>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#ShortWagon -->
@@ -661,7 +661,7 @@
     <owl:Class rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#ShortWagon">
         <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Wagon"/>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Train -->
@@ -703,7 +703,7 @@
         </rdfs:subClassOf>
         <owl:disjointWith rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Wagon"/>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#TypeA -->
@@ -718,7 +718,7 @@
             </owl:Class>
         </owl:equivalentClass>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#TypeB -->
@@ -733,7 +733,7 @@
             </owl:Class>
         </owl:equivalentClass>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#TypeC -->
@@ -748,7 +748,7 @@
             </owl:Class>
         </owl:equivalentClass>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#TypeD -->
@@ -769,7 +769,7 @@
             </owl:Class>
         </owl:equivalentClass>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Wagon -->
@@ -830,7 +830,7 @@
             </owl:Restriction>
         </rdfs:subClassOf>
     </owl:Class>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#WarTrain -->
@@ -838,10 +838,10 @@
     <owl:Class rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#WarTrain">
         <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Train"/>
     </owl:Class>
-    
 
 
-    <!-- 
+
+    <!--
     ///////////////////////////////////////////////////////////////////////////////////////
     //
     // Individuals
@@ -849,13 +849,13 @@
     ///////////////////////////////////////////////////////////////////////////////////////
      -->
 
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#__input__ -->
 
     <owl:NamedIndividual rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#__input__"/>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#t -->
@@ -884,7 +884,7 @@
             </owl:Restriction>
         </rdf:type>
     </owl:NamedIndividual>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w1 -->
@@ -892,7 +892,7 @@
     <owl:NamedIndividual rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w1">
         <rdf:type rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Wagon"/>
     </owl:NamedIndividual>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w2 -->
@@ -900,7 +900,7 @@
     <owl:NamedIndividual rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w2">
         <rdf:type rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Wagon"/>
     </owl:NamedIndividual>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w3 -->
@@ -908,26 +908,23 @@
     <owl:NamedIndividual rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w3">
         <rdf:type rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#Wagon"/>
     </owl:NamedIndividual>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_EmptyWagon1 -->
 
     <owl:NamedIndividual rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_EmptyWagon1">
         <rdf:type rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#EmptyWagon"/>
-        <owl:differentFrom rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_EmptyWagon2"/>
-        <owl:differentFrom rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_EmptyWagon3"/>
     </owl:NamedIndividual>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_EmptyWagon2 -->
 
     <owl:NamedIndividual rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_EmptyWagon2">
         <rdf:type rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#EmptyWagon"/>
-        <owl:differentFrom rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_EmptyWagon3"/>
     </owl:NamedIndividual>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_EmptyWagon3 -->
@@ -935,7 +932,7 @@
     <owl:NamedIndividual rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_EmptyWagon3">
         <rdf:type rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#EmptyWagon"/>
     </owl:NamedIndividual>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_FreightWagon -->
@@ -943,37 +940,31 @@
     <owl:NamedIndividual rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_FreightWagon">
         <rdf:type rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#FreightWagon"/>
     </owl:NamedIndividual>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon1 -->
 
     <owl:NamedIndividual rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon1">
         <rdf:type rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#LongWagon"/>
-        <owl:differentFrom rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon2"/>
-        <owl:differentFrom rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon3"/>
-        <owl:differentFrom rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon4"/>
     </owl:NamedIndividual>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon2 -->
 
     <owl:NamedIndividual rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon2">
         <rdf:type rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#LongWagon"/>
-        <owl:differentFrom rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon3"/>
-        <owl:differentFrom rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon4"/>
     </owl:NamedIndividual>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon3 -->
 
     <owl:NamedIndividual rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon3">
         <rdf:type rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#LongWagon"/>
-        <owl:differentFrom rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon4"/>
     </owl:NamedIndividual>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon4 -->
@@ -981,7 +972,7 @@
     <owl:NamedIndividual rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon4">
         <rdf:type rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#LongWagon"/>
     </owl:NamedIndividual>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_PassengerCar -->
@@ -989,7 +980,7 @@
     <owl:NamedIndividual rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_PassengerCar">
         <rdf:type rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#PassengerCar"/>
     </owl:NamedIndividual>
-    
+
 
 
     <!-- http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_ReinforcedCar -->
@@ -997,10 +988,10 @@
     <owl:NamedIndividual rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_ReinforcedCar">
         <rdf:type rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#ReinforcedCar"/>
     </owl:NamedIndividual>
-    
 
 
-    <!-- 
+
+    <!--
     ///////////////////////////////////////////////////////////////////////////////////////
     //
     // General axioms
@@ -1195,9 +1186,72 @@
         <owl:hasValue rdf:datatype="http://www.w3.org/2001/XMLSchema#int">3</owl:hasValue>
         <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#LargeWheelTrain"/>
     </owl:Restriction>
+    <rdf:Description>
+        <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#AllDifferent"/>
+        <owl:distinctMembers rdf:parseType="Collection">
+            <rdf:Description rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_EmptyWagon1"/>
+            <rdf:Description rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_EmptyWagon2"/>
+        </owl:distinctMembers>
+    </rdf:Description>
+    <rdf:Description>
+        <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#AllDifferent"/>
+        <owl:distinctMembers rdf:parseType="Collection">
+            <rdf:Description rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_EmptyWagon1"/>
+            <rdf:Description rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_EmptyWagon3"/>
+        </owl:distinctMembers>
+    </rdf:Description>
+    <rdf:Description>
+        <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#AllDifferent"/>
+        <owl:distinctMembers rdf:parseType="Collection">
+            <rdf:Description rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_EmptyWagon2"/>
+            <rdf:Description rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_EmptyWagon3"/>
+        </owl:distinctMembers>
+    </rdf:Description>
+    <rdf:Description>
+        <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#AllDifferent"/>
+        <owl:distinctMembers rdf:parseType="Collection">
+            <rdf:Description rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon1"/>
+            <rdf:Description rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon2"/>
+        </owl:distinctMembers>
+    </rdf:Description>
+    <rdf:Description>
+        <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#AllDifferent"/>
+        <owl:distinctMembers rdf:parseType="Collection">
+            <rdf:Description rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon1"/>
+            <rdf:Description rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon3"/>
+        </owl:distinctMembers>
+    </rdf:Description>
+    <rdf:Description>
+        <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#AllDifferent"/>
+        <owl:distinctMembers rdf:parseType="Collection">
+            <rdf:Description rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon1"/>
+            <rdf:Description rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon4"/>
+        </owl:distinctMembers>
+    </rdf:Description>
+    <rdf:Description>
+        <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#AllDifferent"/>
+        <owl:distinctMembers rdf:parseType="Collection">
+            <rdf:Description rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon2"/>
+            <rdf:Description rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon3"/>
+        </owl:distinctMembers>
+    </rdf:Description>
+    <rdf:Description>
+        <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#AllDifferent"/>
+        <owl:distinctMembers rdf:parseType="Collection">
+            <rdf:Description rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon2"/>
+            <rdf:Description rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon4"/>
+        </owl:distinctMembers>
+    </rdf:Description>
+    <rdf:Description>
+        <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#AllDifferent"/>
+        <owl:distinctMembers rdf:parseType="Collection">
+            <rdf:Description rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon3"/>
+            <rdf:Description rdf:about="http://www.semanticweb.org/msr/ontologies/2020/4/NeuroSymTrainOntology#w_LongWagon4"/>
+        </owl:distinctMembers>
+    </rdf:Description>
 </rdf:RDF>
 
 
 
-<!-- Generated by the OWL API (version 4.5.29.2024-05-13T12:11:03Z) https://github.com/owlcs/owlapi -->
+<!-- Generated by the OWL API (version 4.2.8.20170104-2310) https://github.com/owlcs/owlapi -->
 

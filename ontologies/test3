@@ -1,0 +1,3 @@
+__input__ Type: (TypeA)
+__input__ Type: (has some PassengerCar), 0.6
+__input__ Type: (has some ReinforcedCar), 0.8

@@ -1,0 +1,3 @@
+2025-02-01 16:24:52 ERROR [org.semanticweb.owlapi.utilities.Injector:321] - No instantiation found for java.util.function.Supplier<org.semanticweb.owlapi.model.OWLOntologyLoaderConfiguration> arg0
+2025-02-01 16:24:52 ERROR [org.semanticweb.owlapi.utilities.Injector:321] - No instantiation found for java.util.function.Supplier<org.semanticweb.owlapi.model.OWLOntologyLoaderConfiguration> arg0
+2025-02-01 16:24:52 INFO [it.unife.endif.ml.bundle.utilities.BundleUtilities:329] - Probability Map computed. Size: 1
