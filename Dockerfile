@@ -1,3 +1,4 @@
+#required for running the justifier
 FROM ubuntu:24.10 as BUDDY
 RUN apt update && apt upgrade -y
 RUN apt install -y openjdk-8-jdk-headless

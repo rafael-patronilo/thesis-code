@@ -6,7 +6,9 @@ This is a modified version of the tool at https://bitbucket.org/manuelsribeiro/m
 
 # How to build
 
-`cd ..; ./docker-build` will build a docker image which includes this command line tool compiled with the required dependencies.
+Running `./docker-build` from the repository root will build a docker image which includes this command line tool 
+compiled with the required dependencies. 
+The Dockerfile at the repository root can easily be edited to build just the Justifier tool if required.
 
 
 # How to use
@@ -63,10 +65,18 @@ Output will be a json object with the following strucutre:
 }
 
 ```
+Note: 
+- In the axioms of the justification, only the observations will have the belief field.
+- The field `used_observations` has the indexes of the observations used in that justification in the order that they 
+appear in the justification. This does not necessarily correspond to the order in which they appear in the input.
+- If the observations do not entail the entailment, the field `justifications` will be an empty list.
 
-To facilitate interaction with other programs, multiple queries can be made. 
-Different query inputs/outputs are separated by an empty line.
+To facilitate interaction with other programs and skip library and ontology loading on subsequent queries, 
+multiple queries can be made without restarting the program. 
+Different query inputs/outputs are separated by an empty line between them.
 The tool answers each query live, so the output will be printed as soon as the query is processed.
+
+For more examples look in the tests directory.
 
 # Tests
 
