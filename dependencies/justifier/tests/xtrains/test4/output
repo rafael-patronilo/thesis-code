@@ -1,0 +1,115 @@
+{
+  "loaded_observations" : [ {
+    "axiom" : "__input__ Type has some FreightWagon",
+    "belief" : 0.8
+  }, {
+    "axiom" : "__input__ Type has some EmptyWagon",
+    "belief" : 0.7
+  }, {
+    "axiom" : "__input__ Type not (has some LongWagon)",
+    "belief" : 0.7
+  }, {
+    "axiom" : "__input__ Type has some PassengerCar",
+    "belief" : 0.6
+  } ],
+  "justifications" : [ {
+    "entailment" : "__input__ Type TypeC",
+    "belief" : 0.392,
+    "used_observations" : [ 0, 2, 1 ],
+    "axioms" : [ {
+      "axiom" : "__input__ Type has some FreightWagon",
+      "belief" : 0.8
+    }, {
+      "axiom" : "__input__ Type not (has some LongWagon)",
+      "belief" : 0.7
+    }, {
+      "axiom" : "__input__ Type has some EmptyWagon",
+      "belief" : 0.7
+    }, {
+      "axiom" : "(not (has some LongWagon)) and (has some EmptyWagon) and (has some \n(FreightWagon or PassengerCar)) SubClassOf RuralTrain"
+    }, {
+      "axiom" : "TypeC EquivalentTo MixedTrain or RuralTrain"
+    } ]
+  }, {
+    "entailment" : "__input__ Type TypeC",
+    "belief" : 0.336,
+    "used_observations" : [ 0, 1, 3 ],
+    "axioms" : [ {
+      "axiom" : "__input__ Type has some FreightWagon",
+      "belief" : 0.8
+    }, {
+      "axiom" : "__input__ Type has some EmptyWagon",
+      "belief" : 0.7
+    }, {
+      "axiom" : "__input__ Type has some PassengerCar",
+      "belief" : 0.6
+    }, {
+      "axiom" : "(has some EmptyWagon) and (has some FreightWagon) and (has some PassengerCar) SubClassOf MixedTrain"
+    }, {
+      "axiom" : "TypeC EquivalentTo MixedTrain or RuralTrain"
+    } ]
+  }, {
+    "entailment" : "__input__ Type TypeC",
+    "belief" : 0.294,
+    "used_observations" : [ 2, 1, 3 ],
+    "axioms" : [ {
+      "axiom" : "__input__ Type not (has some LongWagon)",
+      "belief" : 0.7
+    }, {
+      "axiom" : "__input__ Type has some EmptyWagon",
+      "belief" : 0.7
+    }, {
+      "axiom" : "__input__ Type has some PassengerCar",
+      "belief" : 0.6
+    }, {
+      "axiom" : "(not (has some LongWagon)) and (has some EmptyWagon) and (has some \n(FreightWagon or PassengerCar)) SubClassOf RuralTrain"
+    }, {
+      "axiom" : "TypeC EquivalentTo MixedTrain or RuralTrain"
+    } ]
+  } ]
+}
+
+{
+  "loaded_observations" : [ {
+    "axiom" : "__input__ Type has some EmptyWagon",
+    "belief" : 0.7
+  }, {
+    "axiom" : "__input__ Type not (has some FreightWagon)",
+    "belief" : 0.6
+  }, {
+    "axiom" : "__input__ Type not (has some PassengerCar)",
+    "belief" : 0.9
+  } ],
+  "justifications" : [ {
+    "entailment" : "__input__ Type TypeA",
+    "belief" : 0.378,
+    "used_observations" : [ 1, 2, 0 ],
+    "axioms" : [ {
+      "axiom" : "__input__ Type not (has some FreightWagon)",
+      "belief" : 0.6
+    }, {
+      "axiom" : "has Range Locomotive or Wagon"
+    }, {
+      "axiom" : "has Domain Train"
+    }, {
+      "axiom" : "FreightWagon EquivalentTo Wagon and (carries some \n(Content and (not (content_shape value \"circle\"))))"
+    }, {
+      "axiom" : "carries Range Content"
+    }, {
+      "axiom" : "__input__ Type not (has some PassengerCar)",
+      "belief" : 0.9
+    }, {
+      "axiom" : "PassengerCar EquivalentTo Wagon and (carries some \n(Content and (content_shape value \"circle\")))"
+    }, {
+      "axiom" : "__input__ Type has some EmptyWagon",
+      "belief" : 0.7
+    }, {
+      "axiom" : "EmptyWagon EquivalentTo Wagon and (carries max 0 Thing)"
+    }, {
+      "axiom" : "EmptyTrain EquivalentTo Train and (has some EmptyWagon) and (has only \n(EmptyWagon or Locomotive))"
+    }, {
+      "axiom" : "TypeA EquivalentTo EmptyTrain or WarTrain"
+    } ]
+  } ]
+}
+

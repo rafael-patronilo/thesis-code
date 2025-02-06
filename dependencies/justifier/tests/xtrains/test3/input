@@ -1,0 +1,17 @@
+__input__ Type: (TypeB)
+__input__ Type: (has some (PassengerCar and LongWagon)), 0.6
+__input__ Type: (has min 2 PassengerCar), 0.2
+__input__ Type: (has min 2 LongWagon), 0.8
+__input__ Type: (has min 3 Wagon), 0.1
+__input__ Type: (has min 2 FreightWagon), 0.6
+
+__input__ Type: (TypeA)
+__input__ Type: (has some PassengerCar), 0.2
+__input__ Type: (has some ReinforcedCar), 0.3
+
+__input__ Type: (TypeB)
+__input__ Type: (has some (PassengerCar and LongWagon)), 0.2
+__input__ Type: (has min 3 Wagon), 0.3
+__input__ Type: (has min 2 FreightWagon), 0.2
+__input__ Type: (has min 2 PassengerCar), 0.9
+__input__ Type: (has min 2 LongWagon), 0.6

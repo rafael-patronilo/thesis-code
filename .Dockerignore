@@ -6,4 +6,5 @@ debug/
 .venv/
 .vscode/
 .git/
+**/target/
 README.md

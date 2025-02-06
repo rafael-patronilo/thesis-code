@@ -1,0 +1,10 @@
+__input__ Type: (TypeC)
+__input__ Type: (has some FreightWagon), 0.8
+__input__ Type: (has some EmptyWagon), 0.7
+__input__ Type: not (has some LongWagon), 0.7
+__input__ Type: (has some PassengerCar), 0.6
+
+__input__ Type: (TypeA)
+__input__ Type: (has some EmptyWagon), 0.7
+__input__ Type: not (has some FreightWagon), 0.6
+__input__ Type: not (has some PassengerCar), 0.9

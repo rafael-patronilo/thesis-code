@@ -1,0 +1,44 @@
+{
+  "loaded_observations" : [ {
+    "axiom" : "__input__ Type has some PassengerCar",
+    "belief" : 0.2
+  }, {
+    "axiom" : "__input__ Type not (has some ReinforcedCar)",
+    "belief" : 0.3
+  } ],
+  "justifications" : [ ]
+}
+
+{
+  "loaded_observations" : [ {
+    "axiom" : "__input__ Type not (has some PassengerCar)",
+    "belief" : 0.7
+  }, {
+    "axiom" : "__input__ Type has some ReinforcedCar",
+    "belief" : 0.9
+  } ],
+  "justifications" : [ ]
+}
+
+{
+  "loaded_observations" : [ {
+    "axiom" : "__input__ Type has some PassengerCar",
+    "belief" : 0.8
+  }, {
+    "axiom" : "__input__ Type not (has some ReinforcedCar)",
+    "belief" : 0.4
+  } ],
+  "justifications" : [ ]
+}
+
+{
+  "loaded_observations" : [ {
+    "axiom" : "__input__ Type not (has some PassengerCar)",
+    "belief" : 0.1029
+  }, {
+    "axiom" : "__input__ Type has some ReinforcedCar",
+    "belief" : 0.7654
+  } ],
+  "justifications" : [ ]
+}
+

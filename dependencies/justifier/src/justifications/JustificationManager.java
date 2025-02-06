@@ -59,6 +59,8 @@ public class JustificationManager {
     private OWLOntology ontology;
     private OWLOntologyManager manager;
     private List<Explanation<OWLAxiom>> justifications;
+    private List<OWLAxiom> annotatedAxioms;
+    private static boolean guard = false;
 
     public JustificationManager(OWLOntology ontology,
                                 OWLOntologyManager manager,
@@ -66,6 +68,10 @@ public class JustificationManager {
                                 List<String> observations,
                                 int maxJustifications)
             throws InconsistentOntologyException {
+        if (guard){
+            throw new RuntimeException("Must clear last object first");
+        }
+        guard = true;
         this.ontology = ontology;
         this.manager = manager;
         this.loadEntailment(entailment);
@@ -102,12 +108,14 @@ public class JustificationManager {
     private void justify(int maxJustifications) throws InconsistentOntologyException {
         OWLDataFactory df = this.ontology.getOWLOntologyManager().getOWLDataFactory();
         new LinkedList();
+        this.annotatedAxioms = new ArrayList<>(this.observations.size());
         this.observations.forEach((observation) -> {
             OWLAxiom obsAxiom = (OWLAxiom)observation.getKey();
             OWLAnnotation probAnnotation = df.getOWLAnnotation(df.getOWLAnnotationProperty(PROB_IRI), df.getOWLLiteral(String.valueOf(observation.getValue()), ""));
             Set<OWLAnnotation> annotations = new HashSet();
             annotations.add(probAnnotation);
             obsAxiom = obsAxiom.getAnnotatedAxiom(annotations);
+            this.annotatedAxioms.add(obsAxiom);
             this.manager.addAxiom(this.ontology, obsAxiom);
         });
         OWLReasonerFactory rf = new ReasonerFactory();
@@ -206,6 +214,34 @@ public class JustificationManager {
         return annotations;
     }
 
+    private Double getBeliefValue(OWLAxiom ax){
+        Set<OWLAnnotation> beliefs = getBeliefAnnotations(ax);
+        boolean first = true;
+        Double result = null;
+        for (OWLAnnotation axiomBelief : beliefs){
+            Double axiomBeliefValue = axiomBelief.getValue().asLiteral()
+                    .transform(lit -> {
+                        if (lit.isDouble()){
+                            return lit.parseDouble();
+                        } else if (lit.isFloat()) {
+                            return (double)lit.parseFloat();
+                        } else {
+                            String toParse = lit.getLiteral();
+                            return Double.parseDouble(toParse);
+                        }
+                    }).orNull();
+            if (axiomBeliefValue != null){
+                if(first){
+                    result = axiomBeliefValue;
+                    first = false;
+                } else {
+                    System.err.println("Unexpected extra belief value " + axiomBeliefValue + " is ignored");
+                }
+            }
+        }
+        return result;
+    }
+
     public String toJSON(){
         List<Pair<Explanation<OWLAxiom>, ApproxDouble>> just = this.get_belief_degrees();
         ManchesterOWLSyntaxOWLObjectRendererImpl renderer = new ManchesterOWLSyntaxOWLObjectRendererImpl();
@@ -234,12 +270,9 @@ public class JustificationManager {
                 ObjectNode axiomObject = axioms.addObject();
                 OWLAxiom axiom = orderedAxioms.next();
                 axiomObject.put("axiom", renderer.render(axiom));
-                Set<OWLAnnotation> beliefs = getBeliefAnnotations(axiom);
-                ArrayNode beliefValues = axiomObject.putArray("belief");
-                for (OWLAnnotation axiomBelief : beliefs){
-                    double axiomBeliefValue = axiomBelief.getValue().asLiteral()
-                            .transform(OWLLiteral::parseDouble).or(Double.NaN);
-                    beliefValues.add(axiomBeliefValue);
+                Double beliefValue = getBeliefValue(axiom);
+                if (beliefValue != null){
+                    axiomObject.put("belief", beliefValue);
                 }
                 int i = 0;
                 for(Pair<OWLAxiom, Float> observation : observations){
@@ -308,6 +341,7 @@ public class JustificationManager {
 
     public List<Pair<Explanation<OWLAxiom>, ApproxDouble>> get_belief_degrees() {
         List<Pair<Explanation<OWLAxiom>, ApproxDouble>> res = new ArrayList();
+
         this.justifications.forEach((just) -> {
             BDDFactory bddFactory = BDDFactory2.init("buddy", 100, 10000);
             Map<OWLAxiom, ApproxDouble> pMap = BundleUtilities.createPMap(this.ontology, false);
@@ -315,6 +349,7 @@ public class JustificationManager {
             BDD bdd = this.buildBDD(Collections.singleton(just.getAxioms()), bddFactory, pMap, usedAxioms);
             ApproxDouble prob = BundleUtilities.probabilityOfBDD(bdd, new HashMap(), pMap, usedAxioms);
             res.add(new Pair(just, prob));
+            bddFactory.done();
         });
         res.sort((p1, p2) -> {
             return ((ApproxDouble)p2.getValue()).compareTo((ApproxDouble)p1.getValue());
@@ -324,5 +359,12 @@ public class JustificationManager {
 
     private BDD buildBDD(Set<Set<OWLAxiom>> justifications, BDDFactory bddF, Map<OWLAxiom, ApproxDouble> pMap, HashBiMap<OWLAxiom, Integer> usedAxioms) {
         return BundleUtilities.buildBDD(justifications, bddF, pMap, usedAxioms);
+    }
+
+    public void done(){
+        this.annotatedAxioms.forEach(obs ->{
+            this.manager.removeAxiom(this.ontology, obs);
+        });
+        guard = false;
     }
 }

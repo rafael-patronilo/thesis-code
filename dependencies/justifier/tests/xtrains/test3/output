@@ -1,0 +1,290 @@
+{
+  "loaded_observations" : [ {
+    "axiom" : "__input__ Type has some \n(LongWagon and PassengerCar)",
+    "belief" : 0.6
+  }, {
+    "axiom" : "__input__ Type has min 2 PassengerCar",
+    "belief" : 0.2
+  }, {
+    "axiom" : "__input__ Type has min 2 LongWagon",
+    "belief" : 0.8
+  }, {
+    "axiom" : "__input__ Type has min 3 Wagon",
+    "belief" : 0.1
+  }, {
+    "axiom" : "__input__ Type has min 2 FreightWagon",
+    "belief" : 0.6
+  } ],
+  "justifications" : [ {
+    "entailment" : "__input__ Type TypeB",
+    "belief" : 0.6,
+    "used_observations" : [ 0 ],
+    "axioms" : [ {
+      "axiom" : "__input__ Type has some \n(LongWagon and PassengerCar)",
+      "belief" : 0.6
+    }, {
+      "axiom" : "(has some \n(LongWagon and PassengerCar)) or (has min 2 PassengerCar) SubClassOf PassengerTrain"
+    }, {
+      "axiom" : "TypeB EquivalentTo LongFreightTrain or PassengerTrain"
+    } ]
+  }, {
+    "entailment" : "__input__ Type TypeB",
+    "belief" : 0.48,
+    "used_observations" : [ 2, 4 ],
+    "axioms" : [ {
+      "axiom" : "__input__ Type has min 2 LongWagon",
+      "belief" : 0.8
+    }, {
+      "axiom" : "__input__ Type has min 2 FreightWagon",
+      "belief" : 0.6
+    }, {
+      "axiom" : "has min 2 FreightWagon SubClassOf FreightTrain"
+    }, {
+      "axiom" : "LongFreightTrain EquivalentTo FreightTrain and LongTrain"
+    }, {
+      "axiom" : "(has min 2 LongWagon) or (has min 3 Wagon) SubClassOf LongTrain"
+    }, {
+      "axiom" : "TypeB EquivalentTo LongFreightTrain or PassengerTrain"
+    } ]
+  }, {
+    "entailment" : "__input__ Type TypeB",
+    "belief" : 0.36,
+    "used_observations" : [ 0, 4 ],
+    "axioms" : [ {
+      "axiom" : "__input__ Type has some \n(LongWagon and PassengerCar)",
+      "belief" : 0.6
+    }, {
+      "axiom" : "PassengerCar EquivalentTo Wagon and (carries some \n(Content and (content_shape value \"circle\")))"
+    }, {
+      "axiom" : "Wagon SubClassOf carries max 1 Thing"
+    }, {
+      "axiom" : "__input__ Type has min 2 FreightWagon",
+      "belief" : 0.6
+    }, {
+      "axiom" : "FreightWagon EquivalentTo Wagon and (carries some \n(Content and (not (content_shape value \"circle\"))))"
+    }, {
+      "axiom" : "has min 2 FreightWagon SubClassOf FreightTrain"
+    }, {
+      "axiom" : "LongFreightTrain EquivalentTo FreightTrain and LongTrain"
+    }, {
+      "axiom" : "(has min 2 LongWagon) or (has min 3 Wagon) SubClassOf LongTrain"
+    }, {
+      "axiom" : "TypeB EquivalentTo LongFreightTrain or PassengerTrain"
+    } ]
+  }, {
+    "entailment" : "__input__ Type TypeB",
+    "belief" : 0.2,
+    "used_observations" : [ 1 ],
+    "axioms" : [ {
+      "axiom" : "__input__ Type has min 2 PassengerCar",
+      "belief" : 0.2
+    }, {
+      "axiom" : "(has some \n(LongWagon and PassengerCar)) or (has min 2 PassengerCar) SubClassOf PassengerTrain"
+    }, {
+      "axiom" : "TypeB EquivalentTo LongFreightTrain or PassengerTrain"
+    } ]
+  }, {
+    "entailment" : "__input__ Type TypeB",
+    "belief" : 0.12,
+    "used_observations" : [ 1, 4 ],
+    "axioms" : [ {
+      "axiom" : "__input__ Type has min 2 PassengerCar",
+      "belief" : 0.2
+    }, {
+      "axiom" : "PassengerCar EquivalentTo Wagon and (carries some \n(Content and (content_shape value \"circle\")))"
+    }, {
+      "axiom" : "Wagon SubClassOf carries max 1 Thing"
+    }, {
+      "axiom" : "__input__ Type has min 2 FreightWagon",
+      "belief" : 0.6
+    }, {
+      "axiom" : "FreightWagon EquivalentTo Wagon and (carries some \n(Content and (not (content_shape value \"circle\"))))"
+    }, {
+      "axiom" : "has min 2 FreightWagon SubClassOf FreightTrain"
+    }, {
+      "axiom" : "LongFreightTrain EquivalentTo FreightTrain and LongTrain"
+    }, {
+      "axiom" : "(has min 2 LongWagon) or (has min 3 Wagon) SubClassOf LongTrain"
+    }, {
+      "axiom" : "TypeB EquivalentTo LongFreightTrain or PassengerTrain"
+    } ]
+  }, {
+    "entailment" : "__input__ Type TypeB",
+    "belief" : 0.06,
+    "used_observations" : [ 3, 4 ],
+    "axioms" : [ {
+      "axiom" : "__input__ Type has min 3 Wagon",
+      "belief" : 0.1
+    }, {
+      "axiom" : "__input__ Type has min 2 FreightWagon",
+      "belief" : 0.6
+    }, {
+      "axiom" : "has min 2 FreightWagon SubClassOf FreightTrain"
+    }, {
+      "axiom" : "LongFreightTrain EquivalentTo FreightTrain and LongTrain"
+    }, {
+      "axiom" : "(has min 2 LongWagon) or (has min 3 Wagon) SubClassOf LongTrain"
+    }, {
+      "axiom" : "TypeB EquivalentTo LongFreightTrain or PassengerTrain"
+    } ]
+  } ]
+}
+
+{
+  "loaded_observations" : [ {
+    "axiom" : "__input__ Type has some PassengerCar",
+    "belief" : 0.2
+  }, {
+    "axiom" : "__input__ Type has some ReinforcedCar",
+    "belief" : 0.3
+  } ],
+  "justifications" : [ {
+    "entailment" : "__input__ Type TypeA",
+    "belief" : 0.06,
+    "used_observations" : [ 0, 1 ],
+    "axioms" : [ {
+      "axiom" : "__input__ Type has some PassengerCar",
+      "belief" : 0.2
+    }, {
+      "axiom" : "__input__ Type has some ReinforcedCar",
+      "belief" : 0.3
+    }, {
+      "axiom" : "(has some PassengerCar) and (has some ReinforcedCar) SubClassOf WarTrain"
+    }, {
+      "axiom" : "TypeA EquivalentTo EmptyTrain or WarTrain"
+    } ]
+  } ]
+}
+
+{
+  "loaded_observations" : [ {
+    "axiom" : "__input__ Type has some \n(LongWagon and PassengerCar)",
+    "belief" : 0.2
+  }, {
+    "axiom" : "__input__ Type has min 3 Wagon",
+    "belief" : 0.3
+  }, {
+    "axiom" : "__input__ Type has min 2 FreightWagon",
+    "belief" : 0.2
+  }, {
+    "axiom" : "__input__ Type has min 2 PassengerCar",
+    "belief" : 0.9
+  }, {
+    "axiom" : "__input__ Type has min 2 LongWagon",
+    "belief" : 0.6
+  } ],
+  "justifications" : [ {
+    "entailment" : "__input__ Type TypeB",
+    "belief" : 0.9,
+    "used_observations" : [ 3 ],
+    "axioms" : [ {
+      "axiom" : "__input__ Type has min 2 PassengerCar",
+      "belief" : 0.9
+    }, {
+      "axiom" : "(has some \n(LongWagon and PassengerCar)) or (has min 2 PassengerCar) SubClassOf PassengerTrain"
+    }, {
+      "axiom" : "TypeB EquivalentTo LongFreightTrain or PassengerTrain"
+    } ]
+  }, {
+    "entailment" : "__input__ Type TypeB",
+    "belief" : 0.2,
+    "used_observations" : [ 0 ],
+    "axioms" : [ {
+      "axiom" : "__input__ Type has some \n(LongWagon and PassengerCar)",
+      "belief" : 0.2
+    }, {
+      "axiom" : "(has some \n(LongWagon and PassengerCar)) or (has min 2 PassengerCar) SubClassOf PassengerTrain"
+    }, {
+      "axiom" : "TypeB EquivalentTo LongFreightTrain or PassengerTrain"
+    } ]
+  }, {
+    "entailment" : "__input__ Type TypeB",
+    "belief" : 0.18,
+    "used_observations" : [ 2, 3 ],
+    "axioms" : [ {
+      "axiom" : "__input__ Type has min 2 FreightWagon",
+      "belief" : 0.2
+    }, {
+      "axiom" : "FreightWagon EquivalentTo Wagon and (carries some \n(Content and (not (content_shape value \"circle\"))))"
+    }, {
+      "axiom" : "Wagon SubClassOf carries max 1 Thing"
+    }, {
+      "axiom" : "__input__ Type has min 2 PassengerCar",
+      "belief" : 0.9
+    }, {
+      "axiom" : "PassengerCar EquivalentTo Wagon and (carries some \n(Content and (content_shape value \"circle\")))"
+    }, {
+      "axiom" : "has min 2 FreightWagon SubClassOf FreightTrain"
+    }, {
+      "axiom" : "LongFreightTrain EquivalentTo FreightTrain and LongTrain"
+    }, {
+      "axiom" : "(has min 2 LongWagon) or (has min 3 Wagon) SubClassOf LongTrain"
+    }, {
+      "axiom" : "TypeB EquivalentTo LongFreightTrain or PassengerTrain"
+    } ]
+  }, {
+    "entailment" : "__input__ Type TypeB",
+    "belief" : 0.12,
+    "used_observations" : [ 4, 2 ],
+    "axioms" : [ {
+      "axiom" : "__input__ Type has min 2 LongWagon",
+      "belief" : 0.6
+    }, {
+      "axiom" : "__input__ Type has min 2 FreightWagon",
+      "belief" : 0.2
+    }, {
+      "axiom" : "has min 2 FreightWagon SubClassOf FreightTrain"
+    }, {
+      "axiom" : "LongFreightTrain EquivalentTo FreightTrain and LongTrain"
+    }, {
+      "axiom" : "(has min 2 LongWagon) or (has min 3 Wagon) SubClassOf LongTrain"
+    }, {
+      "axiom" : "TypeB EquivalentTo LongFreightTrain or PassengerTrain"
+    } ]
+  }, {
+    "entailment" : "__input__ Type TypeB",
+    "belief" : 0.06,
+    "used_observations" : [ 1, 2 ],
+    "axioms" : [ {
+      "axiom" : "__input__ Type has min 3 Wagon",
+      "belief" : 0.3
+    }, {
+      "axiom" : "__input__ Type has min 2 FreightWagon",
+      "belief" : 0.2
+    }, {
+      "axiom" : "has min 2 FreightWagon SubClassOf FreightTrain"
+    }, {
+      "axiom" : "LongFreightTrain EquivalentTo FreightTrain and LongTrain"
+    }, {
+      "axiom" : "(has min 2 LongWagon) or (has min 3 Wagon) SubClassOf LongTrain"
+    }, {
+      "axiom" : "TypeB EquivalentTo LongFreightTrain or PassengerTrain"
+    } ]
+  }, {
+    "entailment" : "__input__ Type TypeB",
+    "belief" : 0.04,
+    "used_observations" : [ 2, 0 ],
+    "axioms" : [ {
+      "axiom" : "__input__ Type has min 2 FreightWagon",
+      "belief" : 0.2
+    }, {
+      "axiom" : "FreightWagon EquivalentTo Wagon and (carries some \n(Content and (not (content_shape value \"circle\"))))"
+    }, {
+      "axiom" : "Wagon SubClassOf carries max 1 Thing"
+    }, {
+      "axiom" : "__input__ Type has some \n(LongWagon and PassengerCar)",
+      "belief" : 0.2
+    }, {
+      "axiom" : "PassengerCar EquivalentTo Wagon and (carries some \n(Content and (content_shape value \"circle\")))"
+    }, {
+      "axiom" : "has min 2 FreightWagon SubClassOf FreightTrain"
+    }, {
+      "axiom" : "LongFreightTrain EquivalentTo FreightTrain and LongTrain"
+    }, {
+      "axiom" : "(has min 2 LongWagon) or (has min 3 Wagon) SubClassOf LongTrain"
+    }, {
+      "axiom" : "TypeB EquivalentTo LongFreightTrain or PassengerTrain"
+    } ]
+  } ]
+}
+

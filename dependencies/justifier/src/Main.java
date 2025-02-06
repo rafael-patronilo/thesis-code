@@ -9,7 +9,6 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 
-import jdk.internal.org.jline.utils.InputStreamReader;
 import justifications.JustificationManager;
 import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.OWLOntology;
@@ -27,6 +26,7 @@ public class Main {
         String json = jMan.toJSON();
         System.out.println(json);
         System.out.println();
+        jMan.done();
     }
 
     private static void justifierLoop(BufferedReader reader, OWLOntologyManager man, OWLOntology o)  throws IOException {
@@ -45,8 +45,9 @@ public class Main {
     }
 
     public static void main(String[] args) {
-        if (args.length != 3) {
-            System.out.println("Proper Usage: java program path_to_ontology_file path_to_observations_file path_to_output_file");
+        if (args.length != 1) {
+            System.out.println("Usage: java -jar Justifier.jar path_to_ontology_file\n" +
+            "See README.md for more info");
             System.exit(0);
         }
         BufferedReader inReader = new BufferedReader(new InputStreamReader(System.in));

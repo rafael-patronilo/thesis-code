@@ -1,0 +1,26 @@
+{
+  "loaded_observations" : [ {
+    "axiom" : "__input__ Type has some PassengerCar",
+    "belief" : 0.6
+  }, {
+    "axiom" : "__input__ Type has some ReinforcedCar",
+    "belief" : 0.8
+  } ],
+  "justifications" : [ {
+    "entailment" : "__input__ Type TypeA",
+    "belief" : 0.48,
+    "used_observations" : [ 0, 1 ],
+    "axioms" : [ {
+      "axiom" : "__input__ Type has some PassengerCar",
+      "belief" : 0.6
+    }, {
+      "axiom" : "__input__ Type has some ReinforcedCar",
+      "belief" : 0.8
+    }, {
+      "axiom" : "(has some PassengerCar) and (has some ReinforcedCar) SubClassOf WarTrain"
+    }, {
+      "axiom" : "TypeA EquivalentTo EmptyTrain or WarTrain"
+    } ]
+  } ]
+}
+
