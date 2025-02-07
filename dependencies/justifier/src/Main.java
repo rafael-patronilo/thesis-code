@@ -22,11 +22,21 @@ public class Main {
 
 
     private static void justifyIteration(String entailment, List<String> observations, OWLOntologyManager man, OWLOntology o) throws IOException {
-        JustificationManager jMan = new JustificationManager(o, man, entailment, observations, Integer.MAX_VALUE);
-        String json = jMan.toJSON();
-        System.out.println(json);
-        System.out.println();
-        jMan.done();
+        JustificationManager jMan = new JustificationManager(o, man, entailment, observations);
+        try {
+            jMan.justify(Integer.MAX_VALUE);
+            if (jMan.getJustifications().isEmpty()) {
+                System.out.println("{\"error\" : \"not_entailed\"}");
+            } else {
+                String json = jMan.toJSON();
+                System.out.println(json);
+                System.out.println();
+            }
+        } catch (InconsistentOntologyException e){
+            System.out.println("{\"error\" : \"inconsistent\"}");
+        } finally {
+            jMan.done();
+        }
     }
 
     private static void justifierLoop(BufferedReader reader, OWLOntologyManager man, OWLOntology o)  throws IOException {

@@ -8,6 +8,7 @@ import queue
 from pathlib import Path
 from subprocess import Popen
 import subprocess
+from sys import stdin
 import threading
 import warnings
 from concurrent.futures import Future
@@ -19,6 +20,7 @@ import logging
 
 from core.eval.justifier_wrapper.justifier_output_handler import parse_json
 from core.util.progress_trackers import ProgressTracker, NULL_PROGRESS_TRACKER
+from core.logging.stream_interceptor import WriteInterceptor
 
 logger = logging.getLogger(__name__)
 
@@ -38,14 +40,35 @@ _thread_local = _ThreadLocal()
 
 
 def _create_context(config: JustifierConfig):
+    jarfile = options.justifier_jar
+    stderr_name = f"{jarfile}.stderr"
+    stderr_logger = logger.getChild(stderr_name)
+    stderr_interceptor = WriteInterceptor(
+        stderr_name,
+        stderr_logger,
+        logging.ERROR,
+        expected=True
+    )
+    process = Popen(
+        ['java', '-jar', jarfile, str(config.ontology_file)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+    def stderr_worker():
+        stderr = process.stderr
+        assert stderr is not None
+        for line in stderr:
+            stderr_interceptor.write(line)
+        stderr_interceptor.flush()
+    threading.Thread(
+        target=stderr_worker,
+        daemon=True
+    )
+
     return JustifierContext(
-        process=Popen(
-            ['java', '-jar', options.justifier_jar, str(config.ontology_file)],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        ),
+        process=process,
         config=config
     )
 
@@ -70,7 +93,7 @@ class JustifierArgs(NamedTuple):
 
 class JustifierResult(NamedTuple):
     args : JustifierArgs
-    justifications : list[Justification]
+    justifications : list[Justification] | Literal['inconsistent', 'not_entailed']
 
 def _inject_input(context: JustifierContext, args : JustifierArgs):
     process = context.process

@@ -5,12 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="4f6d3a18-40d4-4e39-b872-e237ae551e37" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/../../src/core/eval/justifier_wrapper/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../../src/core/eval/justifier_wrapper/justifier.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../../src/core/eval/justifier_wrapper/justifier_output_handler.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../../src/core/eval/justifier_wrapper/justifier_result.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../src/core/init/global_options.py" beforeDir="false" afterPath="$PROJECT_DIR$/../../src/core/init/global_options.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/Main.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/justifications/JustificationManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/justifications/JustificationManager.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../src/core/eval/justifier_wrapper/justifier.py" beforeDir="false" afterPath="$PROJECT_DIR$/../../src/core/eval/justifier_wrapper/justifier.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../src/core/eval/justifier_wrapper/justifier_output_handler.py" beforeDir="false" afterPath="$PROJECT_DIR$/../../src/core/eval/justifier_wrapper/justifier_output_handler.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -96,7 +95,7 @@
       <option name="presentableId" value="Default" />
       <updated>1738835160985</updated>
       <workItem from="1738835162209" duration="7771000" />
-      <workItem from="1738846056107" duration="13088000" />
+      <workItem from="1738846056107" duration="17939000" />
     </task>
     <servers />
   </component>

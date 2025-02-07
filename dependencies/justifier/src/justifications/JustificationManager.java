@@ -65,8 +65,7 @@ public class JustificationManager {
     public JustificationManager(OWLOntology ontology,
                                 OWLOntologyManager manager,
                                 String entailment,
-                                List<String> observations,
-                                int maxJustifications)
+                                List<String> observations)
             throws InconsistentOntologyException {
         if (guard){
             throw new RuntimeException("Must clear last object first");
@@ -76,7 +75,6 @@ public class JustificationManager {
         this.manager = manager;
         this.loadEntailment(entailment);
         this.loadObservations(observations);
-        this.justify(maxJustifications);
     }
 
     private void loadEntailment(String entailment) {
@@ -105,7 +103,7 @@ public class JustificationManager {
         }
     }
 
-    private void justify(int maxJustifications) throws InconsistentOntologyException {
+    public void justify(int maxJustifications) throws InconsistentOntologyException {
         OWLDataFactory df = this.ontology.getOWLOntologyManager().getOWLDataFactory();
         new LinkedList();
         this.annotatedAxioms = new ArrayList<>(this.observations.size());

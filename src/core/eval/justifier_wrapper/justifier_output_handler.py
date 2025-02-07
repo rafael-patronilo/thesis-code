@@ -1,5 +1,5 @@
 import json
-from typing import TypedDict, Optional
+from typing import TypedDict, Optional, Literal
 
 from core.eval.justifier_wrapper.justifier_result import Justification, Axiom, ObservationAxiom, EntailmentAxiom
 
@@ -13,15 +13,21 @@ class JSONJustification(TypedDict):
     used_observations : list[int]
     axioms : list[JSONAxiom]
 
-class JustifierOutput(TypedDict):
+class JustifierError(TypedDict):
+    error : Literal['inconsistent', 'not_entailed']
+
+class JustifierSuccessOutput(TypedDict):
     loaded_observations : list[JSONAxiom]
     justifications : list[JSONJustification]
+
+type JustifierOutput = JustifierSuccessOutput | JustifierError
+
 
 def parse_json(
         output : str,
         original_entailment : str,
         original_concepts : list[tuple[str, float]]
-) -> list[Justification]:
+) -> list[Justification] | Literal['inconsistent', 'not_entailed']:
     parsed_json = json.loads(output)
     return parse_output(parsed_json, original_entailment, original_concepts)
 
@@ -29,7 +35,9 @@ def parse_output(
         output: JustifierOutput,
         original_entailment : str,
         original_concepts : list[tuple[str, float]]
-) -> list[Justification]:
+) -> list[Justification] | Literal['inconsistent', 'not_entailed']:
+    if 'error' in output:
+        return output['error'] # type: ignore
     json_justifications = output['justifications']
     loaded_observations = output['loaded_observations']
     justifications = []
