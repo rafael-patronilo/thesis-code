@@ -111,15 +111,20 @@ class ProgressContextManager:
         finally:
             self._exit(tracker)
 
-def null_progress_context_manager():
+def null_progress_tracker():
     class NullProgressTracker(ProgressTracker):
         def __init__(self):
             super().__init__()
         def set_progress(self, progress: float, expected_total: float | Any | None = None):
             pass
+    return NullProgressTracker()
+
+NULL_PROGRESS_TRACKER = null_progress_tracker()
+
+def null_progress_context_manager():
     class NullProgressContextManager(ProgressContextManager):
         def _enter(self, task_name : str, counter_name : str | None = None, expected_total : float | Any | None = None, **kwargs) -> ProgressTracker:
-            return NullProgressTracker()
+            return NULL_PROGRESS_TRACKER
 
         def _exit(self, tracker : ProgressTracker) -> None:
             pass

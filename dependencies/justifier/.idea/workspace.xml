@@ -5,27 +5,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="4f6d3a18-40d4-4e39-b872-e237ae551e37" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/tests/tests.sh" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/tests/xtrains/test1/input" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/tests/xtrains/test1/output" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/tests/xtrains/test2/input" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/tests/xtrains/test2/output" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../.Dockerignore" beforeDir="false" afterPath="$PROJECT_DIR$/../../.Dockerignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/../../.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/../../Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../bin/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../bin/.idea/bin.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/justifier.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../bin/.idea/libraries/Justifier.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../bin/.idea/misc.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../bin/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../bin/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../bin/Justifier.jar" beforeDir="false" afterPath="$PROJECT_DIR$/Justifier_original.jar" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Justifier.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/libraries/Justifier_original.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/core/eval/justifier_wrapper/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/core/eval/justifier_wrapper/justifier.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/core/eval/justifier_wrapper/justifier_output_handler.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/core/eval/justifier_wrapper/justifier_result.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Justifier.jar" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/Main.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/justifications/JustificationManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/justifications/JustificationManager.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../src/core/init/global_options.py" beforeDir="false" afterPath="$PROJECT_DIR$/../../src/core/init/global_options.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -111,7 +96,7 @@
       <option name="presentableId" value="Default" />
       <updated>1738835160985</updated>
       <workItem from="1738835162209" duration="7771000" />
-      <workItem from="1738846056107" duration="9415000" />
+      <workItem from="1738846056107" duration="13088000" />
     </task>
     <servers />
   </component>

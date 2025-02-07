@@ -74,6 +74,18 @@ class GlobalOptions:
         'Number of data loading processes to use')
     )
 
+
+    justifier_jar: str = field(
+        default='Justifier.jar',
+        metadata=option(str, help_=
+        'Path to the justifier jar file')
+    )
+    num_justifiers: int = field(
+        default=4,
+        metadata=option(int, help_=
+        'Number of justifier worker processes to use')
+    )
+
     preferred_device: str = field(
         default='cuda',
         metadata=option(str, help_=
