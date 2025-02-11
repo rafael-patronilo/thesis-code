@@ -41,6 +41,7 @@ class CSVImageDataset(CSVDataset):
         self.dtype = dtype
         self.global_transform : Transform = global_transform or _IDENTITY_TRANSFORM
         self.column_transforms = column_transforms or {}
+        self.skip_image_loading = False
         for column in image_columns:
             if isinstance(column, tuple):
                 col_name, path_getter = column
@@ -48,6 +49,8 @@ class CSVImageDataset(CSVDataset):
                 col_name = column
                 path_getter = lambda x: x
             def image_getter(x):
+                if self.skip_image_loading:
+                    return x
                 path : Path = self.images_path.joinpath(path_getter(x))
                 image : torch.Tensor = torchvision.io.decode_image(path) # type: ignore # (documentation claims method supports Path)
                 if self.dtype is not None:

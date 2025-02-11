@@ -3,21 +3,18 @@ from datetime import timedelta
 import torch
 from torch.utils import data as torch_data
 
-from core.storage_management import ModelFileManager
-from core.training import Trainer
 from core.util.progress_trackers import LogProgressContextManager
 import logging
 logger = logging.getLogger(__name__)
+from pathlib import Path
 
 progress_cm = LogProgressContextManager(logger, cooldown=timedelta(minutes=2))
 
 
-def analyze_dataset(trainer : 'Trainer',
-                    file_manager : 'ModelFileManager',
-                    dataset : 'torch_data.Dataset',
+def analyze_dataset(loader : 'torch_data.DataLoader',
+                    destination : 'Path',
                     dataset_description : str,
                     class_names : list[str]):
-    loader = trainer.make_loader(dataset)
     hist = torch.zeros(len(class_names), 2)
     with progress_cm.track(f'Analyzing dataset {dataset_description}', 'batches', loader) as progress_tracker:
         for _, y in loader:
@@ -41,4 +38,4 @@ def analyze_dataset(trainer : 'Trainer',
     ax.set_title(f"{dataset_description} concept histogram")
     plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
     ax.legend()
-    fig.savefig(file_manager.results_dest.joinpath(f"{dataset_description}_histogram.png"))
+    fig.savefig(destination.joinpath(f"{dataset_description}_histogram.png"))

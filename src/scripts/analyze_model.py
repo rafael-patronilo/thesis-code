@@ -1,16 +1,25 @@
-from typing import TYPE_CHECKING
+
+from pathlib import Path
+from typing import TYPE_CHECKING, Literal
 from core.init import DO_SCRIPT_IMPORTS
 from typing import NamedTuple
+
+from core.init.options_parsing import option, positional
+
+from dataclasses import dataclass, field
+
+
+
 if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
-    import sys
     from core.training import Trainer
     from core.storage_management import ModelFileManager
     from collections import OrderedDict
-    from dataclasses import dataclass
     import torch
     from torch.utils.data import DataLoader
     import logging
+
     logger = logging.getLogger(__name__)
+
 
 class Stats(NamedTuple):
     max: float
@@ -49,10 +58,33 @@ def analyze_layer_output(trainer : 'Trainer'):
     )
 
 
-def main():
-    path = sys.argv[1]
-    with ModelFileManager(path) as file_manager:
-        trainer = Trainer.load_checkpoint(file_manager)
+@dataclass
+class Options:
+    model: Path = field(
+        metadata=positional(Path, help_="The model to load")
+    )
+
+    preferred_checkpoint : str = field(default='best',
+                                       metadata=option(str, help_=
+                                       "Either 'best' or 'last'. Defaults to 'best'. "
+                                       "Specifies which checkpoint to prefer "
+                                       "during checkpoint discovery. "
+                                       "If the checkpoint option is specified, "
+                                       "this option is ignored.")
+                                       )
+
+    checkpoint : Path | None = field(default=None,
+                                metadata=option(Path, help_=
+                                "The checkpoint file to load. If not specified, "
+                                "the script will automatically decide which checkpoint to load, "
+                                "in accordance to the preferred_checkpoint option."))
+
+def main(options : Options):
+    assert options.preferred_checkpoint in ['best', 'last']
+    preferred_checkpoint: Literal['best', 'last']
+    preferred_checkpoint = options.preferred_checkpoint  # type: ignore
+    with ModelFileManager(options.model) as file_manager:
+        trainer = Trainer.load_checkpoint(file_manager, options.checkpoint, preferred_checkpoint)
         trainer.model.eval()
         with torch.no_grad():
             analyze_weights(trainer)

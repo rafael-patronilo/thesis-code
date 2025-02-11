@@ -44,7 +44,9 @@ def main(options: Options):
                                         False, SHORT_CLASSES, SHORT_CONCEPTS)
             logger.info("Perception network evaluation done")
 
-            analyze_dataset(trainer, file_manager, selected_dataset.for_training(),
+            analyze_dataset(trainer.make_loader(selected_dataset.for_training()),
+                            file_manager.results_dest,
                             'train', SHORT_CLASSES)
-            analyze_dataset(trainer, file_manager, selected_dataset.for_validation(),
+            analyze_dataset(trainer.make_loader(selected_dataset.for_validation()),
+                            file_manager.results_dest,
                             'val', SHORT_CLASSES)

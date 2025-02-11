@@ -7,4 +7,5 @@ debug/
 .vscode/
 .git/
 **/target/
+temp/
 README.md

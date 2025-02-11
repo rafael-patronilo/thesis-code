@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 module_logger = logging.getLogger(__name__)
 
 
-def _dataloader_worker_init_fn(worker_id):
+def dataloader_worker_init_fn(worker_id):
     module_logger.debug(f"Training Dataloader worker {worker_id} initialized")
     torch.set_default_device('cpu')
 
@@ -359,7 +359,7 @@ class Trainer:
             num_workers=self.num_loaders,
             shuffle=self.shuffle,
             generator=generator,
-            worker_init_fn=_dataloader_worker_init_fn,
+            worker_init_fn=dataloader_worker_init_fn,
             pin_memory=True
         )
 
