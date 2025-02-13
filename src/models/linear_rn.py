@@ -27,7 +27,7 @@ def create_model(layer_sizes : list[int], num_outputs : int) -> nn.Module:
     layers.append(nn.Sigmoid())
     return nn.Sequential(*layers)
 
-def create_trainer(layer_sizes : list[int], num_outputs : int, dataset_name : str) -> Trainer:
+def create_trainer(layer_sizes : list[int], num_outputs : int, dataset_name : str, patience : int = 20) -> Trainer:
     dataset = datasets.get_dataset(dataset_name)
     metrics_per_class = {
         'balanced_accuracy': metric_wrappers.to_int(core.eval.metrics.BinaryBalancedAccuracy),
@@ -54,6 +54,6 @@ def create_trainer(layer_sizes : list[int], num_outputs : int, dataset_name : st
         checkpoint_each=25,
         objective=objective,
         metric_loggers=[train_metrics],
-        stop_criteria=[EarlyStop(patience_objective, patience=20), GoalReached(1.0)],
+        stop_criteria=[EarlyStop(patience_objective, patience=patience), GoalReached(1.0)],
         checkpoint_triggers=[BestMetric(objective)],
     )

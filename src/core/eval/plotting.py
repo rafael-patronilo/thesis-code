@@ -19,15 +19,15 @@ class CrossBinaryHistogram:
             self, 
             preds : list[str], 
             trues : list[str],
-            bins : int = 100, 
-            min : float = 0.0, 
-            max : float = 1.0
+            bins : int = 100,
+            min_value : float = 0.0,
+            max_value : float = 1.0
         ) -> None:
         self.preds = preds
         self.trues = trues
-        self.max = max
-        self.min = min
-        self.size = max - min
+        self.max = max_value
+        self.min = min_value
+        self.size = max_value - min_value
         self.bins = bins
         self.histogram = torch.zeros(
             len(self.preds),
@@ -61,7 +61,11 @@ class CrossBinaryHistogram:
 
     
 
-    def create_figure(self, mode : Literal['stacked', 'overlayed']='stacked', args : 'CreateFigureArgs' = CreateFigureArgs()) -> 'Figure':
+    def create_figure(
+            self,
+            mode : Literal['stacked', 'overlayed']='stacked',
+            args : 'CreateFigureArgs' = CreateFigureArgs()
+    ) -> 'Figure':
         import matplotlib.pyplot as plt
         fig : 'Figure'
         axes : list[list['Axes']]

@@ -5,9 +5,12 @@ import pandas as pd
 import torch
 from torch.utils import data as torch_data
 from torcheval import metrics
+from torcheval.metrics.classification import BinaryRecall
 
 from core.datasets import SplitDataset
-from core.eval.metrics import PearsonCorrelationCoefficient, metric_wrappers as metric_wrappers, BinaryBalancedAccuracy
+from core.eval.metrics import PearsonCorrelationCoefficient, \
+    metric_wrappers as metric_wrappers, BinaryBalancedAccuracy, \
+    BinarySpecificity
 
 from core.eval.metrics_crosser import MetricCrosser
 from core.eval.plotting import CrossBinaryHistogram
@@ -101,6 +104,10 @@ def evaluate_perception_network(
             'correlation': PearsonCorrelationCoefficient,
             'balanced_accuracy': lambda: metric_wrappers.ToDtype(
                 BinaryBalancedAccuracy(), torch.int32, apply_to_pred=False),
+            'recall' : lambda : metric_wrappers.ToDtype(
+                BinaryRecall(), torch.int32, apply_to_pred=False),
+            'specificity' : lambda : metric_wrappers.ToDtype(
+                BinarySpecificity(), torch.int32, apply_to_pred=False),
             'auc': metrics.BinaryAUROC,
         }
     )

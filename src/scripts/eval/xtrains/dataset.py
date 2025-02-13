@@ -3,6 +3,8 @@ from math import log
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from torcheval.metrics import BinaryRecall
+
 from core.init import DO_SCRIPT_IMPORTS
 
 from core.init.options_parsing import option
@@ -14,7 +16,8 @@ if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
     from analysis_tools.xtrains_utils import CLASSES, SHORT_CLASSES, SHORT_CONCEPTS, log_short_class_correspondence
     import torch
     from core.datasets import get_dataset
-    from core.eval.metrics import BinaryBalancedAccuracy, metric_wrappers, PearsonCorrelationCoefficient
+    from core.eval.metrics import BinaryBalancedAccuracy, metric_wrappers, PearsonCorrelationCoefficient, \
+        BinarySpecificity
 
     from core.eval.metrics_crosser import MetricCrosser
     from torch.utils.data import DataLoader
@@ -51,6 +54,7 @@ def cross_classes(
     with progress_cm.track('Cross class evaluation', 'batches', loader) as progress_tracker:
         for _, y in loader:
             crosser.update(y, y)
+            progress_tracker.tick(y.shape[0])
     logger.info("Computing cross class metrics...")
     for k, v in crosser.compute().items():
         v.to_csv(destination.joinpath(f'{k}_correlation.csv'))
@@ -78,7 +82,11 @@ def main(options: Options):
         {
             'correlation': PearsonCorrelationCoefficient,
             'balanced_accuracy': lambda: metric_wrappers.ToDtype(
-                BinaryBalancedAccuracy(), torch.int32, apply_to_pred=False)
+                BinaryBalancedAccuracy(), torch.int32, apply_to_pred=False),
+            'recall': lambda: metric_wrappers.ToDtype(
+                BinaryRecall(), torch.int32, apply_to_pred=False),
+            'specificity': lambda: metric_wrappers.ToDtype(
+                BinarySpecificity(), torch.int32, apply_to_pred=False),
         }
     )
 

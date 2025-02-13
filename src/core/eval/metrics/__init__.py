@@ -91,6 +91,27 @@ class BinaryBalancedAccuracy(BinaryConfusionMatrix):
         result = (specificity + recall) / 2
         return result
 
+class BinaryBalancedSpecificity(BinaryConfusionMatrix):
+    def __init__(self):
+        assert torcheval.version.__version__ == '0.0.7', "confusion matrix order may have been changed: https://github.com/pytorch/torcheval/issues/183"
+        super().__init__()
+
+    def update(
+            self, input: torch.Tensor, target: torch.Tensor
+    ):
+        super().update(input, target)
+        return self
+
+    def compute(self):
+        cm = super().compute()
+        # docs are wrong: https://github.com/pytorch/torcheval/issues/183
+        tn = cm[0, 0]
+        fp = cm[0, 1]
+        #fn = cm[1, 0]
+        #tp = cm[1, 1]
+        specificity = tn / (tn + fp)
+        return specificity
+
 class BinarySpecificity(BinaryConfusionMatrix):
     def __init__(self):
         assert torcheval.version.__version__ == '0.0.7', "confusion matrix order may have been changed: https://github.com/pytorch/torcheval/issues/183"
