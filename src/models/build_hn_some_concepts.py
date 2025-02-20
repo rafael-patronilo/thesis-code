@@ -76,10 +76,14 @@ def create_model(
         output_includes_concepts=True
     )
 
-def select_sub_samples(total_samples : int, sub_samples : int, seed : int) -> set[int]:
+def sub_sample_order(total_samples : int, seed : int) -> np.ndarray:
     rng = np.random.default_rng(seed)
     order = np.arange(total_samples)
     rng.shuffle(order)
+    return order
+
+def select_sub_samples(total_samples : int, sub_samples : int, seed : int) -> set[int]:
+    order = sub_sample_order(total_samples, seed)
     return set(order[:sub_samples])
 
 class SomeConceptsDatasetWrapper(Dataset):

@@ -3,13 +3,15 @@
 from typing import TYPE_CHECKING
 
 from core.init import DO_SCRIPT_IMPORTS
+from src.models.build_hn_some_concepts import sub_sample_order
 if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
     from core.studies import StudyManager
     from core.storage_management import StudyFileManager
+    from core import datasets
 
 STUDY_NAME=f"xtrains_{__name__.split('.')[-1]}"
 
-DATASET_NAME = "xtrains"
+DATASET_NAME = "xtrains_with_concepts"
 ENTRY_CONCEPTS = [
     "PassengerCar",
     "FreightWagon",
@@ -101,12 +103,32 @@ def make_configs():
                                 )))
     return configs
 
+def save_sub_samples(file_manager : 'StudyFileManager'):
+    dest_file = file_manager.path.joinpath('sub_samples.csv')
+    if dest_file.exists():
+        return
+    dataset = datasets.get_dataset(DATASET_NAME)
+    dataset.skip_image_loading = True # type: ignore
+    training_set = datasets.get_dataset(DATASET_NAME).for_training()
+    sub_samples = sub_sample_order(
+        len(training_set), #type: ignore
+        SAMPLE_SELECTION_SEED)
+    col_names = ['idx', 'img'] + dataset.get_column_references().labels.columns_to_names
+    with open(dest_file, 'w') as f:
+        f.write(','.join(col_names))
+        for idx, sample in enumerate(sub_samples):
+            x, y = training_set[sample]
+            f.write(','.join([idx, x] + [str(y[i].item()) for i in range(len(y))]))
+    dataset.skip_image_loading = False  # type: ignore
+
+
 def main():
     # Load study manager
     file_manager = StudyFileManager(STUDY_NAME)
+    save_sub_samples(file_manager)
     study_manager = StudyManager(
         file_manager,
-        max_epochs=20
+        max_epochs=5
     )
 
     configs = make_configs()
