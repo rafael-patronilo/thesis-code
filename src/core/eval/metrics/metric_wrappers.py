@@ -140,7 +140,7 @@ class SelectCol(MetricWrapper):
     @classmethod
     def col_wise(
             cls, 
-            dataset_or_label_names : 'TorchDataset | SplitDataset | list[str]',
+            dataset_or_label_names : 'TorchDataset | SplitDataset | list[str] | list[str|None]',
             metrics:dict[str, Callable[[],Metric]], 
             reduction : Literal['flatten_first', 'min'] | None = 'flatten_first',
             out_dict : dict[str, Metric] | None = None
@@ -160,6 +160,8 @@ class SelectCol(MetricWrapper):
         for name, metric_factory in metrics.items():
             to_reduce = []
             for label_idx, label_name in enumerate(label_names):
+                if label_name is None:
+                    continue
                 metric = cls(metric_factory(), label_idx)
                 result[f"{name}_{label_name}"] = metric
                 to_reduce.append(SkipUpdate(metric))

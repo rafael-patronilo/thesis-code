@@ -156,7 +156,6 @@ class RISE:
         num_images = images.shape[0]
         sums : torch.Tensor | None = None
         mask_sums : torch.Tensor | None = None
-        progress_tracker.set_progress(0, self.n_masks)
         with torch.no_grad():
             while i < self.n_masks:
                 batch_masks = min(self.batch_size, self.n_masks - i)

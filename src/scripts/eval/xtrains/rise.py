@@ -36,8 +36,11 @@ IMAGES=[
 class Options:
     model_name: str = field(
         metadata=positional(str, help_="Name of the model to explain"))
-    num_images : int = field(
-        default=64, metadata=option(int, help_="Number of images to explain"))
+    image_batch_size : int = field(
+        default=16, metadata=option(int, help_="Number of images to explain per batch"))
+    image_batches : int = field(
+        default=4, metadata=option(int, help_="Number of batches of images to explain")
+    )
     seed : int = field(
         default=110225,
         metadata=option(int, help_="Random seed for image selection"))
@@ -47,10 +50,41 @@ class Options:
         metadata=option(int, help_="Number of masks to generate"))
     mask_p : float = field(default=0.5,
         metadata=option(float, help_="Probability of a cell not being masked"))
-    overlay_alpha : float = field(default=0.75,
+    overlay_alpha : float = field(default=0.5,
         metadata=option(float, help_="Alpha value for the overlay"))
     colormap : str = field(default='plasma',
         metadata=option(str, help_="Colormap to use for the heatmap"))
+
+def save_images_and_preds(indices, images, labels,
+                          perception_network, hybrid_network,
+                          original_images_path, preds_path):
+    for i, img_idx in enumerate(indices):
+        image = images[i]
+        img_path = original_images_path.joinpath(f'{img_idx}.png')
+        torchvision.utils.save_image(image, img_path)
+
+    pred_concepts = perception_network(images)
+    pred_classes = hybrid_network(images)
+    results = pandas.DataFrame(
+        index=indices,
+        data=torch.hstack((labels, pred_concepts, pred_classes)).numpy(force=True)
+    )
+    results.to_csv(preds_path,
+                   mode='a', header=False, index=True)
+
+
+def save_maps(options : Options, images, maps, dest_path):
+    for output in range(maps.shape[1]):
+        cls = CLASSES[output]
+        cls_path = dest_path.joinpath(cls)
+        cls_path.mkdir(parents=True, exist_ok=True)
+        overlay = overlay_heatmaps(images, maps[:, [output]],
+                                   alpha=options.overlay_alpha,
+                                   colormap=options.colormap)
+        for i in range(maps.shape[0]):
+            image_path = cls_path.joinpath(f'{i}.png')
+            logger.info(f"Saving importance map for image {i} for class {cls} to {image_path}")
+            torchvision.utils.save_image(overlay[i], image_path)
 
 def main(options: Options):
     log_short_class_correspondence(logger)
@@ -67,56 +101,45 @@ def main(options: Options):
             selected_dataset = dataset_wrappers.SelectCols(dataset, select_y=label_indices)
 
             dest_path = file_manager.results_dest.joinpath('rise')
+            preds_file = dest_path.joinpath('predictions.csv')
+            preds_file.write_text(
+                ','.join(['image'] +
+                    [f'true_{c}' for c in CLASSES] +
+                    [f'pred_{c}' for c in CLASSES] +
+                    ['other', 'valid']
+                ) + '\n')
 
-            logger.info("Selecting samples")
+            image_batch_size = options.image_batch_size
+            batch = 0
+
             rng = torch.Generator(device=torch.get_default_device())
             rng.manual_seed(options.seed)
             dataloader = DataLoader(
                 selected_dataset.for_validation(),
-                batch_size=options.num_images,
+                batch_size=image_batch_size,
                 shuffle=True,
                 generator=rng
             )
-            samples = next(iter(dataloader))
-            images = samples[0].to(torch.get_default_device())
-            labels = samples[1].to(torch.get_default_device())
             original_images_path = dest_path.joinpath('original')
             original_images_path.mkdir(parents=True, exist_ok=True)
-            for i in range(options.num_images):
-                image = images[i]
-                img_path = original_images_path.joinpath(f'{i}.png')
-                logger.info(f"Saving image {i} to {img_path}")
-                torchvision.utils.save_image(image, img_path)
-
-            logger.info("Computing predictions")
-            pred_concepts = perception_network(images)
-            pred_classes = hybrid_network(images)
-            results = pandas.DataFrame(
-                index=range(options.num_images),
-                columns=pandas.Index([f'true_{c}' for c in CLASSES] + [f'pred_{c}' for c in CLASSES] + ['other', 'valid']),
-                data=torch.hstack((labels, pred_concepts, pred_classes)).numpy(force=True)
-            )
-            results.to_csv(dest_path.joinpath('predictions.csv'))
-            logger.info(f"Saved predictions to {dest_path.joinpath('predictions.csv')}")
-
-            logger.info("Computing RISE importance maps")
-
             rise = RISE(
                 mask_cell_size=options.mask_cell_size,
                 n_masks=options.num_masks,
                 probability=options.mask_p,
             )
-            with progress_cm.track('Rise generation', 'masks') as progress_tracker:
-                masks = rise.generate(
-                    perception_network, images, progress_tracker=progress_tracker)
-            for output in range(masks.shape[1]):
-                cls = CLASSES[output]
-                cls_path = dest_path.joinpath(cls)
-                cls_path.mkdir(parents=True, exist_ok=True)
-                overlay = overlay_heatmaps(images, masks[:, [output]],
-                                           alpha=options.overlay_alpha,
-                                           colormap=options.colormap)
-                for i in range(masks.shape[0]):
-                    image_path = cls_path.joinpath(f'{i}.png')
-                    logger.info(f"Saving importance map for image {i} for class {cls} to {image_path}")
-                    torchvision.utils.save_image(overlay[i], image_path)
+            batch = 0
+            with progress_cm.track('Generating importance maps',
+                                   'masks', options.image_batches * options.num_masks) as progress_tracker:
+                for images, labels in dataloader:
+                    if batch >= options.image_batches:
+                        break
+                    first_image = batch * image_batch_size
+                    indices = range(first_image, first_image + image_batch_size)
+                    save_images_and_preds(indices, images, labels,
+                                          perception_network, hybrid_network,
+                                          original_images_path, preds_file)
+                    maps = rise.generate(
+                        perception_network, images, progress_tracker=progress_tracker)
+                    save_maps(options, images, maps, dest_path)
+
+

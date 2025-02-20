@@ -34,6 +34,8 @@ def evaluate_perception_network_on_set(
         class_labels : list[str]
         ):
     histogram = CrossBinaryHistogram(encoding_labels, class_labels)
+    pred_histogram = torch.zeros(len(encoding_labels), 2)
+    total_preds = 0
 
     crosser.reset()
     encoding_crosser.reset()
@@ -45,11 +47,18 @@ def evaluate_perception_network_on_set(
             crosser.update(z, y)
             encoding_crosser.update(z, z)
             histogram.update(z, y)
+            pred_histogram += torch.where(
+                (z > 0.5).unsqueeze(-1),
+                torch.tensor([0, 1], device=z.device),
+                torch.tensor([1, 0], device=z.device)
+            ).sum(dim=0)
+            total_preds += z.shape[0]
             progress_tracker.tick()
     results = crosser.compute()
     encoding_results = encoding_crosser.compute()
     results_path = file_manager.results_dest.joinpath(f"concept_cross_metrics").joinpath(dataset_description)
     results_path.mkdir(parents=True, exist_ok=True)
+
     for metric, result in results.items():
         logger.info(f"{dataset_description} {metric} results:\n{result}")
         dest_file = results_path.joinpath(f"{metric}.csv")
@@ -64,6 +73,7 @@ def evaluate_perception_network_on_set(
         summarized.loc['min'] = result.min()
         summarized.loc['min_encoding'] = result.idxmin()
         summarized.to_csv(results_path.joinpath(f"{metric}_summarized.csv"))
+
     encoding_results_path = results_path.joinpath("encoding")
     encoding_results_path.mkdir(parents=True, exist_ok=True)
     for metric, result in encoding_results.items():
@@ -71,6 +81,14 @@ def evaluate_perception_network_on_set(
         logger.info(f"Saving {metric} encoding results to {dest_file}")
         logger.info(f"Abs max of {metric}:\n {result.abs().max()}")
         result.to_csv(dest_file)
+
+    pd_pred_hist = pd.DataFrame(
+        pred_histogram.numpy(force=True),
+        index=pd.Index(encoding_labels),
+        columns=pd.Index(['negative', 'positive'])
+    )
+    pd_pred_hist.to_csv(results_path.joinpath("pred_histogram.csv"))
+    (pd_pred_hist / total_preds).to_csv(results_path.joinpath("pred_densities.csv"))
 
     torch.save(histogram.histogram, results_path.joinpath("histogram.pt"))
     histogram.create_figure(mode='overlayed').savefig(results_path.joinpath("densities_overlayed.png"))

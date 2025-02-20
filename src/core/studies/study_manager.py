@@ -113,10 +113,7 @@ class StudyManager:
         self.run(generator)
 
     def run(self, config_generator : Iterable[tuple[str, TrainerConfig]]):
-        estimated_total = None
-        if isinstance(config_generator, Sized):
-            estimated_total = len(config_generator)
-        with experiments_progress_cm.track(self.name, 'experiments', estimated_total) as progress:
+        with experiments_progress_cm.track(self.name, 'experiments', config_generator) as progress:
             for experiment_name, details in config_generator:
                 if self.stop:
                     self.logger.info("Goal reached, stopping further experiments")

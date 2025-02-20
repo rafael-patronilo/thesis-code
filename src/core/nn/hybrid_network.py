@@ -7,16 +7,20 @@ class HybridNetwork(NNModule):
     def __init__(
             self,
             perception_network: NNModule,
-            reasoning_network : NNModule
+            reasoning_network : NNModule,
+            output_includes_concepts : bool = False
     ):
         super(HybridNetwork, self).__init__()
         self.perception_network = perception_network
         self.reasoning_network = reasoning_network
+        self.output_includes_concepts = output_includes_concepts
     
     def forward(self, x):
-        x = self.perception_network(x)
-        x = self.reasoning_network(x)
-        return x
+        concepts = self.perception_network(x)
+        classes = self.reasoning_network(concepts)
+        if self.output_includes_concepts:
+            return torch.hstack((concepts, classes))
+        return classes
 
     def parameters(self, recurse: bool = True, perception_only : bool = True):
         if perception_only:
