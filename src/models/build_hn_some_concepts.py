@@ -19,6 +19,9 @@ import numpy as np
 from torch.utils.data import Dataset
 
 from core.nn.loss_wrappers import WeightedTarget
+from core.datasets.dataset_wrappers import SelectCols
+from core.eval.objectives import Maximize
+from core.training.checkpoint_triggers.best_metric import BestMetric
 
 
 logger = logging.getLogger(__name__)
@@ -100,8 +103,11 @@ class SomeConceptsDatasetWrapper(Dataset):
         self.class_indices = class_indices
         self.concept_indices = concept_indices
         self.concept_samples = concept_samples
-        self.class_weights = class_weights or torch.zeros(len(class_indices) + 1)
-        self.concept_weights = concept_weights or torch.zeros(len(concept_indices))
+        self.class_weights = class_weights if class_weights is not None else torch.ones(len(class_indices) + 1)
+        self.concept_weights = concept_weights if concept_weights is not None else torch.ones(len(concept_indices))
+        # Weight tensors must be in the cpu because of multiprocessing dataloaders
+        self.class_weights = self.class_weights.cpu()
+        self.concept_weights = self.concept_weights.cpu()
 
     def __getitem__(self, index):
         x, y = self.inner[index]
@@ -192,7 +198,7 @@ def create_trainer(
     val_metrics = MetricsRecorder(
         identifier='val',
         metric_functions=metric_functions(True),
-        dataset=dataset.for_validation
+        dataset=SelectCols(dataset, select_y=concept_indices + class_indices).for_validation
     )
     train_metrics = TrainingRecorder(
         metric_functions=metric_functions(False)
@@ -200,6 +206,7 @@ def create_trainer(
     metric_recorders = [train_metrics, val_metrics]
 
     model = create_model(len(concepts), **kwargs)
+    objective = Maximize('val', 'balanced_accuracy', threshold=0.01)
 
     def optimizer(_) -> torch.optim.Optimizer:
         pn = model.perception_network
@@ -221,5 +228,7 @@ def create_trainer(
         optimizer=optimizer,
         training_set=training_set,
         metric_loggers=metric_recorders,
+        objective=objective,
+        checkpoint_triggers=[BestMetric(objective)],
         batch_size=64
     )

@@ -3,9 +3,10 @@
 from typing import TYPE_CHECKING
 
 from core.init import DO_SCRIPT_IMPORTS
-from src.models.build_hn_some_concepts import sub_sample_order
+
 if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
     from core.studies import StudyManager
+    from models.build_hn_some_concepts import sub_sample_order
     from core.storage_management import StudyFileManager
     from core import datasets
 
@@ -23,6 +24,12 @@ ENTRY_CONCEPTS = [
     "AtLeast2FreightWagons",
     "AtLeast3Wagons",
     "AtLeast2LongWagons"
+]
+CLASSES = [
+    "TypeA",
+    "TypeB",
+    "TypeC",
+    "Other"
 ]
 
 RN_WITH_WEIGHTS = {
@@ -47,7 +54,7 @@ SAMPLE_SELECTION_SEED = 1410951
 def make_config(num_samples_with_concepts, rn_config, pn_kwargs, extra_kwargs):
     kwargs = {
         "dataset_name": DATASET_NAME,
-        "concept_dataset_name": "xtrains_concepts_only",
+        "classes" : CLASSES,
         "concepts": ENTRY_CONCEPTS,
         "pre_trained_learning_rate" : 0.001,
         "untrained_learning_rate" : 0.001,
@@ -112,13 +119,14 @@ def save_sub_samples(file_manager : 'StudyFileManager'):
     training_set = datasets.get_dataset(DATASET_NAME).for_training()
     sub_samples = sub_sample_order(
         len(training_set), #type: ignore
-        SAMPLE_SELECTION_SEED)
+        SAMPLE_SELECTION_SEED
+    )
     col_names = ['idx', 'img'] + dataset.get_column_references().labels.columns_to_names
     with open(dest_file, 'w') as f:
-        f.write(','.join(col_names))
+        f.write(','.join(col_names) + '\n')
         for idx, sample in enumerate(sub_samples):
             x, y = training_set[sample]
-            f.write(','.join([idx, x] + [str(y[i].item()) for i in range(len(y))]))
+            f.write(','.join([str(idx), str(x)] + [str(col) for col in y.tolist()]) + '\n')
     dataset.skip_image_loading = False  # type: ignore
 
 
