@@ -461,7 +461,7 @@ class Trainer:
                 elif hasattr(v, 'dataset'):
                     fields.append(f"{k} = {v.dataset}")
                 else:
-                    fields.append(f"{k} = {v.__class__.__name__}")
+                    fields.append(f"{k} = {v}")
                 continue
             fields.append(f"{k} = {v}")
         return f"Trainer(\n{',\n'.join(fields)}\n)"
