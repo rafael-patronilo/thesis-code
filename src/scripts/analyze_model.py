@@ -2,7 +2,6 @@
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
-from pandas.compat.pyarrow import pa
 from core.init import DO_SCRIPT_IMPORTS
 from typing import NamedTuple
 
