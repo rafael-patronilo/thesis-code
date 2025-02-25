@@ -245,7 +245,7 @@ class MetricsRecorder:
         return record
 
     def __repr__(self):
-        return f"MetricsLogger({self.identifier}, metrics=[{self.ordered_metrics}])"
+        return f"MetricsLogger({self.identifier}, metrics=[{self.metrics_header}])"
 
 class _MeanLoss(Metric):
     def update(self: TSelf, *_: Any, **__: Any) -> TSelf:

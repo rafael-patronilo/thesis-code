@@ -62,7 +62,7 @@ def make_config(num_samples_with_concepts, rn_config, pn_kwargs, extra_kwargs):
         "perception_network_config" : make_pn_config(pn_kwargs),
         "sample_selection_seed" : SAMPLE_SELECTION_SEED,
         "num_samples_with_concepts" : num_samples_with_concepts,
-        "activation" : 'sigmoid',
+        "activation" : 'relu',
         **extra_kwargs
     }
     return kwargs

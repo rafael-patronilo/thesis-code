@@ -6,7 +6,7 @@ from core.training import Trainer, MetricsRecorder, TrainingRecorder
 from core.nn.hybrid_network import HybridNetwork
 from core.nn import PartiallyPretrained
 import torch
-from torcheval.metrics import Mean
+from torcheval.metrics import Mean, Metric
 from torch import nn
 
 from core.nn.autoencoder import AutoEncoder
@@ -174,14 +174,20 @@ def create_trainer(
         class_weights = weights
     )
 
-    def metric_functions(include_concepts : bool):
+    def metric_functions(*, include_concepts : bool, target_has_weights : bool):
+        def target_selector(x : Metric):
+            if not target_has_weights:
+                return metric_wrappers.SelectCol(x, 1, apply_to_preds=False)
+            else:
+                return x
+
         metric_functions_ : dict = {
             'elapsed': metrics.Elapsed(),
-            'mean_valid': metric_wrappers.SelectCol(metric_wrappers.Unary(Mean()), valid_col_idx)
+            'mean_valid': target_selector(metric_wrappers.SelectCol(metric_wrappers.Unary(Mean()), valid_col_idx))
         }
         per_col_metrics = {
-            'balanced_accuracy': metric_wrappers.to_int(
-                metrics.BinaryBalancedAccuracy),
+            'balanced_accuracy': lambda: target_selector(metric_wrappers.to_int(
+                metrics.BinaryBalancedAccuracy)()),
         }
 
         metric_functions_.update(**metric_wrappers.SelectCol.col_wise(
@@ -197,11 +203,11 @@ def create_trainer(
         return metric_functions_
     val_metrics = MetricsRecorder(
         identifier='val',
-        metric_functions=metric_functions(True),
+        metric_functions=metric_functions(include_concepts=True, target_has_weights=False),
         dataset=SelectCols(dataset, select_y=concept_indices + class_indices).for_validation
     )
     train_metrics = TrainingRecorder(
-        metric_functions=metric_functions(False)
+        metric_functions=metric_functions(include_concepts=False, target_has_weights=True)
     )
     metric_recorders = [train_metrics, val_metrics]
 
