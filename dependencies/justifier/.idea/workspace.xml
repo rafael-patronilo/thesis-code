@@ -5,8 +5,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="4f6d3a18-40d4-4e39-b872-e237ae551e37" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/../../src/core/eval/importance_maps/rise.py" beforeDir="false" afterPath="$PROJECT_DIR$/../../src/core/eval/importance_maps/rise.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../src/scripts/eval/xtrains/perception_network.py" beforeDir="false" afterPath="$PROJECT_DIR$/../../src/scripts/eval/xtrains/perception_network.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/core/nn/activation_extractor.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../src/scripts/eval/xtrains/activations_to_concepts.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../src/analysis_tools/perception_network.py" beforeDir="false" afterPath="$PROJECT_DIR$/../../src/analysis_tools/perception_network.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../src/core/eval/metrics/metric_wrappers.py" beforeDir="false" afterPath="$PROJECT_DIR$/../../src/core/eval/metrics/metric_wrappers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../src/models/build_hn_some_concepts.py" beforeDir="false" afterPath="$PROJECT_DIR$/../../src/models/build_hn_some_concepts.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../src/scripts/studies/xtrains/hn_concepts_2.py" beforeDir="false" afterPath="$PROJECT_DIR$/../../src/scripts/studies/xtrains/hn_concepts_2.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -43,7 +47,7 @@
     "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "git-widget-placeholder": "main",
     "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "C:/Users/rafae/Documents/faculdade/thesis/thesis-framework/dependencies/justifier/Justifier_original.jar",
+    "last_opened_file_path": "C:/Users/rafae/Documents/faculdade/prof/ada25/aulasP/aula1",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -93,6 +97,7 @@
       <updated>1738835160985</updated>
       <workItem from="1738835162209" duration="7771000" />
       <workItem from="1738846056107" duration="24456000" />
+      <workItem from="1740760867568" duration="103000" />
     </task>
     <servers />
   </component>

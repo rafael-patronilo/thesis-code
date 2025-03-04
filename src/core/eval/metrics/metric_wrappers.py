@@ -108,13 +108,13 @@ class SelectCol(MetricWrapper):
             select : int | list[int],
             apply_to_preds : bool = True,
             apply_to_true : bool = True,
-            flatten : bool = True,
+            flatten : bool | Literal['selected_only'] = True,
             batched : bool = True
         ) -> None:
         super().__init__(inner)
         if isinstance(select, int):
             select = [select]
-        self.select : list = select
+        self.select : list[int] = select
         self.apply_to_preds = apply_to_preds
         self.apply_to_true = apply_to_true
         self.flatten = flatten
@@ -125,8 +125,10 @@ class SelectCol(MetricWrapper):
             tensor = tensor[:, self.select]
         else:
             tensor = tensor[self.select]
-        if self.flatten:
+        if self.flatten is True:
             tensor = tensor.flatten()
+        elif self.flatten == 'selected_only':
+            tensor = tensor.flatten(start_dim=1, end_dim=2)
         return tensor
 
     def update(self, y_pred, y_true):

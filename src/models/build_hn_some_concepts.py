@@ -145,6 +145,7 @@ def create_trainer(
         classes : list[str],
         num_samples_with_concepts : int,
         sample_selection_seed : int,
+        concept_weight : float = 1.0,
         pre_trained_learning_rate : float = 0.00001,
         untrained_learning_rate : float = 0.001,
         rn_learning_rate : float | None = None,
@@ -158,12 +159,18 @@ def create_trainer(
     logger.info(f"Column info for dataset: {col_refs}")
 
     class_indices = [col_refs.labels.names_to_column[c] for c in classes]
-    valid_col_idx = len(class_indices)
-    weights = torch.ones(len(class_indices) + 1)
-    weights[valid_col_idx] = valid_col_weight
-    logger.info(f"Loss class weights: {weights}")
-
     concept_indices = [col_refs.labels.names_to_column[c] for c in concepts]
+
+    valid_col_idx = len(class_indices)
+    class_weights = torch.ones(len(class_indices) + 1)
+    class_weights[valid_col_idx] = valid_col_weight
+    valid_col_idx += len(concept_indices)
+    logger.info(f"Loss class weights: {class_weights}")
+
+    concept_weights = torch.full((len(concept_indices),), concept_weight)
+    logger.info(f"Loss concept weights: {concept_weights}")
+
+
 
     training_set = SomeConceptsDatasetWrapper(
         training_set,
@@ -171,23 +178,25 @@ def create_trainer(
         concept_indices = concept_indices,
         concept_samples = select_sub_samples(
             training_set_size, num_samples_with_concepts, sample_selection_seed),
-        class_weights = weights
+        class_weights = class_weights,
+        concept_weights=concept_weights
     )
 
-    def metric_functions(*, include_concepts : bool, target_has_weights : bool):
-        def target_selector(x : Metric):
-            if not target_has_weights:
-                return metric_wrappers.SelectCol(x, 1, apply_to_preds=False)
-            else:
-                return x
+    class _TrainingRecorder(TrainingRecorder):
+        def update_torch_metrics(self, y_pred, y_true):
+            y_true = y_true[:, 0]
+            return super().update_torch_metrics(y_pred, y_true)
+
+    def metric_functions(*, include_concepts : bool):
 
         metric_functions_ : dict = {
             'elapsed': metrics.Elapsed(),
-            'mean_valid': target_selector(metric_wrappers.SelectCol(metric_wrappers.Unary(Mean()), valid_col_idx))
+            'mean_valid': metric_wrappers.SelectCol(
+                metric_wrappers.Unary(Mean()), valid_col_idx, apply_to_true=False)
         }
         per_col_metrics = {
-            'balanced_accuracy': lambda: target_selector(metric_wrappers.to_int(
-                metrics.BinaryBalancedAccuracy)()),
+            'balanced_accuracy': metric_wrappers.to_int(
+                metrics.BinaryBalancedAccuracy),
         }
 
         metric_functions_.update(**metric_wrappers.SelectCol.col_wise(
@@ -203,11 +212,11 @@ def create_trainer(
         return metric_functions_
     val_metrics = MetricsRecorder(
         identifier='val',
-        metric_functions=metric_functions(include_concepts=True, target_has_weights=False),
+        metric_functions=metric_functions(include_concepts=True),
         dataset=SelectCols(dataset, select_y=concept_indices + class_indices).for_validation
     )
-    train_metrics = TrainingRecorder(
-        metric_functions=metric_functions(include_concepts=False, target_has_weights=True)
+    train_metrics = _TrainingRecorder(
+        metric_functions=metric_functions(include_concepts=False)
     )
     metric_recorders = [train_metrics, val_metrics]
 

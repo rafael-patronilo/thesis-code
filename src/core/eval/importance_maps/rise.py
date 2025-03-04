@@ -143,7 +143,7 @@ class RISE:
         """
         Generate importance maps for the given images using the given model
         :param model: the model to generate importance maps for
-        :param images: the images to generate importance maps for
+        :param images: the images to generate importance maps for, with shape (n_images, n_channels, height, width)
         :param normalize: whether to max min normalize the importance maps in the end
         :param progress_tracker: an optional progress tracker to use
         :return: the importance maps for the given images, in a tensor of shape (n_images, n_outputs, height, width)
