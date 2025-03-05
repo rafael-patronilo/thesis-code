@@ -12,7 +12,7 @@ if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
     from core.training import Trainer
     from core.storage_management import ModelFileManager
     from core.datasets import dataset_wrappers, get_dataset
-    from analysis_tools.perception_network import evaluate_perception_network
+    from analysis_tools.perception_network import evaluate_concept_correspondence
     from analysis_tools.datasets import analyze_dataset
     from analysis_tools.xtrains_utils import CLASSES, SHORT_CLASSES, SHORT_CONCEPTS, log_short_class_correspondence
     import torch

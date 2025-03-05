@@ -1,6 +1,6 @@
 from datetime import timedelta
 from pathlib import Path
-from typing import Optional, Literal, Type, Any
+from typing import Optional, Literal, Type, Any, Mapping
 from collections import OrderedDict
 import pandas as pd
 import torch
@@ -60,7 +60,7 @@ def select_all_linear_activations(
 
 
 
-def evaluate_perception_network_on_set(
+def evaluate_concept_correspondence_on_set(
         perception_network : 'torch.nn.Module',
         dataloader : 'torch_data.DataLoader',
         dataset_description : str,
@@ -131,30 +131,37 @@ def evaluate_perception_network_on_set(
     histogram.create_figure(mode='overlayed').savefig(results_path.joinpath("densities_overlayed.png"))
     histogram.create_figure(mode='stacked').savefig(results_path.joinpath("densities_stacked.png"))
 
-def evaluate_perception_network(
+def evaluate_concept_correspondence(
         trainer : 'Trainer',
-        perception_network : 'torch.nn.Module',
+        model : 'torch.nn.Module',
         file_manager : 'ModelFileManager',
         dataset : 'SplitDataset',
-        with_training : bool,
         min_max_normalize : bool,
         class_labels : list[str],
+        expected_concepts: Optional[Mapping[int, str]] = None,
         neuron_labels : Optional[list[str]] = None,
         cross_neurons : bool = True,
         results_path : Optional[Path] = None,
+        with_training: bool = True,
         with_validation : bool = True,
         with_test : bool = False
     ):
+    training_loader = trainer.make_loader(dataset.for_training())
     if min_max_normalize:
         normalizer = layers.MinMaxNormalizer.fit(
-            perception_network, trainer.make_loader(dataset.for_training()), progress_cm=progress_cm)
+            model, training_loader, progress_cm=progress_cm)
         logger.info(f"Normalizer min: {normalizer.min}")
         logger.info(f"Normalizer max: {normalizer.max}")
-        model = layers.add_layers(perception_network, normalizer)
+        model = layers.add_layers(model, normalizer)
     else:
-        model = perception_network
+        model = model
     if neuron_labels is None:
-        neuron_labels = [f"N[{i}]" for i in range(dataset.get_shape()[1][0])]
+        x, _ = next(iter(training_loader))
+        num_neurons = model(x).shape[1]
+        if expected_concepts is not None:
+            neuron_labels = [f"N[{i}]({expected_concepts[i]})" for i in range(num_neurons)]
+        else:
+            neuron_labels = [f"N[{i}]" for i in range(num_neurons)]
     if results_path is None:
         results_path = file_manager.results_dest.joinpath('concept_cross_metrics')
 
@@ -185,7 +192,7 @@ def evaluate_perception_network(
 
     if with_training:
         logger.info("Computing cross metrics on training set")
-        evaluate_perception_network_on_set(
+        evaluate_concept_correspondence_on_set(
             model,
             trainer.make_loader(dataset.for_training()),
             'train',
@@ -197,7 +204,7 @@ def evaluate_perception_network(
         )
     if with_validation:
         logger.info("Computing cross metrics on validation set")
-        evaluate_perception_network_on_set(
+        evaluate_concept_correspondence_on_set(
             model,
             trainer.make_loader(dataset.for_validation()),
             'val',
@@ -213,7 +220,7 @@ def evaluate_perception_network(
         if test_set is None:
             logger.warning("No test set")
         else:
-            evaluate_perception_network_on_set(
+            evaluate_concept_correspondence_on_set(
                 model,
                 trainer.make_loader(test_set),
                 'test',

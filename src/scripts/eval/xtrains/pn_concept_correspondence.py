@@ -1,15 +1,17 @@
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
+
+from numpy import short
 from core.init import DO_SCRIPT_IMPORTS
 from core.init.options_parsing import option, positional
+from src.analysis_tools.xtrains_utils import SHORT_CONCEPTS
 
 if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
     from core.training import Trainer
     from core.storage_management import ModelFileManager
     from core.datasets import dataset_wrappers
-    from analysis_tools.perception_network import evaluate_perception_network
-    from analysis_tools.datasets import analyze_dataset
-    from analysis_tools.xtrains_utils import CLASSES, SHORT_CLASSES, SHORT_CONCEPTS, log_short_class_correspondence
+    from analysis_tools.perception_network import evaluate_concept_correspondence
+    from analysis_tools.xtrains_utils import CLASSES, SHORT_CLASSES, log_short_class_correspondence
     import torch
     from core.datasets import get_dataset
     import logging
@@ -23,6 +25,8 @@ class Options:
         metadata=positional(str, help_="Name of the model to evaluate"))
     with_training_set : bool = field(default=False,
         metadata=option(bool, help_="Whether to evaluate on the training set as well."))
+    expect_concepts : bool = field(default=False,
+        metadata=option(bool, help_="Whether to expect concepts in the dataset."))
     normalize_first : bool = field(default=False,
         metadata=option(bool, help_="Whether to normalize the data before evaluating."))
 
@@ -35,14 +39,20 @@ def main(options: Options):
         with ModelFileManager(model_name) as file_manager:
             trainer = Trainer.load_checkpoint(file_manager, prefer='best')
             trainer.model.eval()
-            perception_network = trainer.model.perception_network
+            model = trainer.model.perception_network
             dataset = get_dataset('xtrains_with_concepts')
 
             label_indices = dataset.get_column_references().get_label_indices(CLASSES)
             selected_dataset = dataset_wrappers.SelectCols(dataset, select_y=label_indices)
+            if options.expect_concepts:
+                expected_concepts = dict(enumerate(SHORT_CLASSES))
+            else:
+                expected_concepts = None
+            evaluate_concept_correspondence(
+                trainer, model, file_manager, selected_dataset,
+                options.normalize_first, SHORT_CLASSES,
+                expected_concepts=expected_concepts,
+                with_training=options.with_training_set
+            )
 
-            evaluate_perception_network(trainer, perception_network, file_manager, selected_dataset,
-                                        options.with_training_set,
-                                        options.normalize_first,
-                                        SHORT_CLASSES, SHORT_CONCEPTS)
             logger.info("Perception network evaluation done")

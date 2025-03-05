@@ -323,3 +323,13 @@ def comma_key_values[T](arg : str, from_string : Callable[[str], T] = lambda x:x
     key_values = arg.split(',')
     key_values = (kv.split('=') for kv in key_values)
     return {key : from_string(value) for key, value in key_values}
+
+def comma_split(arg : str) -> list[str]:
+    """
+    Splits a comma separated string
+
+    :param arg: The string to split
+
+    :return: A list of strings
+    """
+    return arg.split(',')
