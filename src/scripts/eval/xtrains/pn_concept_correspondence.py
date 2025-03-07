@@ -1,10 +1,8 @@
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from numpy import short
 from core.init import DO_SCRIPT_IMPORTS
 from core.init.options_parsing import option, positional
-from src.analysis_tools.xtrains_utils import SHORT_CONCEPTS
 
 if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
     from core.training import Trainer
@@ -25,7 +23,7 @@ class Options:
         metadata=positional(str, help_="Name of the model to evaluate"))
     with_training_set : bool = field(default=False,
         metadata=option(bool, help_="Whether to evaluate on the training set as well."))
-    expect_concepts : bool = field(default=False,
+    expect_concepts : bool = field(default=True,
         metadata=option(bool, help_="Whether to expect concepts in the dataset."))
     normalize_first : bool = field(default=False,
         metadata=option(bool, help_="Whether to normalize the data before evaluating."))

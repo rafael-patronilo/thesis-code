@@ -65,3 +65,23 @@ def class_to_manchester_assertion(cls : str, negate : bool = False) -> str:
         case _:
             raise ValueError(f"Unknown class: {cls}")
     return f"{prefix}{negation}{concept}"
+
+def class_to_latex_cmd(cls : str):
+    negate = False
+    if cls.startswith('!'):
+        cls = cls[1:]
+        negate = True
+    if cls not in CLASSES:
+        if cls in SHORT_CLASSES:
+            cls = CLASSES[SHORT_CLASSES.index(cls)]
+        else:
+            raise ValueError(f"Unknown class: {cls}")
+    if cls.startswith('AtLeast2'):
+        cmd = f"\\AtLeastTwo{cls[8:]}"
+    elif cls.startswith('AtLeast3'):
+        cmd =  f"\\AtLeastThree{cls[8:]}"
+    else:
+        cmd = f"\\{cls}"
+    if negate:
+        cmd = f"\\neg {cmd}"
+    return f"${cmd}$"

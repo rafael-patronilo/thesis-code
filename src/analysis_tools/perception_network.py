@@ -157,7 +157,8 @@ def evaluate_concept_correspondence(
         model = model
     if neuron_labels is None:
         x, _ = next(iter(training_loader))
-        num_neurons = model(x).shape[1]
+        with torch.no_grad():
+            num_neurons = model(x.to(torch.get_default_device())).shape[1]
         if expected_concepts is not None:
             neuron_labels = [f"N[{i}]({expected_concepts[i]})" for i in range(num_neurons)]
         else:
