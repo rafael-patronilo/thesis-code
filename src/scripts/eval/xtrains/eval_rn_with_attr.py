@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from core.init import DO_SCRIPT_IMPORTS
-from core.init.options_parsing import option, positional, parse_bool
+from core.init.options_parsing import comma_split, parse_bool, option, positional
 
 if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
     from core.training import Trainer
@@ -21,12 +21,11 @@ if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
 class Options:
     model_name: str = field(
         metadata=positional(str, help_="Name of the model to evaluate"))
+    attribution: list[str] = field(
+        metadata=option(comma_split, help_="Concept attribution to use "
+                                           "between the perception network and the reasoning network"))
     with_training_set : bool = field(default=False,
         metadata=option(parse_bool, help_="Whether to evaluate on the training set as well."))
-    expect_concepts : bool = field(default=True,
-        metadata=option(parse_bool, help_="Whether to expect concepts in the dataset."))
-    normalize_first : bool = field(default=False,
-        metadata=option(parse_bool, help_="Whether to normalize the data before evaluating."))
 
 
 
@@ -37,20 +36,5 @@ def main(options: Options):
         with ModelFileManager(model_name) as file_manager:
             trainer = Trainer.load_checkpoint(file_manager, prefer='best')
             trainer.model.eval()
-            model = trainer.model.perception_network
-            dataset = get_dataset('xtrains_with_concepts')
-
-            label_indices = dataset.get_column_references().get_label_indices(CLASSES)
-            selected_dataset = dataset_wrappers.SelectCols(dataset, select_y=label_indices)
-            if options.expect_concepts:
-                expected_concepts = dict(enumerate(SHORT_CLASSES))
-            else:
-                expected_concepts = None
-            evaluate_concept_correspondence(
-                trainer, model, file_manager, selected_dataset,
-                options.normalize_first, SHORT_CLASSES,
-                expected_concepts=expected_concepts,
-                with_training=options.with_training_set
-            )
-
-            logger.info("Perception network evaluation done")
+            pn = trainer.model.perception_network
+            rn = trainer.model.reasoning_network

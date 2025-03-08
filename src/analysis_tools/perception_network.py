@@ -66,11 +66,13 @@ def evaluate_concept_correspondence_on_set(
         dataset_description : str,
         crosser : 'MetricCrosser',
         neuron_crosser : 'MetricCrosser',
+        max_values : torch.Tensor,
+        min_values : torch.Tensor,
         neuron_labels : list[str],
         class_labels : list[str],
         results_path : Path
         ):
-    histogram = CrossBinaryHistogram(neuron_labels, class_labels)
+    histogram = CrossBinaryHistogram(neuron_labels, class_labels, min_values, max_values)
     pred_histogram = torch.zeros(len(neuron_labels), 2)
     total_preds = 0
 
@@ -127,9 +129,11 @@ def evaluate_concept_correspondence_on_set(
     pd_pred_hist.to_csv(results_path.joinpath("pred_histogram.csv"))
     (pd_pred_hist / total_preds).to_csv(results_path.joinpath("pred_densities.csv"))
 
-    torch.save(histogram.histogram, results_path.joinpath("histogram.pt"))
+    torch.save(histogram.histograms, results_path.joinpath("histogram.pt"))
+    torch.save(torch.vstack((min_values, max_values)), results_path.joinpath("min_max_values.pt"))
     histogram.create_figure(mode='overlayed').savefig(results_path.joinpath("densities_overlayed.png"))
     histogram.create_figure(mode='stacked').savefig(results_path.joinpath("densities_stacked.png"))
+    histogram.create_figure_preds().savefig(results_path.joinpath("densities_preds.png"))
 
 def evaluate_concept_correspondence(
         trainer : 'Trainer',
@@ -147,14 +151,24 @@ def evaluate_concept_correspondence(
         with_test : bool = False
     ):
     training_loader = trainer.make_loader(dataset.for_training())
-    if min_max_normalize:
-        normalizer = layers.MinMaxNormalizer.fit(
-            model, training_loader, progress_cm=progress_cm)
-        logger.info(f"Normalizer min: {normalizer.min}")
-        logger.info(f"Normalizer max: {normalizer.max}")
-        model = layers.add_layers(model, normalizer)
-    else:
-        model = model
+
+    min_max_normalizer = layers.MinMaxNormalizer.fit(
+        model, training_loader, progress_cm=progress_cm)
+    logger.info(f"Min: {min_max_normalizer.min}")
+    logger.info(f"Max: {min_max_normalizer.max}")
+
+    min_values = torch.zeros_like(min_max_normalizer.min)
+    max_values = torch.ones_like(min_max_normalizer.max)
+
+    if (min_max_normalizer.max > 1.0).any() or (min_max_normalizer.min < 0.0).any():
+        if min_max_normalize:
+            model = layers.add_layers(model, min_max_normalizer)
+        else:
+            logger.warning("Model will not be normalized; Values will be out of the range [0, 1]")
+            min_values = min_max_normalizer.min
+            max_values= min_max_normalizer.max
+
+
     if neuron_labels is None:
         x, _ = next(iter(training_loader))
         with torch.no_grad():
@@ -199,6 +213,8 @@ def evaluate_concept_correspondence(
             'train',
             crosser,
             neuron_crosser,
+            max_values,
+            min_values,
             neuron_labels,
             class_labels,
             results_path
@@ -211,6 +227,8 @@ def evaluate_concept_correspondence(
             'val',
             crosser,
             neuron_crosser,
+            max_values,
+            min_values,
             neuron_labels,
             class_labels,
             results_path
@@ -227,6 +245,8 @@ def evaluate_concept_correspondence(
                 'test',
                 crosser,
                 neuron_crosser,
+                max_values,
+                min_values,
                 neuron_labels,
                 class_labels,
                 results_path

@@ -333,3 +333,12 @@ def comma_split(arg : str) -> list[str]:
     :return: A list of strings
     """
     return arg.split(',')
+
+def parse_bool(text : str) -> bool:
+    lower = text.lower()
+    if lower in ['true', 'y', 'yes']:
+        return True
+    elif lower in ['false', 'n', 'no']:
+        return False
+    else:
+        raise ValueError(f'Invalid boolean value: {text}')
