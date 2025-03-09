@@ -136,7 +136,7 @@ class CrossBinaryHistogram:
     def create_figure_preds(self, args : 'CreateFigurePredsArgs' = CreateFigurePredsArgs()) -> 'Figure':
         import matplotlib.pyplot as plt
         fig: 'Figure'
-        axes: list[list['Axes']]
+        axes: list['Axes']
         args.subplots_kw.setdefault('figsize', (len(self.preds) * args.axes_width, args.axes_height))
         fig, axes = plt.subplots(1, len(self.preds), **args.subplots_kw)  # type: ignore
         histograms = self.histograms[:,0].sum(dim=1)
@@ -148,11 +148,11 @@ class CrossBinaryHistogram:
             max_value = self.max_values[i].item()
             min_value = self.min_values[i].item()
             x = np.linspace(min_value, max_value, self.bins)
-            axes[0][i].set_title(f'{self.preds[i]}')
-            axes[0][i].set(**args.axes_kw)
-            axes[0][i].set_xlim(min_value, max_value)
+            axes[i].set_title(f'{self.preds[i]}')
+            axes[i].set(**args.axes_kw)
+            axes[i].set_xlim(min_value, max_value)
             kwargs = args.base_hist_kw
             y = density[i]
-            axes[0][i].fill_between(x, y, **kwargs)
+            axes[i].fill_between(x, y, **kwargs)
         return fig
 

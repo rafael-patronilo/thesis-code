@@ -2,6 +2,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Optional, Literal, Type, Any, Mapping
 from collections import OrderedDict
+from unicodedata import is_normalized
 import pandas as pd
 import torch
 from torch import nn
@@ -72,6 +73,7 @@ def evaluate_concept_correspondence_on_set(
         class_labels : list[str],
         results_path : Path
         ):
+    not_normalized = (max_values > 1.0).any() or (min_values < 0.0).any()
     histogram = CrossBinaryHistogram(neuron_labels, class_labels, min_values, max_values)
     pred_histogram = torch.zeros(len(neuron_labels), 2)
     total_preds = 0
@@ -131,8 +133,11 @@ def evaluate_concept_correspondence_on_set(
 
     torch.save(histogram.histograms, results_path.joinpath("histogram.pt"))
     torch.save(torch.vstack((min_values, max_values)), results_path.joinpath("min_max_values.pt"))
-    histogram.create_figure(mode='overlayed').savefig(results_path.joinpath("densities_overlayed.png"))
-    histogram.create_figure(mode='stacked').savefig(results_path.joinpath("densities_stacked.png"))
+    figure_args = histogram.CreateFigureArgs()
+    if not_normalized:
+        figure_args.subplots_kw['sharex'] = 'row'
+    histogram.create_figure(mode='overlayed', args=figure_args).savefig(results_path.joinpath("densities_overlayed.png"))
+    histogram.create_figure(mode='stacked', args=figure_args).savefig(results_path.joinpath("densities_stacked.png"))
     histogram.create_figure_preds().savefig(results_path.joinpath("densities_preds.png"))
 
 def evaluate_concept_correspondence(
