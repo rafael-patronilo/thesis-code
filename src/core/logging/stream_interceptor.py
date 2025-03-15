@@ -7,7 +7,7 @@ import threading
 
 class WriteInterceptor:
     WARNING_COOLDOWN = timedelta(minutes=5)
-    BUFFER_TIMER = timedelta(seconds=1)
+    BUFFER_TIMER = timedelta(seconds=5)
 
     def __init__(
             self,

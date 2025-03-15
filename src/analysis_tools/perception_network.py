@@ -153,7 +153,8 @@ def evaluate_concept_correspondence(
         results_path : Optional[Path] = None,
         with_training: bool = True,
         with_validation : bool = True,
-        with_test : bool = False
+        with_test : bool = False,
+        binary_threshold : float = 0.5
     ):
     training_loader = trainer.make_loader(dataset.for_training())
 
@@ -191,11 +192,11 @@ def evaluate_concept_correspondence(
         {
             'correlation': PearsonCorrelationCoefficient,
             'balanced_accuracy': lambda: metric_wrappers.ToDtype(
-                BinaryBalancedAccuracy(), torch.int32, apply_to_pred=False),
+                BinaryBalancedAccuracy(threshold=binary_threshold), torch.int32, apply_to_pred=False),
             'recall' : lambda : metric_wrappers.ToDtype(
-                BinaryRecall(), torch.int32, apply_to_pred=False),
+                BinaryRecall(threshold=binary_threshold), torch.int32, apply_to_pred=False),
             'specificity' : lambda : metric_wrappers.ToDtype(
-                BinarySpecificity(), torch.int32, apply_to_pred=False),
+                BinarySpecificity(threshold=binary_threshold), torch.int32, apply_to_pred=False),
             'auc': metrics.BinaryAUROC,
         }
     )

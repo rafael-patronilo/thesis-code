@@ -1,5 +1,5 @@
 import logging
-
+module_logger = logging.getLogger(__name__)
 
 CLASSES = [
     'PassengerCar',
@@ -85,3 +85,24 @@ def class_to_latex_cmd(cls : str):
     if negate:
         cmd = f"\\neg {cmd}"
     return f"${cmd}$"
+
+def make_order_from_attribution(attribution: list[str]):
+    if any(c.startswith('!') for c in attribution):
+        raise NotImplementedError("Negated concepts are not yet supported")
+    for c in attribution:
+        if c not in SHORT_CONCEPTS:
+            raise ValueError(f"Unknown concept {c} in attribution")
+    module_logger.info(f"Searching indices for concepts {attribution}")
+    indices = [SHORT_CONCEPTS.index(c) for c in attribution]
+    str_builder = [f"Found indices {indices}, corresponding to the attribution:\n"]
+    for pn_i, rn_i in enumerate(indices):
+        str_builder.append(f"\tPN output {pn_i} -> RN input {rn_i} ({SHORT_CONCEPTS[rn_i]})\n")
+    str_builder.append("Reordering")
+    module_logger.info(''.join(str_builder))
+    order = [indices.index(i) for i in range(len(indices))]
+    str_builder = [f"Order: {order}\n"]
+    for rn_i, pn_i in enumerate(order):
+        str_builder.append(f"\tPN output {pn_i} -> RN input {rn_i} "
+                           f"({SHORT_CONCEPTS[rn_i]})\n")
+    module_logger.info(''.join(str_builder))
+    return order

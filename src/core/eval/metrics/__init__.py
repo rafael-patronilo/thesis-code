@@ -69,9 +69,9 @@ def select_metrics(metrics : Sequence[NamedMetricFunction], dataset : Optional[S
     return metric_functions
 
 class BinaryBalancedAccuracy(BinaryConfusionMatrix):
-    def __init__(self):
+    def __init__(self, threshold : float = 0.5):
         assert torcheval.version.__version__ == '0.0.7', "confusion matrix order may have been changed: https://github.com/pytorch/torcheval/issues/183"
-        super().__init__()
+        super().__init__(threshold=threshold)
 
     def update(
         self, input: torch.Tensor, target: torch.Tensor
@@ -113,9 +113,9 @@ class BinaryBalancedSpecificity(BinaryConfusionMatrix):
         return specificity
 
 class BinarySpecificity(BinaryConfusionMatrix):
-    def __init__(self):
+    def __init__(self, threshold : float = 0.5):
         assert torcheval.version.__version__ == '0.0.7', "confusion matrix order may have been changed: https://github.com/pytorch/torcheval/issues/183"
-        super().__init__()
+        super().__init__(threshold=threshold)
 
     def compute(self):
         cm = super().compute()

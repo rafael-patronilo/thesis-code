@@ -119,8 +119,9 @@ class CrossBinaryHistogram:
 
     @dataclass
     class CreateFigurePredsArgs:
+        num_rows: int = 1
         axes_width: float = 3
-        axes_height: float = 2
+        axes_height: float = 3
         subplots_kw: dict = field(default_factory=lambda: {
             'layout': 'constrained',
             'dpi': 500
@@ -130,15 +131,18 @@ class CrossBinaryHistogram:
             'linestyle': '--',
             'linewidth': 0.2,
             'edgecolor': (1, 1, 1, 1),
-            'facecolor': (0.3, 0.3, 0.3, 1)
+            'facecolor': (0.0, 0.0, 1.0, 0.5)
         })
 
     def create_figure_preds(self, args : 'CreateFigurePredsArgs' = CreateFigurePredsArgs()) -> 'Figure':
         import matplotlib.pyplot as plt
         fig: 'Figure'
         axes: list['Axes']
-        args.subplots_kw.setdefault('figsize', (len(self.preds) * args.axes_width, args.axes_height))
-        fig, axes = plt.subplots(1, len(self.preds), **args.subplots_kw)  # type: ignore
+        n_cols = (len(self.preds) + args.num_rows - 1) // args.num_rows
+        args.subplots_kw.setdefault('figsize', (n_cols * args.axes_width, args.num_rows * args.axes_height))
+
+        fig, _ = plt.subplots(args.num_rows, n_cols, squeeze=True, **args.subplots_kw)  # type: ignore
+        axes = fig.get_axes()
         histograms = self.histograms[:,0].sum(dim=1)
         assert histograms.ndim == 2
         density = histograms / histograms.sum(dim=1, keepdim=True)

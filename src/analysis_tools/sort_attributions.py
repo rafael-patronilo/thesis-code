@@ -15,7 +15,7 @@ class ABSDifference(NamedTuple):
         return abs(score - self.midpoint)
 
 
-def best_attribution_no_repeat(
+def greedy_attribution(
         scores : pd.DataFrame,
         *,
         sort_by : Optional[Callable[[float], float]] = None,
@@ -92,17 +92,23 @@ def rank_concepts(
         scores : pd.DataFrame,
         sort_by : Optional[Callable[[float], float]] = None,
         maximize : bool = True,
-        concepts_only : bool = True
+        concepts_only : bool = True,
+        sort_axis : Literal['rows', 'columns'] = 'columns'
 ) -> pd.DataFrame:
     if sort_by is None:
         sort_by = _identity_fn
     if concepts_only:
         scores = scores[SHORT_CONCEPTS] # type: ignore
     result = pd.DataFrame(index = scores.index, columns = scores.columns)
+    if sort_axis == 'columns':
+        scores = scores.transpose()
+        result = result.transpose()
     for row in scores.index:
         series : pd.Series = scores.loc[row]
         series = series.map(sort_by)
         series.sort_values(ascending=not maximize, inplace=True)
         for i, (col, _) in enumerate(series.items()):
             result.at[row, col] = i
+    if sort_axis == 'columns':
+        result = result.transpose()
     return result

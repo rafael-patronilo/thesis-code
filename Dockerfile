@@ -20,7 +20,6 @@ RUN jar xf ../Justifier_original.jar
 RUN cp --remove-destination -r ../bin/* .
 RUN jar cfe ../Justifier.jar Main *
 
-
 FROM ubuntu:24.10
 RUN apt update && apt upgrade -y && \
     apt install -y openjdk-8-jdk-headless \

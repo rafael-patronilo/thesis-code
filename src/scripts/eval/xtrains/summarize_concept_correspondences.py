@@ -7,8 +7,8 @@ from core.init.options_parsing import option, positional
 from dataclasses import dataclass, field
 
 if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
-    from analysis_tools.xtrains_utils import class_to_latex_cmd
-    from analysis_tools.sort_attributions import best_attribution_no_repeat, rank_concepts, ABSDifference
+    from analysis_tools.xtrains_utils import class_to_latex_cmd, SHORT_CONCEPTS
+    from analysis_tools.sort_attributions import greedy_attribution, rank_concepts, ABSDifference
     import pandas as pd
     import logging
     logger = logging.getLogger(__name__)
@@ -70,13 +70,12 @@ def main(options : Options):
     validation_file = options.results_path.joinpath('val', options.target_csv)
     validation_results = pd.read_csv(validation_file, index_col=0)
     handle_csv_file(validation_file, sort_by, maximize)
-    attributions = ['Best', 'Best Without Repeat']
+    attributions = ['Best Without Repeat']
     if options.include_expectations:
         attributions.insert(0, 'Expected')
     summary_cols = pd.MultiIndex.from_product(
         [attributions, ['Concept', 'Rank', 'Training', 'Validation']],
     )
-    summary_cols = summary_cols.drop([('Best', 'Rank')]) # always 1
     summary = pd.DataFrame(index=ranking.index, columns=summary_cols)
 
     def handle_negation(concept, row):
@@ -89,21 +88,12 @@ def main(options : Options):
         return concept, training_result, validation_result
 
     if options.include_expectations:
-        expected_concepts = [(x.split('(')[-1][:-1], x) for x in ranking.index]
-        for concept, row in expected_concepts:
+        for concept, row in zip(SHORT_CONCEPTS, ranking.index):
             summary.loc[row, ('Expected', 'Concept')] = concept
             summary.loc[row, ('Expected', 'Rank')] = ranking[concept][row]
             summary.loc[row, ('Expected', 'Training')] = training_results[concept][row]
             summary.loc[row, ('Expected', 'Validation')] = validation_results[concept][row]
-    attribution : list[tuple[str, str]] = ranking[ranking == 0].stack().index.tolist() # type: ignore
-    for row, concept in attribution:
-        if not pd.isna(summary[('Best', 'Concept')][row]): # type: ignore
-            raise ValueError("Multiple rank 0 concepts found")
-        concept, train_result, val_result = handle_negation(concept, row)
-        summary.loc[row, ('Best', 'Concept')] = concept
-        summary.loc[row, ('Best', 'Training')] = train_result
-        summary.loc[row, ('Best', 'Validation')] = val_result
-    attribution = best_attribution_no_repeat(training_results, sort_by=sort_by, maximize=maximize)
+    attribution : list[tuple[str, str]] = greedy_attribution(training_results, sort_by=sort_by, maximize=maximize)
     for concept, row in attribution:
         if not pd.isna(summary[('Best Without Repeat', 'Concept')][row]): # type: ignore
             raise ValueError("Multiple concepts found for the same neuron")
@@ -139,6 +129,43 @@ def main(options : Options):
         formatters = formatters,
         na_rep = ''
     )
+    del summary
+
+    summary_best_cols = ['Best Neuron', 'Training', 'Validation']
+
+    if options.include_expectations:
+        summary_best_cols.insert(0, 'Expected Neuron')
+
+    summary_best = pd.DataFrame(index=ranking.columns, columns=pd.Index(summary_best_cols))
+
+    if options.include_expectations:
+        for i, concept in enumerate(ranking.columns):
+            summary_best.loc[concept, 'Expected Neuron'] = i
+    best_neurons : list[tuple[str, str]] = ranking[ranking == 0].stack().index.tolist()  # type: ignore
+    for row, concept in best_neurons:
+        if not pd.isna(summary_best['Best Neuron'][concept]):  # type: ignore
+            raise ValueError("Multiple rank 0 neurons found")
+        neg_concept, train_result, val_result = handle_negation(concept, row)
+        summary_best.loc[concept, 'Best Neuron'] = f"{row} (negated)" if neg_concept != concept else row
+        summary_best.loc[concept, 'Training'] = train_result
+        summary_best.loc[concept, 'Validation'] = val_result
+
+    summary_best.loc['Mean', ['Training', 'Validation']] = summary_best[['Training', 'Validation']].mean()
+
+    csv_summary_path = (options.results_path.joinpath(
+        options.target_csv.with_suffix('').name + '_best_summary').with_suffix('.csv'))
+    summary_best.to_csv(csv_summary_path)
+    summary_best.to_latex(
+        csv_summary_path.with_suffix('.tex'),
+        formatters = {
+            'Expected Neuron' : lambda x: f"{x}",
+            'Best Neuron' : lambda x: f"{x}",
+            'Training' : lambda x: f"{x:.4f}",
+            'Validation' : lambda x: f"{x:.4f}",
+        },
+        na_rep = ''
+    )
+
 
 
 

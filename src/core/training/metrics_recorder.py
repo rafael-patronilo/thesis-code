@@ -67,6 +67,7 @@ class MetricsRecorder:
         self.sums_last_n : dict = {k: 0.0 for k, _ in self.ordered_metrics}
         self.total_measures = {k: 0 for k, _ in self.ordered_metrics}
         self.dataset_ref = dataset
+        self._update_called = False
         if dataset is not None:
             self.dataloader = DataLoader(
                 self.dataset_ref(), 
@@ -163,7 +164,7 @@ class MetricsRecorder:
         }
 
     def prepare_torch_metrics(self):
-        self._debugged = False
+        self._update_called = False
         for metric_fn in self.torch_metrics.values():
             metric_fn.to(device=torch.get_default_device())
             metric_fn.reset()
@@ -171,13 +172,13 @@ class MetricsRecorder:
     def update_torch_metrics(self, y_pred, y_true):
         y_pred = torch.flatten(y_pred, start_dim=1)
         y_true = torch.flatten(y_true, start_dim=1)
-        if not self._debugged:
+        if not self._update_called:
             logger.debug(f"Updating metrics for {self.identifier}")
         for name, metric_fn in self.torch_metrics.items():
-            if not self._debugged:
+            if not self._update_called:
                 logger.debug(f"Updating metric {name}")
             metric_fn.update(y_pred, y_true)
-        self._debugged = True
+        self._update_called = True
 
     def _eval(self, model):
         if hasattr(self, '_evaluated_externally') and self._evaluated_externally: # type: ignore
@@ -236,6 +237,8 @@ class MetricsRecorder:
         record['epoch'] = epoch
         
         self._eval(model) #TODO rework this class and the concept of metric
+        if not self._update_called:
+            logger.warning("Update was not called for this batch.")
         for metric_name, metric_fn in self.ordered_metrics:
             value = metric_fn.compute()
             if isinstance(value, torch.Tensor):

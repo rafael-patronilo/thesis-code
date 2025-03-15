@@ -27,6 +27,9 @@ class Options:
         metadata=option(parse_bool, help_="Whether to expect concepts in the dataset."))
     normalize_first : bool = field(default=False,
         metadata=option(parse_bool, help_="Whether to normalize the data before evaluating."))
+    threshold : float = field(default=0.5,
+        metadata=option(float, help_="Threshold to distinguish positive and negative"
+                                     " classification for binary metrics"))
 
 
 
@@ -50,7 +53,8 @@ def main(options: Options):
                 trainer, model, file_manager, selected_dataset,
                 options.normalize_first, SHORT_CLASSES,
                 expected_concepts=expected_concepts,
-                with_training=options.with_training_set
+                with_training=options.with_training_set,
+                binary_threshold=options.threshold
             )
 
             logger.info("Perception network evaluation done")

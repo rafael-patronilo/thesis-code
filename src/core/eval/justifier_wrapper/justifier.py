@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from datetime import timedelta
 import multiprocessing
 from concurrent.futures import Executor
 from concurrent.futures.process import ProcessPoolExecutor
@@ -8,14 +9,15 @@ import queue
 from pathlib import Path
 from subprocess import Popen
 import subprocess
-from sys import stdin
+from dataclasses import dataclass
+
 import threading
 import warnings
 from concurrent.futures import Future
 
 from core.eval.justifier_wrapper.justifier_result import Justification
 from core.init import options
-from typing import Coroutine, Iterable, Literal, NamedTuple, Optional, Protocol, Iterator, Callable, Any, Generator
+from typing import Iterable, Literal, NamedTuple, Optional, Protocol, Iterator, Callable, Any, Generator
 import logging
 
 from core.eval.justifier_wrapper.justifier_output_handler import parse_json
@@ -27,10 +29,12 @@ logger = logging.getLogger(__name__)
 
 class JustifierConfig(NamedTuple):
     ontology_file: Path
+    restart_process : bool = True
 
-
-class JustifierContext(NamedTuple):
+@dataclass
+class JustifierContext:
     process: Popen
+    cmd : list[str] | str
     config: JustifierConfig
 
 class _ThreadLocal(threading.local):
@@ -39,36 +43,54 @@ class _ThreadLocal(threading.local):
 _thread_local = _ThreadLocal()
 
 
-def _create_context(config: JustifierConfig):
-    jarfile = options.justifier_jar
-    stderr_name = f"{jarfile}.stderr"
-    stderr_logger = logger.getChild(stderr_name)
-    stderr_interceptor = WriteInterceptor(
-        stderr_name,
-        stderr_logger,
-        logging.ERROR,
-        expected=True
-    )
-    process = Popen(
-        ['java', '-jar', jarfile, str(config.ontology_file)],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True
-    )
+def _attach_stderr_interceptor(interceptor : WriteInterceptor, process : Popen):
     def stderr_worker():
         stderr = process.stderr
         assert stderr is not None
-        for line in stderr:
-            stderr_interceptor.write(line)
-        stderr_interceptor.flush()
+        while line := stderr.readline():
+            interceptor.write(line)
+        interceptor.flush()
     threading.Thread(
         target=stderr_worker,
         daemon=True
+    ).start()
+
+
+def _create_process(cmd : list[str] | str) -> Popen:
+    shell = isinstance(cmd, str)
+    return Popen(
+        cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        shell=shell
     )
 
+def _create_context(config: JustifierConfig, restarting : bool = False):
+    jarfile = options.justifier_jar
+    assert Path(jarfile).exists()
+
+    cmd = ['java', '-jar', jarfile, str(config.ontology_file)]
+    if not restarting:
+        logger.info(f"Starting justifier - {''.join(cmd)}")
+    process = _create_process(cmd)
+    if not config.restart_process:
+        stderr_name = f"{jarfile}.stderr"
+        stderr_logger = logger.getChild(stderr_name)
+        stderr_interceptor = WriteInterceptor(
+            stderr_name,
+            stderr_logger,
+            logging.ERROR,
+            expected=True
+        )
+        _attach_stderr_interceptor(stderr_interceptor, process)
+
+    if not restarting:
+        logger.info("Justifier started")
     return JustifierContext(
         process=process,
+        cmd=cmd,
         config=config
     )
 
@@ -78,8 +100,11 @@ def init_justifier_worker(config: JustifierConfig):
     :param config: The config that will be used in each thread or process
     :return:
     """
+    global logger
     if multiprocessing.parent_process() is None:
         logger.warning("Justifier worker is being initialized in the main process. This is not recommended.")
+    else:
+        logger = logging.getLogger(f"{__name__}.{multiprocessing.current_process().name}")
     global _thread_local
     if _thread_local.context is not None:
         logger.warning("Justifier worker is already running.")
@@ -90,6 +115,7 @@ def init_justifier_worker(config: JustifierConfig):
 class JustifierArgs(NamedTuple):
     entailment_class : str
     observations : list[tuple[str, float]]
+    metadata : Any = None
 
 class JustifierResult(NamedTuple):
     args : JustifierArgs
@@ -99,10 +125,11 @@ def _inject_input(context: JustifierContext, args : JustifierArgs):
     process = context.process
     stdin = process.stdin
     assert stdin is not None
-    stdin.write(f"{args.entailment_class}\n".encode())
+    stdin.write(f"{args.entailment_class}\n")
     for concept, belief in args.observations:
-        stdin.write(f"{concept}, {belief}\n".encode())
+        stdin.write(f"{concept}, {belief}\n")
     stdin.write("\n")
+    stdin.flush()
 
 def _extract_output(context : JustifierContext) -> str:
     process = context.process
@@ -115,13 +142,52 @@ def _extract_output(context : JustifierContext) -> str:
         line = stdout.readline()
     return "".join(lines)
 
-def _justify(context: JustifierContext, args : JustifierArgs) -> JustifierResult:
+def _reuse_process(context: JustifierContext, args : JustifierArgs) -> JustifierResult:
     _inject_input(context, args)
     output = _extract_output(context)
     return JustifierResult(
         args,
         parse_json(output, args.entailment_class, args.observations)
     )
+
+def _communicate(context: JustifierContext, args : JustifierArgs) -> JustifierResult:
+    input_data = (
+            f"{args.entailment_class}\n" +
+            ''.join(f"{concept}, {belief}\n" for concept, belief in args.observations) +
+            "\n"
+    )
+
+    stdout, stderr = context.process.communicate(input_data)
+    if stderr:
+        logger.error(stderr)
+    return JustifierResult(
+        args,
+        parse_json(stdout, args.entailment_class, args.observations)
+    )
+
+def _restart(context : JustifierContext):
+    process = context.process
+    return_code = process.poll()
+    if return_code is None:
+        logger.error("Justifier process is still running; killing")
+        process.kill()
+    elif return_code < 0:
+        logger.error(f"Justifier process terminated with code {return_code}")
+    context.process = _create_process(context.cmd)
+
+def _justify(context: JustifierContext, args : JustifierArgs) -> JustifierResult:
+    timer_time = timedelta(minutes=5)
+    def timer_warning():
+        logger.warning(f"Justifier is taking over {timer_time} to respond.")
+    timer = threading.Timer(timer_time.total_seconds(), timer_warning)
+    timer.start()
+    if context.config.restart_process:
+        result = _communicate(context, args)
+        _restart(context)
+    else:
+        result = _reuse_process(context, args)
+    timer.cancel()
+    return result
 
 
 class AbstractJustifierWrapper(AbstractContextManager, ABC):
@@ -305,7 +371,10 @@ class ParallelJustifierWrapper(AbstractJustifierWrapper):
                 future = producer_queue.get()
                 if future is None:
                     break
-                yield future.result()
+                try:
+                    yield future.result()
+                except Exception as e:
+                    logger.error(f"Error in producer: {e}\nThis job will be ignored.", exc_info=True)
                 progress_tracker.tick()
 
         reducer_result : list[C] = []

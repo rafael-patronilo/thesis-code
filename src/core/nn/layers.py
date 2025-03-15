@@ -61,3 +61,10 @@ class MinMaxNormalizer(nn.Module):
         return cls(min, max, **kwargs)
 
 
+class Reorder(torch.nn.Module):
+    def __init__(self, attribution: list[int]):
+        super().__init__()
+        self.attribution = attribution
+
+    def forward(self, x):
+        return x[:, self.attribution]

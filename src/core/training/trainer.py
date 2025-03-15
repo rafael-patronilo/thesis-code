@@ -2,6 +2,7 @@ from collections import OrderedDict
 import datetime
 import logging
 from pathlib import Path
+import re
 
 from torch.utils.data import DataLoader, Dataset
 from typing import Optional, Any, Callable, Literal, TypedDict, Iterable, TYPE_CHECKING, Required
@@ -351,13 +352,17 @@ class Trainer:
         self.logger.info(f"Checkpoint at Epoch {self.epoch}\n{self._metrics_str()}")
         find_illegal_children(state_dict, self.logger)
 
-    def make_loader(self, dataset : Dataset) -> DataLoader:
+    def make_loader(self, dataset : Dataset,
+                    force_shuffle : bool = False,
+                    seed : Optional[int] = None) -> DataLoader:
         generator = torch.Generator(device=torch.get_default_device())
+        if seed is not None:
+            generator = generator.manual_seed(seed)
         return DataLoader(
             dataset, 
             batch_size=self.batch_size,
             num_workers=self.num_loaders,
-            shuffle=self.shuffle,
+            shuffle=self.shuffle or force_shuffle,
             generator=generator,
             worker_init_fn=dataloader_worker_init_fn,
             pin_memory=True
@@ -370,13 +375,18 @@ class Trainer:
             training_set = self.training_set
         return self.make_loader(training_set)
 
-    def eval_metrics(self):
+    def eval_metrics(self, write : bool = True):
         if self.model_file_manager is None:
             raise ValueError("Model file manager not initialized")
+        records = OrderedDict()
         for metric_logger in self.metric_loggers:
             record = metric_logger.log_record(self.epoch, self.model)
-            self.model_file_manager.write_metrics(metric_logger.identifier, record)
-        self.model_file_manager.flush()
+            records[metric_logger.identifier] = record
+            if write:
+                self.model_file_manager.write_metrics(metric_logger.identifier, record)
+        if write:
+            self.model_file_manager.flush()
+        return records
 
     def _do_epoch(self, epoch):
         if self.model_file_manager is None:
