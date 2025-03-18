@@ -1,4 +1,8 @@
 import logging
+from typing import Optional
+from torch import nn
+from core.nn.layers import MakeBinary, NegateMask, Reorder
+
 module_logger = logging.getLogger(__name__)
 
 CLASSES = [
@@ -87,8 +91,6 @@ def class_to_latex_cmd(cls : str):
     return f"${cmd}$"
 
 def make_order_from_attribution(attribution: list[str]):
-    if any(c.startswith('!') for c in attribution):
-        raise NotImplementedError("Negated concepts are not yet supported")
     for c in attribution:
         if c not in SHORT_CONCEPTS:
             raise ValueError(f"Unknown concept {c} in attribution")
@@ -106,3 +108,23 @@ def make_order_from_attribution(attribution: list[str]):
                            f"({SHORT_CONCEPTS[rn_i]})\n")
     module_logger.info(''.join(str_builder))
     return order
+
+def prepare_pn_with_attribution(
+        pn : nn.Module,
+        attribution : list[str],
+        binary_threshold : Optional[float]
+) -> nn.Sequential:
+    negate = [c.startswith('!') for c in attribution]
+    concepts = [c[1:] if n else c for c, n in zip(attribution, negate)]
+
+    layers = [pn]
+    if binary_threshold is not None:
+        module_logger.info(f"Adding binary threshold layer with threshold {binary_threshold}")
+        module_logger.warning("PN output values will be discrete: precisely 0 or 1")
+        layers.append(MakeBinary(binary_threshold))
+    if any(negate):
+        module_logger.info(f"Applying negation mask to PN: {negate}")
+        layers.append(NegateMask(negate))
+    order = make_order_from_attribution(concepts)
+    layers.append(Reorder(order))
+    return nn.Sequential(*layers)

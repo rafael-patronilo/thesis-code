@@ -39,3 +39,6 @@ def analyze_dataset(loader : 'torch_data.DataLoader',
     plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
     ax.legend()
     fig.savefig(destination.joinpath(f"{dataset_description}_histogram.png"))
+    import pandas as pd
+    pd.DataFrame(hist, index=class_names, columns=['Negative', 'Positive'] #type: ignore
+                 ).to_csv(destination.joinpath(f"{dataset_description}_histogram.csv"))

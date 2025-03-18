@@ -1,5 +1,5 @@
 from .csv_dataset import CSVDataset
-from typing import Optional, Callable, TYPE_CHECKING
+from typing import Optional, Callable, TYPE_CHECKING, Literal
 import torch
 import torchvision
 import torchvision.transforms.v2 as transforms
@@ -41,7 +41,7 @@ class CSVImageDataset(CSVDataset):
         self.dtype = dtype
         self.global_transform : Transform = global_transform or _IDENTITY_TRANSFORM
         self.column_transforms = column_transforms or {}
-        self.skip_image_loading = False
+        self.skip_image_loading : bool | Literal['get_path'] = False
         for column in image_columns:
             if isinstance(column, tuple):
                 col_name, path_getter = column
@@ -51,7 +51,10 @@ class CSVImageDataset(CSVDataset):
             def image_getter(x):
                 path : Path = self.images_path.joinpath(path_getter(x))
                 if self.skip_image_loading:
-                    return path.relative_to(self.images_path)
+                    if self.skip_image_loading == 'get_path':
+                        return path.relative_to(self.images_path)
+                    else:
+                        return torch.full((1,), float('nan'))
                 image : torch.Tensor = torchvision.io.decode_image(path) # type: ignore # (documentation claims method supports Path)
                 if self.dtype is not None:
                     image = transforms.functional.to_dtype(image, dtype = self.dtype, scale=True)

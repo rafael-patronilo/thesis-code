@@ -29,7 +29,7 @@ if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
     from core.eval.justifier_wrapper.justifier_result import Justification
 
     from datasets.xtrains import CONCEPTS, CLASSES
-    from analysis_tools.xtrains_utils import class_to_manchester_assertion, make_order_from_attribution
+    from analysis_tools.xtrains_utils import class_to_manchester_assertion, prepare_pn_with_attribution
 
     from core.datasets import get_dataset
 
@@ -173,6 +173,11 @@ class Options:
     attribution : Optional[list[str]] = field(default=None,
               metadata=option(comma_split, help_="Concept attribution to use "
                                                      "between the perception network and the reasoning network"))
+    binary_threshold : Optional[float] = field(default=None,
+        metadata=option(float, help_="Threshold to distinguish positive and negative"
+                                     " classification for binary metrics. "
+                                     "Specifying this option will turn outputs precisely to 1 and 0, "
+                                     "which means best justification results will hold no meaning."))
 
 def main(options : Options):
     justifier_config = JustifierConfig(ontology_file=options.ontology_file)
@@ -184,8 +189,7 @@ def main(options : Options):
         pn = trainer.model.perception_network
         rn = trainer.model.reasoning_network
         if options.attribution is not None:
-            order = make_order_from_attribution(options.attribution)
-            pn = nn.Sequential(pn, Reorder(order))
+            pn = prepare_pn_with_attribution(pn, options.attribution, options.binary_threshold)
 
         dfs = run_justifier([split_dataset.for_validation()], justifier_config,
                            pn, rn, trainer, options.max_samples)

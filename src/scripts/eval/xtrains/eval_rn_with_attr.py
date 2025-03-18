@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from core.init import DO_SCRIPT_IMPORTS
 from core.init.options_parsing import comma_split, parse_bool, option, positional
@@ -10,7 +10,7 @@ if TYPE_CHECKING or DO_SCRIPT_IMPORTS:
     from torch import nn
     from core.training import Trainer
     from core.storage_management import ModelFileManager
-    from analysis_tools.xtrains_utils import log_short_class_correspondence, make_order_from_attribution
+    from analysis_tools.xtrains_utils import log_short_class_correspondence, prepare_pn_with_attribution
     import torch
     from core.util import progress_trackers
     from core.nn.hybrid_network import HybridNetwork
@@ -29,6 +29,10 @@ class Options:
     attribution: list[str] = field(
         metadata=positional(comma_split, help_="Concept attribution to use "
                                            "between the perception network and the reasoning network"))
+    binary_threshold : Optional[float] = field(default=None,
+        metadata=option(float, help_="Threshold to distinguish positive and negative"
+                                     " classification for binary metrics. "
+                                     "Specifying this option will turn outputs precisely to 1 and 0"))
     with_training_set : bool = field(default=True,
         metadata=option(parse_bool, help_="Whether to evaluate on the training set as well."))
 
@@ -39,11 +43,13 @@ def main(options: Options):
         with ModelFileManager(model_name) as file_manager:
             trainer = Trainer.load_checkpoint(file_manager, prefer='best')
             trainer.model.eval()
-            order = make_order_from_attribution(options.attribution)
 
-            pn = trainer.model.perception_network
+            pn = prepare_pn_with_attribution(
+                trainer.model.perception_network,
+                options.attribution,
+                options.binary_threshold
+            )
             rn = trainer.model.reasoning_network
-            pn = nn.Sequential(pn, Reorder(order))
             trainer.model = HybridNetwork(pn, rn)
             if options.with_training_set:
                 training_logger = trainer.train_logger

@@ -115,7 +115,7 @@ def save_sub_samples(file_manager : 'StudyFileManager'):
     if dest_file.exists():
         return
     dataset = datasets.get_dataset(DATASET_NAME)
-    dataset.skip_image_loading = True # type: ignore
+    dataset.skip_image_loading = 'get_path' # type: ignore
     training_set = datasets.get_dataset(DATASET_NAME).for_training()
     sub_samples = sub_sample_order(
         len(training_set), #type: ignore

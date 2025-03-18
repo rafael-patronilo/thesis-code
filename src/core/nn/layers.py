@@ -68,3 +68,22 @@ class Reorder(torch.nn.Module):
 
     def forward(self, x):
         return x[:, self.attribution]
+
+class MakeBinary(torch.nn.Module):
+    def __init__(self, threshold : float):
+        super().__init__()
+        self.threshold = threshold
+
+    def forward(self, x):
+        mask = x > self.threshold
+        return torch.where(mask, 1.0, 0.0)
+
+class NegateMask(torch.nn.Module):
+    def __init__(self, mask : list[bool]):
+        super().__init__()
+        self.mask = mask
+
+    def forward(self, x):
+        x = x.clone()
+        x[:, self.mask] = 1.0 - x[:, self.mask]
+        return x

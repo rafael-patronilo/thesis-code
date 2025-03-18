@@ -69,16 +69,18 @@ def main(options: Options):
     log_short_class_correspondence(logger)
     destination = options.destination.joinpath(options.dataset_name)
     destination.mkdir(parents=True, exist_ok=True)
+
+    class_names = SHORT_CLASSES + ['Other']
     dataset = get_dataset(options.dataset_name)
     if hasattr(dataset, 'skip_image_loading'):
         dataset.skip_image_loading = True # type: ignore
 
-    label_indices = dataset.get_column_references().get_label_indices(CLASSES)
+    label_indices = dataset.get_column_references().get_label_indices(CLASSES + ['Other'])
     selected_dataset = dataset_wrappers.SelectCols(dataset, select_y=label_indices)
 
     crosser = MetricCrosser(
-        SHORT_CLASSES,
-        SHORT_CLASSES,
+        class_names,
+        class_names,
         {
             'correlation': PearsonCorrelationCoefficient,
             'balanced_accuracy': lambda: metric_wrappers.ToDtype(
@@ -89,7 +91,6 @@ def main(options: Options):
                 BinarySpecificity(), torch.int32, apply_to_pred=False),
         }
     )
-
     logger.info('On training set')
     cross_classes(
         crosser, make_loader(selected_dataset.for_training()), destination.joinpath('train'))
@@ -99,7 +100,7 @@ def main(options: Options):
 
     analyze_dataset(make_loader(selected_dataset.for_training()),
                     destination,
-                    'train', SHORT_CLASSES)
+                    'train', class_names)
     analyze_dataset(make_loader(selected_dataset.for_validation()),
                     destination,
-                    'val', SHORT_CLASSES)
+                    'val', class_names)
