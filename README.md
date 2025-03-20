@@ -29,15 +29,19 @@ therefore severely impacted code quality.
 I came to understand that I should have made use of more 
 packages for deep learning, such as Keras, which would have 
 provided more robust solutions to certain problems I approached.
-I did not rewrite the codebase due mostly to time constraints but
+
+
+While at some points I went back and corrected some design choices, 
+I did not rewrite the whole codebase. 
+This was mostly due mostly to time constraints but
 also to preserve functionality of earlier experiments.
 
 I provide this repository with the goal of facilitating the 
 reproduction of the results in my thesis. I cannot in good faith 
-recommend its direct use for future projects, although you are free to 
+recommend its direct use as it is for future projects, although you are free to 
 extract any parts that you find useful.
 
 The code is under-documented, and there are not as many unit tests as
-I would desire. There is however a significant amount of logging which
-I used to both debug the code during development and assert it had
+I would desire. There is however a significant amount of descriptive logging which
+I throuroughly examing during development to assert everything had
 the expected behaviour.
