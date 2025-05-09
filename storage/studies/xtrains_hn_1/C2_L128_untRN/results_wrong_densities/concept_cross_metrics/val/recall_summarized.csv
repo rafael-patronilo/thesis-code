@@ -1,0 +1,5 @@
+,Passenger,Freight,Empty,Long,Reinforced,LongPassenger,2Passenger,2Freight,3Wagons,2Long,TypeA,TypeB,TypeC
+max,0.8481481671333313,0.8677083253860474,0.8779675960540771,0.8418026566505432,0.7989826202392578,0.9934367537498474,0.9885931611061096,0.9992743730545044,0.8967608213424683,0.9095596671104431,0.9562600255012512,0.9789848923683167,0.9982563853263855
+max_encoding,N[5](LongPassenger),N[2](Empty),N[2](Empty),N[2](Empty),N[8](3Wagons),N[7](2Freight),N[7](2Freight),N[8](3Wagons),N[8](3Wagons),N[8](3Wagons),N[6](2Passenger),N[8](3Wagons),N[5](LongPassenger)
+min,0.00012626263196580112,0.0,0.005093038082122803,0.00047734766849316657,0.0005438955849967897,0.00023866348783485591,0.0,0.0,0.0,6.967670196900144e-05,0.00975386705249548,5.163422247278504e-05,0.0
+min_encoding,N[4](Reinforced),N[4](Reinforced),N[4](Reinforced),N[4](Reinforced),N[4](Reinforced),N[4](Reinforced),N[4](Reinforced),N[4](Reinforced),N[4](Reinforced),N[4](Reinforced),N[4](Reinforced),N[4](Reinforced),N[4](Reinforced)

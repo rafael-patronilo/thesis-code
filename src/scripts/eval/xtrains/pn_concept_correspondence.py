@@ -30,6 +30,8 @@ class Options:
     threshold : float = field(default=0.5,
         metadata=option(float, help_="Threshold to distinguish positive and negative"
                                      " classification for binary metrics"))
+    n_bins : int = field(default=100,
+        metadata=option(int, help_="Number of bins for the histograms"))
 
 
 
@@ -54,7 +56,8 @@ def main(options: Options):
                 options.normalize_first, SHORT_CLASSES,
                 expected_concepts=expected_concepts,
                 with_training=options.with_training_set,
-                binary_threshold=options.threshold
+                binary_threshold=options.threshold,
+                n_bins = options.n_bins
             )
 
             logger.info("Perception network evaluation done")

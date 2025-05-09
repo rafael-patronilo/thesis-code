@@ -14,10 +14,17 @@ The script will attempt to reserve all available graphics cards for the docker c
 This may lead to issue if you have multiple graphics cards and a few working on other tasks. 
 There is currently not an option to configure this but it should be easy to edit the script.
 
+To reproduce the experiments you will need to obtain the [XTRAINS dataset](https://bitbucket.org/xtrains/dataset/src/master/) and put it in `data/xtrains_dataset`
+
 # Repository structure
 
 Directory `src/core` contains tools are agnostic to the dataset used.
 Remaining code is mostly specific to the XTRAINS dataset. 
+
+Directory `storage` contains files relative to each experiment. More relevant:
+- the 4 `storage/studies/xtrains_autoencoders_*` directories contain models and results from the experiments with autoencoders
+- `storage/studies/xtrains_hn_1/C2_L128` contains the model and detailed results for the Hybrid Network C2_L128, whose results are summarized in the dissertation
+- `storage/studies/xtrains_hn_1/C2_L128_untRN` contains the model and detailed results for the baseline network with which C2_L128 was compared in the dissertation
 
 # Quality Disclaimer
 
@@ -40,8 +47,8 @@ This was mostly due mostly to time constraints but
 also to preserve functionality of earlier experiments.
 
 I provide this repository with the goal of facilitating the 
-reproduction of the results in my thesis. I cannot in good faith 
-recommend its direct use as it is for future projects, although you are free to 
+reproduction of the results in my dissertation. I cannot in good faith 
+recommend its direct use for future projects, although you are free to 
 extract any parts that you find useful.
 
 The code is under-documented, and there are not as many unit tests as

@@ -1,0 +1,304 @@
+{
+    "best_experiment": {
+        "name": "C2_L128_S100",
+        "results": {
+            "train": {
+                "epoch": 2,
+                "loss": 0.025892900303006172,
+                "balanced_accuracy": 0.990207314491272,
+                "balanced_accuracy_Other": 0.9945377111434937,
+                "balanced_accuracy_TypeA": 0.990207314491272,
+                "balanced_accuracy_TypeB": 0.9938098192214966,
+                "balanced_accuracy_TypeC": 0.9905881285667419,
+                "elapsed": 966.676885843277,
+                "mean_valid": 0.999374100755964
+            },
+            "val": {
+                "epoch": 2,
+                "balanced_accuracy": 0.9909254908561707,
+                "balanced_accuracy_AtLeast2FreightWagons": 0.753154993057251,
+                "balanced_accuracy_AtLeast2LongWagons": 0.7686727643013,
+                "balanced_accuracy_AtLeast2PassengerCars": 0.6911073923110962,
+                "balanced_accuracy_AtLeast3Wagons": 0.8810518980026245,
+                "balanced_accuracy_EmptyWagon": 0.7154517769813538,
+                "balanced_accuracy_FreightWagon": 0.6126723289489746,
+                "balanced_accuracy_LongPassengerCar": 0.7191445231437683,
+                "balanced_accuracy_LongWagon": 0.6061948537826538,
+                "balanced_accuracy_Other": 0.9962952136993408,
+                "balanced_accuracy_PassengerCar": 0.6768700480461121,
+                "balanced_accuracy_ReinforcedCar": 0.6569728255271912,
+                "balanced_accuracy_TypeA": 0.9926744699478149,
+                "balanced_accuracy_TypeB": 0.9952644109725952,
+                "balanced_accuracy_TypeC": 0.9909254908561707,
+                "elapsed": 208.88448786735535,
+                "mean_valid": 0.999451104482015
+            }
+        }
+    },
+    "experiments": {
+        "C2_L128_S5": {
+            "train": {
+                "epoch": 5,
+                "loss": 0.41414424777030945,
+                "balanced_accuracy": 0.5,
+                "balanced_accuracy_Other": 0.5,
+                "balanced_accuracy_TypeA": 0.5,
+                "balanced_accuracy_TypeB": 0.5,
+                "balanced_accuracy_TypeC": 0.5,
+                "elapsed": 952.7428648471832,
+                "mean_valid": 0.9999628067016602
+            },
+            "val": {
+                "epoch": 5,
+                "balanced_accuracy": 0.5,
+                "balanced_accuracy_AtLeast2FreightWagons": 0.5,
+                "balanced_accuracy_AtLeast2LongWagons": 0.5,
+                "balanced_accuracy_AtLeast2PassengerCars": 0.5,
+                "balanced_accuracy_AtLeast3Wagons": 0.5,
+                "balanced_accuracy_EmptyWagon": 0.5,
+                "balanced_accuracy_FreightWagon": 0.5,
+                "balanced_accuracy_LongPassengerCar": 0.5,
+                "balanced_accuracy_LongWagon": 0.5,
+                "balanced_accuracy_Other": 0.5,
+                "balanced_accuracy_PassengerCar": 0.5,
+                "balanced_accuracy_ReinforcedCar": 0.5,
+                "balanced_accuracy_TypeA": 0.5,
+                "balanced_accuracy_TypeB": 0.5,
+                "balanced_accuracy_TypeC": 0.5,
+                "elapsed": 200.943457365036,
+                "mean_valid": 0.9999628067016602
+            }
+        },
+        "C2_L128_S10": {
+            "train": {
+                "epoch": 1,
+                "loss": 0.0353069044649601,
+                "balanced_accuracy": 0.9843933582305908,
+                "balanced_accuracy_Other": 0.9917415380477905,
+                "balanced_accuracy_TypeA": 0.9843933582305908,
+                "balanced_accuracy_TypeB": 0.9900668263435364,
+                "balanced_accuracy_TypeC": 0.9862467050552368,
+                "elapsed": 952.9212753772736,
+                "mean_valid": 0.998839200188773
+            },
+            "val": {
+                "epoch": 1,
+                "balanced_accuracy": 0.9870322942733765,
+                "balanced_accuracy_AtLeast2FreightWagons": 0.8145794868469238,
+                "balanced_accuracy_AtLeast2LongWagons": 0.6610110998153687,
+                "balanced_accuracy_AtLeast2PassengerCars": 0.5,
+                "balanced_accuracy_AtLeast3Wagons": 0.8879170417785645,
+                "balanced_accuracy_EmptyWagon": 0.8818883895874023,
+                "balanced_accuracy_FreightWagon": 0.8076742887496948,
+                "balanced_accuracy_LongPassengerCar": 0.9029841423034668,
+                "balanced_accuracy_LongWagon": 0.5892868041992188,
+                "balanced_accuracy_Other": 0.9944322109222412,
+                "balanced_accuracy_PassengerCar": 0.7897883653640747,
+                "balanced_accuracy_ReinforcedCar": 0.6573706865310669,
+                "balanced_accuracy_TypeA": 0.9912774562835693,
+                "balanced_accuracy_TypeB": 0.9924684762954712,
+                "balanced_accuracy_TypeC": 0.9870322942733765,
+                "elapsed": 201.56992936134338,
+                "mean_valid": 0.9991273024495443
+            }
+        },
+        "C2_L128_S25": {
+            "train": {
+                "epoch": 2,
+                "loss": 0.09007351845502853,
+                "balanced_accuracy": 0.9740064144134521,
+                "balanced_accuracy_Other": 0.98747718334198,
+                "balanced_accuracy_TypeA": 0.9740064144134521,
+                "balanced_accuracy_TypeB": 0.9831798672676086,
+                "balanced_accuracy_TypeC": 0.9766587018966675,
+                "elapsed": 954.2625226974487,
+                "mean_valid": 0.9996591912514823
+            },
+            "val": {
+                "epoch": 2,
+                "balanced_accuracy": 0.9880673885345459,
+                "balanced_accuracy_AtLeast2FreightWagons": 0.7408800721168518,
+                "balanced_accuracy_AtLeast2LongWagons": 0.7551265954971313,
+                "balanced_accuracy_AtLeast2PassengerCars": 0.6715327501296997,
+                "balanced_accuracy_AtLeast3Wagons": 0.8882095813751221,
+                "balanced_accuracy_EmptyWagon": 0.7167052626609802,
+                "balanced_accuracy_FreightWagon": 0.5984325408935547,
+                "balanced_accuracy_LongPassengerCar": 0.5004622936248779,
+                "balanced_accuracy_LongWagon": 0.6145319938659668,
+                "balanced_accuracy_Other": 0.9937667846679688,
+                "balanced_accuracy_PassengerCar": 0.6850618124008179,
+                "balanced_accuracy_ReinforcedCar": 0.6565659046173096,
+                "balanced_accuracy_TypeA": 0.9890077114105225,
+                "balanced_accuracy_TypeB": 0.9918251037597656,
+                "balanced_accuracy_TypeC": 0.9880673885345459,
+                "elapsed": 201.54446291923523,
+                "mean_valid": 0.9997954246012369
+            }
+        },
+        "C2_L128_S50": {
+            "train": {
+                "epoch": 5,
+                "loss": 0.5510827898979187,
+                "balanced_accuracy": 0.5,
+                "balanced_accuracy_Other": 0.5,
+                "balanced_accuracy_TypeA": 0.5,
+                "balanced_accuracy_TypeB": 0.5,
+                "balanced_accuracy_TypeC": 0.5,
+                "elapsed": 950.3056564331055,
+                "mean_valid": 0.9997622370692661
+            },
+            "val": {
+                "epoch": 5,
+                "balanced_accuracy": 0.5,
+                "balanced_accuracy_AtLeast2FreightWagons": 0.5,
+                "balanced_accuracy_AtLeast2LongWagons": 0.5,
+                "balanced_accuracy_AtLeast2PassengerCars": 0.5,
+                "balanced_accuracy_AtLeast3Wagons": 0.5,
+                "balanced_accuracy_EmptyWagon": 0.5,
+                "balanced_accuracy_FreightWagon": 0.5,
+                "balanced_accuracy_LongPassengerCar": 0.5,
+                "balanced_accuracy_LongWagon": 0.5,
+                "balanced_accuracy_Other": 0.5,
+                "balanced_accuracy_PassengerCar": 0.5,
+                "balanced_accuracy_ReinforcedCar": 0.5,
+                "balanced_accuracy_TypeA": 0.5,
+                "balanced_accuracy_TypeB": 0.5,
+                "balanced_accuracy_TypeC": 0.5,
+                "elapsed": 201.4829113483429,
+                "mean_valid": 0.9997622370910645
+            }
+        },
+        "C2_L128_S75": {
+            "train": {
+                "epoch": 5,
+                "loss": 0.25972452759742737,
+                "balanced_accuracy": 0.5,
+                "balanced_accuracy_Other": 0.5,
+                "balanced_accuracy_TypeA": 0.5,
+                "balanced_accuracy_TypeB": 0.5,
+                "balanced_accuracy_TypeC": 0.5,
+                "elapsed": 958.4169459342957,
+                "mean_valid": 0.9991722106933594
+            },
+            "val": {
+                "epoch": 5,
+                "balanced_accuracy": 0.5,
+                "balanced_accuracy_AtLeast2FreightWagons": 0.5,
+                "balanced_accuracy_AtLeast2LongWagons": 0.5,
+                "balanced_accuracy_AtLeast2PassengerCars": 0.5,
+                "balanced_accuracy_AtLeast3Wagons": 0.5,
+                "balanced_accuracy_EmptyWagon": 0.5,
+                "balanced_accuracy_FreightWagon": 0.5,
+                "balanced_accuracy_LongPassengerCar": 0.5,
+                "balanced_accuracy_LongWagon": 0.5,
+                "balanced_accuracy_Other": 0.5,
+                "balanced_accuracy_PassengerCar": 0.5,
+                "balanced_accuracy_ReinforcedCar": 0.5,
+                "balanced_accuracy_TypeA": 0.5,
+                "balanced_accuracy_TypeB": 0.5,
+                "balanced_accuracy_TypeC": 0.5,
+                "elapsed": 201.04756617546082,
+                "mean_valid": 0.9991722106933594
+            }
+        },
+        "C2_L128_S100": {
+            "train": {
+                "epoch": 2,
+                "loss": 0.025892900303006172,
+                "balanced_accuracy": 0.990207314491272,
+                "balanced_accuracy_Other": 0.9945377111434937,
+                "balanced_accuracy_TypeA": 0.990207314491272,
+                "balanced_accuracy_TypeB": 0.9938098192214966,
+                "balanced_accuracy_TypeC": 0.9905881285667419,
+                "elapsed": 966.676885843277,
+                "mean_valid": 0.999374100755964
+            },
+            "val": {
+                "epoch": 2,
+                "balanced_accuracy": 0.9909254908561707,
+                "balanced_accuracy_AtLeast2FreightWagons": 0.753154993057251,
+                "balanced_accuracy_AtLeast2LongWagons": 0.7686727643013,
+                "balanced_accuracy_AtLeast2PassengerCars": 0.6911073923110962,
+                "balanced_accuracy_AtLeast3Wagons": 0.8810518980026245,
+                "balanced_accuracy_EmptyWagon": 0.7154517769813538,
+                "balanced_accuracy_FreightWagon": 0.6126723289489746,
+                "balanced_accuracy_LongPassengerCar": 0.7191445231437683,
+                "balanced_accuracy_LongWagon": 0.6061948537826538,
+                "balanced_accuracy_Other": 0.9962952136993408,
+                "balanced_accuracy_PassengerCar": 0.6768700480461121,
+                "balanced_accuracy_ReinforcedCar": 0.6569728255271912,
+                "balanced_accuracy_TypeA": 0.9926744699478149,
+                "balanced_accuracy_TypeB": 0.9952644109725952,
+                "balanced_accuracy_TypeC": 0.9909254908561707,
+                "elapsed": 208.88448786735535,
+                "mean_valid": 0.999451104482015
+            }
+        },
+        "C2_L128_S150": {
+            "train": {
+                "epoch": 5,
+                "loss": 0.4279797077178955,
+                "balanced_accuracy": 0.5,
+                "balanced_accuracy_Other": 0.5,
+                "balanced_accuracy_TypeA": 0.5,
+                "balanced_accuracy_TypeB": 0.5,
+                "balanced_accuracy_TypeC": 0.5,
+                "elapsed": 964.3831703662872,
+                "mean_valid": 0.999629139905657
+            },
+            "val": {
+                "epoch": 5,
+                "balanced_accuracy": 0.5,
+                "balanced_accuracy_AtLeast2FreightWagons": 0.5,
+                "balanced_accuracy_AtLeast2LongWagons": 0.5,
+                "balanced_accuracy_AtLeast2PassengerCars": 0.5,
+                "balanced_accuracy_AtLeast3Wagons": 0.5,
+                "balanced_accuracy_EmptyWagon": 0.5,
+                "balanced_accuracy_FreightWagon": 0.5,
+                "balanced_accuracy_LongPassengerCar": 0.5,
+                "balanced_accuracy_LongWagon": 0.5,
+                "balanced_accuracy_Other": 0.5,
+                "balanced_accuracy_PassengerCar": 0.5,
+                "balanced_accuracy_ReinforcedCar": 0.5,
+                "balanced_accuracy_TypeA": 0.5,
+                "balanced_accuracy_TypeB": 0.5,
+                "balanced_accuracy_TypeC": 0.5,
+                "elapsed": 202.5827579498291,
+                "mean_valid": 0.9996291399129231
+            }
+        },
+        "C2_L128_S200": {
+            "train": {
+                "epoch": 5,
+                "loss": 0.21950450539588928,
+                "balanced_accuracy": 0.5,
+                "balanced_accuracy_Other": 0.5,
+                "balanced_accuracy_TypeA": 0.5,
+                "balanced_accuracy_TypeB": 0.5,
+                "balanced_accuracy_TypeC": 0.5,
+                "elapsed": 976.9481456279755,
+                "mean_valid": 0.9996894597952707
+            },
+            "val": {
+                "epoch": 5,
+                "balanced_accuracy": 0.5,
+                "balanced_accuracy_AtLeast2FreightWagons": 0.5,
+                "balanced_accuracy_AtLeast2LongWagons": 0.5,
+                "balanced_accuracy_AtLeast2PassengerCars": 0.5,
+                "balanced_accuracy_AtLeast3Wagons": 0.5,
+                "balanced_accuracy_EmptyWagon": 0.5,
+                "balanced_accuracy_FreightWagon": 0.5,
+                "balanced_accuracy_LongPassengerCar": 0.5,
+                "balanced_accuracy_LongWagon": 0.5,
+                "balanced_accuracy_Other": 0.5,
+                "balanced_accuracy_PassengerCar": 0.5,
+                "balanced_accuracy_ReinforcedCar": 0.5,
+                "balanced_accuracy_TypeA": 0.5,
+                "balanced_accuracy_TypeB": 0.5,
+                "balanced_accuracy_TypeC": 0.5,
+                "elapsed": 203.92510890960693,
+                "mean_valid": 0.9996894597880046
+            }
+        }
+    }
+}

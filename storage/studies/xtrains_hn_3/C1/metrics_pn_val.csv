@@ -1,0 +1,10 @@
+epoch,balanced_accuracy_AtLeast2FreightWagons,balanced_accuracy_AtLeast2LongWagons,balanced_accuracy_AtLeast2PassengerCars,balanced_accuracy_AtLeast3Wagons,balanced_accuracy_EmptyWagon,balanced_accuracy_FreightWagon,balanced_accuracy_LongPassengerCar,balanced_accuracy_LongWagon,balanced_accuracy_PassengerCar,balanced_accuracy_ReinforcedCar,correlation_AtLeast2FreightWagons,correlation_AtLeast2LongWagons,correlation_AtLeast2PassengerCars,correlation_AtLeast3Wagons,correlation_EmptyWagon,correlation_FreightWagon,correlation_LongPassengerCar,correlation_LongWagon,correlation_PassengerCar,correlation_ReinforcedCar
+0,0.5,0.5,0.5,0.5780527591705322,0.4998775124549866,0.5144498944282532,0.5,0.4998220205307007,0.44135916233062744,0.5,nan,nan,nan,0.8118528723716736,0.08162058889865875,0.05599558353424072,nan,-0.42219269275665283,-0.13216033577919006,nan
+1,0.5,0.5,0.5,0.5931230783462524,0.496103435754776,0.5038720369338989,0.5,0.49448925256729126,0.4137601852416992,0.5,nan,nan,nan,0.755803108215332,-0.03865130618214607,-0.0381724052131176,nan,-0.46769070625305176,-0.22750157117843628,nan
+
+2,0.5,0.5,0.5,0.6266967058181763,0.48661792278289795,0.48453617095947266,0.5,0.489270955324173,0.41382816433906555,0.5,-0.006613236386328936,nan,nan,0.7446492910385132,-0.07544369995594025,-0.08466315269470215,nan,-0.4777670204639435,-0.2237415313720703,nan
+
+3,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+4,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+
