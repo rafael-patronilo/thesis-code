@@ -71,10 +71,11 @@ def evaluate_concept_correspondence_on_set(
         min_values : torch.Tensor,
         neuron_labels : list[str],
         class_labels : list[str],
+        n_bins : int,
         results_path : Path
         ):
     not_normalized = (max_values > 1.0).any() or (min_values < 0.0).any()
-    histogram = CrossBinaryHistogram(neuron_labels, class_labels, min_values, max_values)
+    histogram = CrossBinaryHistogram(neuron_labels, class_labels, min_values, max_values, bins=n_bins)
     pred_histogram = torch.zeros(len(neuron_labels), 2)
     total_preds = 0
 
@@ -154,7 +155,8 @@ def evaluate_concept_correspondence(
         with_training: bool = True,
         with_validation : bool = True,
         with_test : bool = False,
-        binary_threshold : float = 0.5
+        binary_threshold : float = 0.5,
+        n_bins : int = 100
     ):
     training_loader = trainer.make_loader(dataset.for_training())
 
@@ -223,6 +225,7 @@ def evaluate_concept_correspondence(
             min_values,
             neuron_labels,
             class_labels,
+            n_bins,
             results_path
         )
     if with_validation:
@@ -237,6 +240,7 @@ def evaluate_concept_correspondence(
             min_values,
             neuron_labels,
             class_labels,
+            n_bins,
             results_path
         )
     if with_test:
@@ -255,5 +259,6 @@ def evaluate_concept_correspondence(
                 min_values,
                 neuron_labels,
                 class_labels,
+                n_bins,
                 results_path
             )

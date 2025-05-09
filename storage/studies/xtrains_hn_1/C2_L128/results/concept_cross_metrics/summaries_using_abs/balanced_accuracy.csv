@@ -1,0 +1,12 @@
+,Expected,Expected,Expected,Expected,Best,Best,Best,Best
+,Concept,Rank,Training Accuracy,Validation Accuracy,Concept,Training Accuracy,Validation Accuracy,Rank
+N[0](Passenger),Passenger,2,10,10,Empty,12,12,0.0
+N[1](Freight),Freight,8,4,4,TypeB,12,12,0.0
+N[2](Empty),Empty,1,11,11,TypeC,12,12,0.0
+N[3](Long),Long,2,10,10,TypeC,12,12,0.0
+N[4](Reinforced),Reinforced,4,8,8,TypeA,12,12,0.0
+N[5](LongPassenger),LongPassenger,6,6,6,TypeB,12,12,0.0
+N[6](2Passenger),2Passenger,0,12,12,2Passenger,12,12,0.0
+N[7](2Freight),2Freight,4,8,8,TypeB,12,12,0.0
+N[8](3Wagons),3Wagons,1,11,11,TypeB,12,12,0.0
+N[9](2Long),2Long,0,12,12,2Long,12,12,0.0

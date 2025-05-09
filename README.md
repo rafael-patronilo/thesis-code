@@ -11,10 +11,17 @@ handle the removal of dangling images/containers.
 
 The docker-run script mounts the appropriate directories.
 
+To reproduce the experiments you will need to obtain the [XTRAINS dataset](https://bitbucket.org/xtrains/dataset/src/master/) and put it in `data/xtrains_dataset`
+
 # Repository structure
 
 Directory `src/core` contains tools are agnostic to the dataset used.
 Remaining code is mostly specific to the XTRAINS dataset. 
+
+Directory `storage` contains files relative to each experiment. More relevant:
+- the 4 `storage/studies/xtrains_autoencoders_*` directories contain models and results from the experiments with autoencoders
+- `storage/studies/xtrains_hn_1/C2_L128` contains the model and detailed results for the Hybrid Network C2_L128, whose results are summarized in the dissertation
+- `storage/studies/xtrains_hn_1/C2_L128_untRN` contains the model and detailed results for the baseline network with which C2_L128 was compared in the dissertation
 
 # Quality Disclaimer
 
@@ -33,7 +40,7 @@ I did not rewrite the codebase due mostly to time constraints but
 also to preserve functionality of earlier experiments.
 
 I provide this repository with the goal of facilitating the 
-reproduction of the results in my thesis. I cannot in good faith 
+reproduction of the results in my dissertation. I cannot in good faith 
 recommend its direct use for future projects, although you are free to 
 extract any parts that you find useful.
 

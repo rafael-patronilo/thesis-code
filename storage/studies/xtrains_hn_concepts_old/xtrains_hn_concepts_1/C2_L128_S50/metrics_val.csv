@@ -1,0 +1,8 @@
+epoch,balanced_accuracy,balanced_accuracy_AtLeast2FreightWagons,balanced_accuracy_AtLeast2LongWagons,balanced_accuracy_AtLeast2PassengerCars,balanced_accuracy_AtLeast3Wagons,balanced_accuracy_EmptyWagon,balanced_accuracy_FreightWagon,balanced_accuracy_LongPassengerCar,balanced_accuracy_LongWagon,balanced_accuracy_Other,balanced_accuracy_PassengerCar,balanced_accuracy_ReinforcedCar,balanced_accuracy_TypeA,balanced_accuracy_TypeB,balanced_accuracy_TypeC,elapsed,mean_valid
+0,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,203.5104160308838,0.0
+1,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,206.29859447479248,0.0
+2,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,203.76724576950073,0.0
+3,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,203.88067364692688,0.0
+4,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,204.149001121521,0.0
+5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,206.64125418663025,0.0
+

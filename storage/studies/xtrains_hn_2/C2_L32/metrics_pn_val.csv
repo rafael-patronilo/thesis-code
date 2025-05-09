@@ -1,0 +1,8 @@
+epoch,balanced_accuracy_AtLeast2FreightWagons,balanced_accuracy_AtLeast2LongWagons,balanced_accuracy_AtLeast2PassengerCars,balanced_accuracy_AtLeast3Wagons,balanced_accuracy_EmptyWagon,balanced_accuracy_FreightWagon,balanced_accuracy_LongPassengerCar,balanced_accuracy_LongWagon,balanced_accuracy_PassengerCar,balanced_accuracy_ReinforcedCar,correlation_AtLeast2FreightWagons,correlation_AtLeast2LongWagons,correlation_AtLeast2PassengerCars,correlation_AtLeast3Wagons,correlation_EmptyWagon,correlation_FreightWagon,correlation_LongPassengerCar,correlation_LongWagon,correlation_PassengerCar,correlation_ReinforcedCar
+0,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,nan,nan,nan,-0.0027161757461726665,inf,nan,nan,nan,nan,inf
+1,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,nan,nan,nan,-0.0027161757461726665,inf,nan,nan,nan,nan,inf
+2,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,nan,nan,nan,-0.0027161757461726665,inf,nan,nan,nan,nan,inf
+3,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,nan,nan,nan,-0.0027161757461726665,inf,nan,nan,nan,nan,inf
+4,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,nan,nan,nan,-0.0027161757461726665,inf,nan,nan,nan,nan,inf
+5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,nan,nan,nan,-0.0027161757461726665,inf,nan,nan,nan,nan,inf
+

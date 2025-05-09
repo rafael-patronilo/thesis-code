@@ -1,0 +1,18 @@
+\begin{tabular}{llllllll}
+\toprule
+ & \multicolumn{3}{r}{Best} & \multicolumn{4}{r}{Best Without Repeat} \\
+ & Concept & Training & Validation & Concept & Rank & Training & Validation \\
+\midrule
+N[0](Passenger) & $\neg \EmptyWagon$ & 0.8704 & 0.8738 & $\neg \EmptyWagon$ & 1 & 0.8704 & 0.8738 \\
+N[1](Freight) & $\neg \FreightWagon$ & 0.7331 & 0.7316 & $\neg \AtLeastThreeWagons$ & 3 & 0.6022 & 0.6026 \\
+N[2](Empty) & $\neg \PassengerCar$ & 0.7177 & 0.7155 & $\neg \PassengerCar$ & 1 & 0.7177 & 0.7155 \\
+N[3](Long) & $\neg \FreightWagon$ & 0.7165 & 0.7140 & $\neg \AtLeastTwoPassengerCars$ & 8 & 0.5256 & 0.5259 \\
+N[4](Reinforced) & $\neg \FreightWagon$ & 0.5101 & 0.5102 & $\neg \ReinforcedCar$ & 7 & 0.5011 & 0.5010 \\
+N[5](LongPassenger) & $\neg \LongWagon$ & 0.7085 & 0.7045 & $\neg \LongWagon$ & 1 & 0.7085 & 0.7045 \\
+N[6](2Passenger) & $\neg \AtLeastTwoLongWagons$ & 0.7492 & 0.7505 & $\neg \AtLeastTwoLongWagons$ & 1 & 0.7492 & 0.7505 \\
+N[7](2Freight) & $\LongPassengerCar$ & 0.9701 & 0.9695 & $\LongPassengerCar$ & 1 & 0.9701 & 0.9695 \\
+N[8](3Wagons) & $\AtLeastTwoFreightWagons$ & 0.8036 & 0.8034 & $\AtLeastTwoFreightWagons$ & 1 & 0.8036 & 0.8034 \\
+N[9](2Long) & $\neg \FreightWagon$ & 0.7931 & 0.7974 & $\neg \FreightWagon$ & 1 & 0.7931 & 0.7974 \\
+Mean &  & 0.7572 & 0.7570 &  &  & 0.7241 & 0.7244 \\
+\bottomrule
+\end{tabular}
